@@ -10,6 +10,7 @@ import {
   Role,
   Stats,
   Team,
+  Velocity,
 } from "../traits";
 import { refState, refereeOffside } from "./referee";
 
@@ -31,10 +32,13 @@ export function possessionSystem(world: World, dt: number): void {
   const v = rb.linvel();
   const ballSpeed = Math.hypot(v.x, v.y, v.z);
 
-  // owner loses the ball if it escapes (heavy touch, deflection, tackle)
+  // owner keeps possession across knock-ons: at sprint the ball legitimately
+  // rolls several meters ahead, so the control radius scales with their speed
   if (bs.owner) {
     const op = bs.owner.get(Position);
-    if (!op || Math.hypot(op.x - bp.x, op.z - bp.z) > 1.9) bs.owner = null;
+    const ov = bs.owner.get(Velocity);
+    const reach = op && ov ? 2.0 + Math.hypot(ov.x, ov.z) * 0.9 : 0;
+    if (!op || Math.hypot(op.x - bp.x, op.z - bp.z) > reach) bs.owner = null;
   }
 
   if (bp.y > 1.3) return; // ball above playable height
