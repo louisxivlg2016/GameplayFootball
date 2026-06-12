@@ -6,8 +6,34 @@
  */
 import * as THREE from "three";
 import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
-import modelData from "../assets/players/model.json";
-import animData from "../assets/players/anims.json";
+import modelJson from "../assets/players/model.json";
+import animsJson from "../assets/players/anims.json";
+
+interface ModelData {
+  skeleton: Array<{ name: string; parent: number; pos: [number, number, number] }>;
+  rest: Record<string, number[]>;
+  mesh: {
+    positions: number[];
+    uvs: number[];
+    skinIndices: number[];
+    skinWeights: number[];
+    groups: Array<{ start: number; count: number; material: string }>;
+  };
+  hair: Record<string, { positions: number[]; uvs: number[] }>;
+}
+
+interface AnimsData {
+  clips: Array<{
+    name: string;
+    duration: number;
+    velocity: number;
+    tracks: Record<string, { times: number[]; quats: number[] }>;
+    rootZ: { times: number[]; values: number[] };
+  }>;
+}
+
+const modelData = modelJson as unknown as ModelData;
+const animData = animsJson as unknown as AnimsData;
 import goalieKitUrl from "../assets/players/goalie_kit.png";
 import skin01Url from "../assets/players/skin01.png";
 import skin02Url from "../assets/players/skin02.png";

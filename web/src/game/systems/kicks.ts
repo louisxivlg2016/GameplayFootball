@@ -5,11 +5,19 @@ import {
   IsBall,
   IsPlayer,
   Match,
+  PlayerInfo,
   Position,
+  Role,
   Team,
   Velocity,
 } from "../traits";
-import { PITCH, attackSign } from "../levels";
+import { PITCH, SPEEDS, attackSign } from "../levels";
+
+/** AI_GetMindSet by role: defenders 0, mids 0.5, attackers 1 (AIfunctions.cpp). */
+export const MINDSET = [0, 0, 0.5, 1] as const;
+
+const clamp = (v: number, lo: number, hi: number): number =>
+  Math.min(hi, Math.max(lo, v));
 
 export function releaseBall(
   world: World,
@@ -30,16 +38,203 @@ export function releaseBall(
   });
 }
 
+/**
+ * Interception odds along a pass line, from elizacontroller.cpp:1037-1077:
+ * for each opponent projected onto the line at parameter u, the ball arrives at
+ * 0.7 + dist·u·0.03 s (high passes +2.5s past halfway); danger accumulates when
+ * the opponent can beat it. odds = 1 - clamp(danger).
+ */
+export function passingOdds(
+  world: World,
+  fromX: number,
+  fromZ: number,
+  toX: number,
+  toZ: number,
+  teamId: number,
+  high: boolean,
+): number {
+  const dx = toX - fromX;
+  const dz = toZ - fromZ;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.5) return 0;
+  const ux = dx / dist;
+  const uz = dz / dist;
+  let danger = high ? 0.4 : 0;
+  for (const opp of world.query(IsPlayer)) {
+    if (opp.get(Team)!.id === teamId) continue;
+    const p = opp.get(Position)!;
+    const u = clamp(((p.x - fromX) * ux + (p.z - fromZ) * uz) / dist, 0, 1);
+    const ix = fromX + ux * u * dist;
+    const iz = fromZ + uz * u * dist;
+    const ballT = 0.7 + dist * u * 0.03 + (high && u > 0.5 ? 2.5 : 0);
+    const oppT = Math.hypot(p.x - ix, p.z - iz) / SPEEDS.sprint;
+    danger += Math.max(0, Math.min(ballT - oppT + 0.5, 1.5)) * (u > 0.03 ? 1 : 0);
+  }
+  return 1 - clamp(danger, 0, 1);
+}
+
+/**
+ * Tactical self/mate rating, elizacontroller.cpp:846-920:
+ * (0.4·forwardSpace + 0.3·space + 2·forward) / 2.7
+ */
+export function tacticalRating(
+  world: World,
+  x: number,
+  z: number,
+  teamId: number,
+): number {
+  const goalX = attackSign(teamId) * PITCH.halfLength;
+  const forwardSpace = 1 - clamp(Math.hypot(goalX - x, z) / 80, 0, 1);
+  let nearestOpp = 30;
+  for (const opp of world.query(IsPlayer)) {
+    if (opp.get(Team)!.id === teamId) continue;
+    const p = opp.get(Position)!;
+    nearestOpp = Math.min(nearestOpp, Math.hypot(p.x - x, p.z - z));
+  }
+  const space = clamp(nearestOpp / 10, 0, 1);
+  const forward = (x * attackSign(teamId) + PITCH.halfLength) / (PITCH.halfLength * 2);
+  return (0.4 * forwardSpace + 0.3 * space + 2 * forward) / 2.7;
+}
+
+export interface PassChoice {
+  mate: Entity;
+  /** lead target — through-ball point the mate is running onto */
+  tx: number;
+  tz: number;
+  high: boolean;
+  odds: number;
+  total: number;
+}
+
+/**
+ * Two-stage pass selection (elizacontroller.cpp:809-977): candidates must beat
+ * the kicker's own tactical rating by a role threshold; score combines the
+ * tactical gain (weighted by role mindset) with interception odds; targets are
+ * led by their movement (through balls).
+ */
+export function evaluateBestPass(
+  world: World,
+  kicker: Entity,
+  dirX = 0,
+  dirZ = 0,
+  possessionSeconds = 0,
+): PassChoice | null {
+  const teamId = kicker.get(Team)!.id;
+  const kp = kicker.get(Position)!;
+  const mindset = MINDSET[kicker.get(PlayerInfo)!.role]!;
+  const selfRating = tacticalRating(world, kp.x, kp.z, teamId);
+  const threshold = 0.06 * (1 - mindset);
+  const w = 1 + mindset * mindset * 10;
+  const longPossession = Math.pow(clamp(possessionSeconds / 5, 0, 1), 2);
+  const hasDir = dirX !== 0 || dirZ !== 0;
+
+  let best: PassChoice | null = null;
+  for (const mate of world.query(IsPlayer)) {
+    if (mate === kicker || mate.get(Team)!.id !== teamId) continue;
+    const mp = mate.get(Position)!;
+    const mv = mate.get(Velocity)!;
+    const d = Math.hypot(mp.x - kp.x, mp.z - kp.z);
+    if (d < 3 || d > 55) continue;
+    // through-ball lead, elizacontroller: estimatedTime = 0.7 + dist·0.03, max 0.5s of movement
+    const lead = clamp(0.7 + d * 0.03, 0, 1.2);
+    const tx = mp.x + mv.x * Math.min(lead, 0.5) * 2;
+    const tz = mp.z + mv.z * Math.min(lead, 0.5) * 2;
+
+    const mateRating = tacticalRating(world, tx, tz, teamId);
+    if (mateRating < selfRating + threshold) continue;
+
+    const oddsShort = d < 38 ? passingOdds(world, kp.x, kp.z, tx, tz, teamId, false) : 0;
+    const oddsHigh = d > 14 ? passingOdds(world, kp.x, kp.z, tx, tz, teamId, true) : 0;
+    const high = oddsHigh > oddsShort;
+    const odds = Math.max(oddsShort, oddsHigh);
+
+    const align = hasDir ? ((tx - kp.x) * dirX + (tz - kp.z) * dirZ) / (d || 1) : 0;
+    const total =
+      ((mateRating - selfRating) * w + odds) / (w + 1) + (hasDir ? align * 0.4 : 0);
+    if (!best || total > best.total) {
+      best = { mate, tx, tz, high, odds, total };
+    }
+  }
+  if (!best) return null;
+  // execution thresholds soften the longer possession drags on
+  const passThreshold = 0.1 - longPossession * 0.05;
+  const passMinimum = 0.2 * (1 - mindset) - longPossession * 0.1;
+  if (!hasDir && (best.total < passThreshold || best.odds < passMinimum)) return null;
+  return best;
+}
+
+export function executePass(world: World, kicker: Entity, choice: PassChoice): void {
+  const ball = world.queryFirst(IsBall);
+  const rb = ball?.get(BallRef)!.value;
+  if (!ball || !rb) return;
+  const bp = rb.translation();
+  const dx = choice.tx - bp.x;
+  const dz = choice.tz - bp.z;
+  const d = Math.hypot(dx, dz) || 1;
+  const speed = choice.high
+    ? Math.min(21, Math.max(9, d * 1.15))
+    : Math.min(23, Math.max(10, d * 1.5));
+  const lift = choice.high ? Math.min(8.5, Math.max(4, d * 0.3)) : 0.4;
+  releaseBall(world, kicker, { x: (dx / d) * speed, y: lift, z: (dz / d) * speed });
+}
+
+/** Directional pass for the human player: alignment-biased candidate, always kicks. */
+export function pass(
+  world: World,
+  kicker: Entity,
+  dirX: number,
+  dirZ: number,
+  lofted: boolean,
+): void {
+  const choice = evaluateBestPass(world, kicker, dirX, dirZ);
+  if (choice) {
+    executePass(world, kicker, { ...choice, high: lofted });
+    return;
+  }
+  const ball = world.queryFirst(IsBall);
+  const rb = ball?.get(BallRef)!.value;
+  if (!ball || !rb) return;
+  const bp = rb.translation();
+  const speed = lofted ? 16 : 15;
+  releaseBall(world, kicker, {
+    x: dirX * speed,
+    y: lofted ? 6 : 0.4,
+    z: dirZ * speed,
+  });
+}
+
+/**
+ * Shot, elizacontroller.cpp:945-972: try three goal-mouth aim points, shoot at
+ * the best; direction blends goal-centering with the input/momentum side factor.
+ */
+export function shotOdds(
+  world: World,
+  kicker: Entity,
+): { aimZ: number; odds: number; idealFactor: number } {
+  const teamId = kicker.get(Team)!.id;
+  const kp = kicker.get(Position)!;
+  const goalX = attackSign(teamId) * PITCH.halfLength;
+  const distGoal = Math.hypot(goalX - kp.x, kp.z);
+  const idealFactor = 1 - clamp(Math.abs(distGoal - 7) / 16, 0, 1);
+  let bestOdds = 0;
+  let bestAim = 0;
+  for (const aimZ of [-3.3, 0, 3.3]) {
+    const odds = passingOdds(world, kp.x, kp.z, goalX, aimZ, teamId, false);
+    if (odds > bestOdds) {
+      bestOdds = odds;
+      bestAim = aimZ;
+    }
+  }
+  return { aimZ: bestAim, odds: bestOdds, idealFactor };
+}
+
 export function shoot(world: World, kicker: Entity, aimZ: number): void {
   const ball = world.queryFirst(IsBall);
   const rb = ball?.get(BallRef)!.value;
   if (!ball || !rb) return;
   const bp = rb.translation();
   const goalX = attackSign(kicker.get(Team)!.id) * PITCH.halfLength;
-  const tz = Math.max(
-    -PITCH.goalHalfWidth + 0.4,
-    Math.min(PITCH.goalHalfWidth - 0.4, aimZ),
-  );
+  const tz = clamp(aimZ, -PITCH.goalHalfWidth + 0.4, PITCH.goalHalfWidth - 0.4);
   const dx = goalX - bp.x;
   const dz = tz - bp.z;
   const dist = Math.hypot(dx, dz);
@@ -53,79 +248,18 @@ export function shoot(world: World, kicker: Entity, aimZ: number): void {
   });
 }
 
-/** Most aligned teammate in the kick direction, lightly penalized by distance. */
-export function bestPassTarget(
-  world: World,
-  kicker: Entity,
-  dirX: number,
-  dirZ: number,
-): Entity | null {
+/** Panic clear for low-mindset players near goal (elizacontroller.cpp:924-939). */
+export function panicClear(world: World, kicker: Entity): void {
   const teamId = kicker.get(Team)!.id;
   const kp = kicker.get(Position)!;
-  let best: Entity | null = null;
-  let bestScore = -Infinity;
-  let nearest: Entity | null = null;
-  let nearestD = Infinity;
-  for (const e of world.query(IsPlayer)) {
-    if (e === kicker || e.get(Team)!.id !== teamId) continue;
-    const p = e.get(Position)!;
-    const dx = p.x - kp.x;
-    const dz = p.z - kp.z;
-    const d = Math.hypot(dx, dz);
-    if (d < 2) continue;
-    if (d < nearestD) {
-      nearestD = d;
-      nearest = e;
-    }
-    if (d > 45) continue;
-    const align = (dx * dirX + dz * dirZ) / d;
-    const score = align * 2 - d * 0.025;
-    if (align > 0.05 && score > bestScore) {
-      bestScore = score;
-      best = e;
-    }
-  }
-  return best ?? nearest;
-}
-
-export function pass(
-  world: World,
-  kicker: Entity,
-  dirX: number,
-  dirZ: number,
-  lofted: boolean,
-): void {
-  const ball = world.queryFirst(IsBall);
-  const rb = ball?.get(BallRef)!.value;
-  if (!ball || !rb) return;
-  const bp = rb.translation();
-
-  const target = bestPassTarget(world, kicker, dirX, dirZ);
-  let tx: number;
-  let tz: number;
-  let dist: number;
-  if (target) {
-    const p = target.get(Position)!;
-    const v = target.get(Velocity)!;
-    dist = Math.hypot(p.x - bp.x, p.z - bp.z);
-    const flight = dist / 16;
-    tx = p.x + v.x * flight * 0.7; // lead the runner
-    tz = p.z + v.z * flight * 0.7;
-  } else {
-    tx = bp.x + dirX * 12;
-    tz = bp.z + dirZ * 12;
-    dist = 12;
-  }
-  const dx = tx - bp.x;
-  const dz = tz - bp.z;
-  const d = Math.hypot(dx, dz) || 1;
-  const speed = lofted
-    ? Math.min(21, Math.max(9, dist * 1.15))
-    : Math.min(23, Math.max(10, dist * 1.5));
-  const lift = lofted ? Math.min(8.5, Math.max(4, dist * 0.3)) : 0.4;
+  const s = attackSign(teamId);
+  const dirZ = kp.z >= 0 ? 0.5 : -0.5;
+  const len = Math.hypot(s, dirZ);
   releaseBall(world, kicker, {
-    x: (dx / d) * speed,
-    y: lift,
-    z: (dz / d) * speed,
+    x: (s / len) * 17,
+    y: 7,
+    z: (dirZ / len) * 17 + (Math.random() - 0.5) * 4,
   });
 }
+
+export { Role };
