@@ -271,7 +271,7 @@ export function shoot(world: World, kicker: Entity, aimZ: number): void {
     y: lift,
     z: (dz / dist) * speed,
   });
-  if (dist < 35) radio("shot");
+  if (dist < 32) radio("shot", { player: kicker.get(Name)?.short ?? "" });
 }
 
 /** Panic clear for low-mindset players near goal (elizacontroller.cpp:924-939). */

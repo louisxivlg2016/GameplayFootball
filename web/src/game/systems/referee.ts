@@ -526,6 +526,11 @@ export function refereeSystem(world: World, dt: number): void {
       return;
     }
     if (Math.abs(bp.x) > PITCH.halfLength + 0.4) {
+      // a fast ball out just beside or above the frame: everyone thought goal
+      const bvOut = b.rb.linvel();
+      if (Math.hypot(bvOut.x, bvOut.y, bvOut.z) > 11 && Math.abs(bp.z) < 9) {
+        radio("miss");
+      }
       const defending = attackSign(0) * side > 0 ? 1 : 0;
       const lastTouch = match.get(Match)!.lastTouchTeam;
       if (lastTouch === defending) {

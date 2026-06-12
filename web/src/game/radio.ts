@@ -22,7 +22,13 @@ let pendingText: string | null = null;
 // commentary chains without dead air
 let queuedFlow: { blob: Blob; at: number } | null = null;
 
-function playBlob(wav: Blob, gen: number): void {
+/** Excitement: louder + faster with pitch riding up = the commentator shouts. */
+interface VoiceFx {
+  rate?: number;
+  volume?: number;
+}
+
+function playBlob(wav: Blob, gen: number, fx?: VoiceFx): void {
   if (gen !== playerGen || !enabled) {
     playerBusy = false;
     return;
@@ -30,6 +36,11 @@ function playBlob(wav: Blob, gen: number): void {
   const url = URL.createObjectURL(wav);
   playerAudio?.pause();
   const audio = new Audio(url);
+  audio.volume = fx?.volume ?? 0.82;
+  if (fx?.rate && fx.rate !== 1) {
+    audio.playbackRate = fx.rate;
+    (audio as HTMLAudioElement & { preservesPitch?: boolean }).preservesPitch = false;
+  }
   playerAudio = audio;
   const done = (): void => {
     if (playerAudio === audio) playerBusy = false;
@@ -154,7 +165,7 @@ function piperPredict(text: string): Promise<Blob | null> {
   });
 }
 
-async function sayPiper(text: string, priority: number): Promise<void> {
+async function sayPiper(text: string, priority: number, fx?: VoiceFx): Promise<void> {
   const gen = takeMic(priority);
   if (gen === null) return;
   const wav = await piperPredict(text);
@@ -162,7 +173,7 @@ async function sayPiper(text: string, priority: number): Promise<void> {
     playerBusy = false;
     return;
   }
-  playBlob(wav, gen);
+  playBlob(wav, gen, fx);
 }
 
 export function radioEnabled(): boolean {
@@ -207,11 +218,11 @@ export function toggleRadio(): boolean {
   return enabled;
 }
 
-function say(text: string, priority = 1): void {
+function say(text: string, priority = 1, fx?: VoiceFx): void {
   if (!enabled) return;
 
   if (piperState === "ready") {
-    void sayPiper(text, priority);
+    void sayPiper(text, priority, fx);
     return;
   }
   // still loading: hold the latest urgent line for the good voice
@@ -220,6 +231,11 @@ function say(text: string, priority = 1): void {
   }
   // failed: stay silent — never a robotic fallback
 }
+
+/** The commentator on his feet: loud, fast, pitch up. */
+const SHOUT: VoiceFx = { rate: 1.16, volume: 1 };
+/** Rising excitement, not quite full scream. */
+const EXCITED: VoiceFx = { rate: 1.09, volume: 0.95 };
 
 const pick = (lines: string[]): string =>
   lines[Math.floor(Math.random() * lines.length)]!;
@@ -240,6 +256,7 @@ export type RadioEvent =
   | "throwin"
   | "pass"
   | "shot"
+  | "miss"
   | "save"
   | "halftime"
   | "extratime"
@@ -274,15 +291,16 @@ export function radio(
       say(
         (player
           ? pick([
-              `Buuuut ! Quel but de ${player} pour ${team} !`,
-              `Au fond des filets ! ${player} fait trembler le stade !`,
-              `C'est dedans ! Magnifique réalisation de ${player} !`,
+              `BUUUUUUUT ! QUEL BUT DE ${player} POUR ${team} !`,
+              `AU FOND DES FILETS ! ${player} ! LE STADE EXPLOSE !`,
+              `C'EST DEDANS ! ÉNORME, ${player} ! INCROYABLE !`,
             ])
           : pick([
-              `Buuuut ! Quel but pour ${team} !`,
-              `Au fond des filets ! ${team} font trembler le stade !`,
+              `BUUUUUUUT ! QUEL BUT POUR ${team} !`,
+              `AU FOND DES FILETS ! ${team} FONT TREMBLER LE STADE !`,
             ])) + (score ? ` ${score[0]} à ${score[1]} !` : ""),
         2,
+        SHOUT,
       );
       break;
     case "foul":
@@ -333,11 +351,36 @@ export function radio(
         );
       break;
     case "shot":
-      if (Math.random() < 0.5)
-        say(pick(["La frappe !", "Il tente sa chance !", "Ça part au but !"]));
+      // the rising moment: interrupt the chatter, voice climbs
+      say(
+        player
+          ? pick([`LA FRAPPE DE ${player} !`, `${player} ARME... ÇA PART !`, `ATTENTION, ${player} TENTE SA CHANCE !`])
+          : pick(["LA FRAPPE !", "ÇA PART AU BUT !"]),
+        2,
+        EXCITED,
+      );
+      break;
+    case "miss":
+      say(
+        pick([
+          "OH ! À CÔTÉ ! IL S'EN FAUT DE RIEN !",
+          "AU-DESSUS ! ON A CRU AU BUT !",
+          "OH LÀ LÀ, ÇA PASSE TOUT PRÈS DU POTEAU !",
+        ]),
+        2,
+        SHOUT,
+      );
       break;
     case "save":
-      say(pick(["Quel arrêt du gardien !", "Le portier dit non !", "Parade superbe !"]), 2);
+      say(
+        pick([
+          "QUEL ARRÊT DU GARDIEN ! INCROYABLE !",
+          "LE PORTIER DIT NON ! QUELLE PARADE !",
+          "ARRÊT ÉNORME ! ON A CRU AU BUT !",
+        ]),
+        2,
+        SHOUT,
+      );
       break;
     case "halftime":
       say(
@@ -358,10 +401,14 @@ export function radio(
       say("Tout va se jouer aux tirs au but, accrochez-vous !", 2);
       break;
     case "penGoal":
-      say(pick(["Transformé !", "Le tir au but est au fond !"]), 2);
+      say(pick(["TRANSFORMÉ ! C'EST AU FOND !", "LE TIR AU BUT EST AU FOND ! QUELLE PRESSION !"]), 2, SHOUT);
       break;
     case "penMiss":
-      say(pick(["Raté ! Il passe à côté !", "Arrêté ! Le gardien s'envole !"]), 2);
+      say(
+        pick(["RATÉ ! IL PASSE À CÔTÉ !", "ARRÊTÉ ! LE GARDIEN S'ENVOLE !"]),
+        2,
+        SHOUT,
+      );
       break;
   }
 }
