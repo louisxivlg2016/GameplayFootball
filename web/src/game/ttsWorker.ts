@@ -18,7 +18,20 @@ interface SayMsg {
 const ctx = self as unknown as {
   onmessage: ((e: MessageEvent<InitMsg | SayMsg>) => void) | null;
   postMessage(message: unknown, transfer?: Transferable[]): void;
+  addEventListener(type: string, cb: (e: Event & { preventDefault?: () => void; message?: string }) => void): void;
 };
+
+// the TTS engine spawns internal sub-workers whose async failures would
+// otherwise bubble up as uncaught page errors — swallow them, a dropped
+// line is invisible while an error overlay is not
+ctx.addEventListener("error", (e) => {
+  e.preventDefault?.();
+  console.info("[tts-worker] swallowed:", e.message ?? "error");
+});
+ctx.addEventListener("unhandledrejection", (e) => {
+  e.preventDefault?.();
+  console.info("[tts-worker] swallowed rejection");
+});
 
 let session: TtsSession | null = null;
 

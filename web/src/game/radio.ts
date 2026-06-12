@@ -81,16 +81,18 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
     src.buffer = pcm;
     src.playbackRate.value = fx?.rate ?? 1; // pitch rides up with rate: the shout
     const gain = ctx.createGain();
-    gain.gain.value = (fx?.volume ?? 0.85) * 3; // LOUD — compressor catches peaks
+    gain.gain.value = (fx?.volume ?? 1) * 3.4; // LOUD — compressor catches peaks
     src.connect(gain);
     gain.connect(radioOut!);
     currentSource = src;
     src.onended = (): void => {
+      // onended also fires when an interrupt stop()s us — only a natural end
+      // frees the mic and chains the queued line, else we talk over the shout
       if (currentSource === src) {
         playerBusy = false;
         currentSource = null;
+        playQueuedFlow();
       }
-      playQueuedFlow();
     };
     src.start();
   } catch {
@@ -111,6 +113,7 @@ function playQueuedFlow(): void {
 function takeMic(priority: number): number | null {
   if (priority >= 2) {
     stopCurrent();
+    queuedFlow = null; // a shout supersedes any pre-baked chatter
   } else if (playerBusy) {
     return null;
   }
@@ -277,9 +280,9 @@ function say(text: string, priority = 1, fx?: VoiceFx): void {
 }
 
 /** The commentator on his feet: loud, fast, pitch up. */
-const SHOUT: VoiceFx = { rate: 1.16, volume: 1 };
+const SHOUT: VoiceFx = { rate: 1.16, volume: 1.25 };
 /** Rising excitement, not quite full scream. */
-const EXCITED: VoiceFx = { rate: 1.09, volume: 0.95 };
+const EXCITED: VoiceFx = { rate: 1.09, volume: 1.12 };
 
 const pick = (lines: string[]): string =>
   lines[Math.floor(Math.random() * lines.length)]!;

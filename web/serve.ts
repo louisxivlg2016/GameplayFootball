@@ -22,11 +22,25 @@ const workerBuild = await Bun.build({
 });
 const workerJs = await workerBuild.outputs[0]!.text();
 
+const MIME: Record<string, string> = {
+  wasm: "application/wasm",
+  data: "application/octet-stream",
+  mjs: "text/javascript",
+  js: "text/javascript",
+};
+
 async function serveFile(path: string): Promise<Response> {
   const f = Bun.file(path);
-  return (await f.exists())
-    ? new Response(f)
-    : new Response("not found", { status: 404 });
+  if (!(await f.exists())) return new Response("not found", { status: 404 });
+  const ext = path.split(".").pop() ?? "";
+  return new Response(f, {
+    headers: {
+      "content-type": MIME[ext] ?? "application/octet-stream",
+      // immutable: the browser keeps serving these across dev-server restarts,
+      // so an in-flight voice never dies to a NetworkError mid-match
+      "cache-control": "public, max-age=31536000, immutable",
+    },
+  });
 }
 
 const server = Bun.serve({
