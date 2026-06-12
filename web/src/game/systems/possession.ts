@@ -133,6 +133,7 @@ export function possessionSystem(world: World, dt: number): void {
 
   bs.owner = best;
   bs.lastKicker = null;
+  bs.passTarget = null; // the pass has arrived (or been cut out)
   bs.touchTimer = 0; // first touch happens immediately in the ball system
   match.set(Match, { lastTouchTeam: best.get(Team)!.id });
 

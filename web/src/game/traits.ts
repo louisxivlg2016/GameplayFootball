@@ -76,6 +76,9 @@ export const BallState = trait(() => ({
   recaptureBlocks: [] as Array<{ player: Entity; t: number }>,
   /** seconds until the carrier's next dribble touch */
   touchTimer: 0,
+  /** pass assist: the receiver a played pass homes onto while in flight */
+  passTarget: null as Entity | null,
+  passHomingT: 0,
 }));
 
 /** Match-flow singleton. */

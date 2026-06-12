@@ -37,6 +37,7 @@ export function releaseBall(
   rb.setLinvel(vel, true);
   const bs = ball.get(BallState)!;
   bs.owner = null;
+  bs.passTarget = null; // generic kicks don't home; executePass re-arms it
   bs.lastKicker = kicker;
   bs.kickCooldown = 0.45;
   bs.recaptureBlocks = [{ player: kicker, t: 0.45 }];
@@ -193,6 +194,10 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
     : Math.min(23, Math.max(10, d * 1.5));
   const lift = choice.high ? Math.min(8.5, Math.max(4, d * 0.3)) : 0.4;
   releaseBall(world, kicker, { x: (dx / d) * speed, y: lift, z: (dz / d) * speed });
+  // arm the pass assist: the ball bends onto this receiver while in flight
+  const bsAfter = ball.get(BallState)!;
+  bsAfter.passTarget = choice.mate;
+  bsAfter.passHomingT = 1.6;
   radio("pass", {
     player: kicker.get(Name)?.short ?? "",
     target: choice.mate.get(Name)?.short ?? "",
@@ -216,12 +221,32 @@ export function pass(
   const rb = ball?.get(BallRef)!.value;
   if (!ball || !rb) return;
   const bp = rb.translation();
+  // even a blind directional punt homes onto the nearest mate in the cone
+  let target: Entity | null = null;
+  let bestD = 32;
+  const teamId = kicker.get(Team)!.id;
+  for (const e of world.query(IsPlayer)) {
+    if (e === kicker || e.get(Team)!.id !== teamId) continue;
+    const p = e.get(Position)!;
+    const dx = p.x - bp.x;
+    const dz = p.z - bp.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 2 || d > bestD) continue;
+    if ((dx * dirX + dz * dirZ) / (d || 1) < 0.55) continue; // ~57° cone
+    bestD = d;
+    target = e;
+  }
   const speed = lofted ? 16 : 15;
   releaseBall(world, kicker, {
     x: dirX * speed,
     y: lofted ? 6 : 0.4,
     z: dirZ * speed,
   });
+  if (target) {
+    const bs = ball.get(BallState)!;
+    bs.passTarget = target;
+    bs.passHomingT = 1.6;
+  }
 }
 
 /**

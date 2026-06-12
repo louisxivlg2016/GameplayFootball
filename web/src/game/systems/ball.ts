@@ -46,6 +46,40 @@ export function ballSystem(world: World, dt: number): void {
     return; // never let the free-ball drag below overwrite the carry
   }
 
+  // pass assist: a played pass homes onto its receiver like a guided ball,
+  // bending in flight toward where he is going — it arrives at his feet
+  // instead of where he stood when it was struck. It never boomerangs:
+  // once the receiver is behind the ball's path the assist lets go.
+  if (bs.passTarget && bs.passHomingT > 0) {
+    bs.passHomingT -= dt;
+    const mate = bs.passTarget;
+    const mp = mate.isAlive() ? mate.get(Position) : undefined;
+    const speed2d = Math.hypot(v.x, v.z);
+    if (!mp || bs.passHomingT <= 0 || speed2d < 2.5) {
+      bs.passTarget = null;
+    } else {
+      const mv = mate.get(Velocity)!;
+      const dx = mp.x + mv.x * 0.2 - bp.x;
+      const dz = mp.z + mv.z * 0.2 - bp.z;
+      const dist = Math.hypot(dx, dz) || 1;
+      const dot = (v.x * dx + v.z * dz) / (speed2d * dist);
+      if (dist < 0.5 || dot < 0.2) {
+        bs.passTarget = null;
+      } else {
+        const k = Math.min(1, dt * 4);
+        const nx = v.x / speed2d + (dx / dist - v.x / speed2d) * k;
+        const nz = v.z / speed2d + (dz / dist - v.z / speed2d) * k;
+        const nl = Math.hypot(nx, nz) || 1;
+        rb.setLinvel(
+          { x: (nx / nl) * speed2d, y: v.y, z: (nz / nl) * speed2d },
+          true,
+        );
+        v.x = (nx / nl) * speed2d;
+        v.z = (nz / nl) * speed2d;
+      }
+    }
+  }
+
   let { x: vx, y: vy, z: vz } = v;
   const speed = Math.hypot(vx, vy, vz);
   if (speed > 0.01) {
