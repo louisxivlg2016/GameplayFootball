@@ -59,8 +59,11 @@ export function ballSystem(world: World, dt: number): void {
       bs.passTarget = null;
     } else {
       const mv = mate.get(Velocity)!;
-      const dx = mp.x + mv.x * 0.2 - bp.x;
-      const dz = mp.z + mv.z * 0.2 - bp.z;
+      // lead his run when far, but converge on the MAN himself up close so
+      // the ball finishes on his boots, not half a meter beside them
+      const lead = Math.min(0.22, Math.hypot(mp.x - bp.x, mp.z - bp.z) * 0.025);
+      const dx = mp.x + mv.x * lead - bp.x;
+      const dz = mp.z + mv.z * lead - bp.z;
       const dist = Math.hypot(dx, dz) || 1;
       const dot = (v.x * dx + v.z * dz) / (speed2d * dist);
       if (dist < 0.4 || dot < 0) {

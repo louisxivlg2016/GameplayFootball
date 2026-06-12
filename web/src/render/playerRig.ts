@@ -118,8 +118,10 @@ const sharedInverses: THREE.Matrix4[] = (() => {
   return skinBones.map((b) => b.matrixWorld.clone().invert());
 })();
 
-// hair geometries, re-based into neck-local space so they ride the neck bone
-const neckBindInverse = sharedInverses[2]!.clone(); // skin joint 2 = neck
+// hair geometries: the converter already exports them in neck-local space
+// (cap centred ~0.25 above the joint) — re-basing them again with the neck
+// bind inverse shoved every haircut down to the ankles (the "dark ball
+// beside the foot"), so they attach to the neck bone as-is
 const hairGeometries = new Map<string, THREE.BufferGeometry>();
 for (const [style, data] of Object.entries(modelData.hair)) {
   let geo = new THREE.BufferGeometry();
@@ -132,7 +134,6 @@ for (const [style, data] of Object.entries(modelData.hair)) {
     new THREE.Float32BufferAttribute((data as { uvs: number[] }).uvs, 2),
   );
   geo = mergeVertices(geo) as THREE.BufferGeometry;
-  geo.applyMatrix4(neckBindInverse);
   geo.computeVertexNormals();
   hairGeometries.set(style, geo);
 }

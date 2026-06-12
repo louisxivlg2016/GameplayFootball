@@ -704,18 +704,18 @@ function keeper(
         const tz = clamp(zAtGoal + read.off, -3.5, 3.5);
         const kp = e.get(Position)!;
         const lateral = tz - kp.z;
-        // the ball is beating his feet to the corner: launch a full dive at
+        // anything past half a body width beats his feet: launch the dive at
         // the read point — body airborne, arms first, like a real keeper
         if (
           tCross < 0.6 &&
-          Math.abs(lateral) > 0.8 &&
-          Math.hypot(bv.x, bv.z) > 9
+          Math.abs(lateral) > 0.45 &&
+          Math.hypot(bv.x, bv.z) > 7
         ) {
           e.add(KeeperDive);
           e.set(KeeperDive, { t: 0, side: Math.sign(lateral) || 1 });
           const v = e.get(Velocity)!;
           const tFly = Math.max(tCross, 0.18);
-          v.z = clamp(lateral / tFly, -9.5, 9.5);
+          v.z = clamp(lateral / tFly, -10.5, 10.5);
           v.x = clamp((gx + s * 0.4 - kp.x) / tFly, -6, 6);
           return;
         }

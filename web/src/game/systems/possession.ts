@@ -75,7 +75,10 @@ export function possessionSystem(world: World, dt: number): void {
     if (e === bs.owner) continue;
     if (ceremony && e !== ceremony.taker) continue;
     const isKeeper = e.get(PlayerInfo)!.role === Role.GK;
-    if (ballSpeed > TRAP_SPEED && !isKeeper) continue;
+    // the INTENDED receiver of a pass traps it at any pace — a firm pass
+    // used to fly straight through him (only keepers could touch >14 m/s)
+    const intended = bs.passTarget === e;
+    if (ballSpeed > TRAP_SPEED && !isKeeper && !intended) continue;
     if (bp.y > 1.3 && !isKeeper) continue; // only a keeper plays chest-high balls
     if (bs.kickCooldown > 0 && e === bs.lastKicker) continue;
     if (bs.recaptureBlocks.some((block) => block.player === e)) continue;
@@ -92,7 +95,8 @@ export function possessionSystem(world: World, dt: number): void {
     const radius =
       (bs.owner ? STEAL_RADIUS : CAPTURE_RADIUS) *
       (0.85 + 0.3 * e.get(Stats)!.ballcontrol) *
-      (e.has(KeeperDive) ? 1.45 : 1);
+      (e.has(KeeperDive) ? 1.45 : 1) *
+      (intended ? 1.35 : 1); // the man the pass is for reaches for it
     if (d < radius && d < bestD) {
       bestD = d;
       best = e;
@@ -125,7 +129,13 @@ export function possessionSystem(world: World, dt: number): void {
     let hardness = pace * (0.08 + 0.72 * stretch);
     if (best.get(Team)!.id === AI_TEAM) hardness /= difficulty().keeperSave;
     if (Math.random() < clamp(hardness, 0, 0.88)) {
-      // beaten: the ball flies past — block him briefly so it isn't re-caught
+      // beaten: the ball flies past — but he still hurls himself at it
+      // (a despairing reflex dive) instead of watching it go by
+      if (!best.has(KeeperDive)) {
+        const kp = best.get(Position)!;
+        best.add(KeeperDive);
+        best.set(KeeperDive, { t: 0, side: Math.sign(bp.z - kp.z) || 1 });
+      }
       bs.recaptureBlocks.push({ player: best, t: 0.4 });
       return;
     }
