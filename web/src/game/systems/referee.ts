@@ -298,9 +298,11 @@ export function ceremonyTarget(
     if (teamId !== c.team && e.get(PlayerInfo)!.role === Role.GK) {
       return { x: Math.sign(c.x) * (PITCH.halfLength - 0.5), z: 0 }; // on the line
     }
-    // everyone else outside the box
-    const edge = Math.sign(c.x) * (PITCH.halfLength - 18.5);
-    return { x: edge, z: clamp(p.z, -19, 19) };
+    // everyone else outside the box — and clear of the behind-the-taker camera axis
+    const edge = Math.sign(c.x) * (PITCH.halfLength - 20);
+    let waitZ = clamp(p.z, -19, 19);
+    if (Math.abs(waitZ) < 6) waitZ = waitZ >= 0 ? 6 : -6;
+    return { x: edge, z: waitZ };
   }
   if (c.type === "kickoff") {
     // own half (teams were already placed by placeKickoff; hold position)
