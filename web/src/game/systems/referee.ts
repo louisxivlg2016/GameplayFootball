@@ -29,8 +29,8 @@ import { evaluateBestPass, executePass, pass, releaseBall, shoot } from "./kicks
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, v));
 
-/** 1 real second ≈ 7.7 game seconds (match.cpp matchDurationFactor 0.13). */
-const GAME_SPEED = 7.69;
+/** Clock speed: 90 game-minutes in 3 real minutes (45' half = 90s real). */
+const GAME_SPEED = 30;
 const PHASE_END = [2700, 5400, 6300, 7200]; // 45' / 90' / 105' / 120'
 const PHASE_LABEL = ["1ST", "2ND", "ET1", "ET2", "PENS"];
 
@@ -75,7 +75,7 @@ export const refState = {
   bannerT: 0,
   ended: false,
   /** game-clock time of the next radio score reminder */
-  nextChatter: 120,
+  nextChatter: 500,
   shootout: null as {
     scores: [number, number];
     taken: [number, number];
@@ -415,7 +415,7 @@ export function refereeSystem(world: World, dt: number): void {
     refState.flagged.clear();
     refState.ended = false;
     refState.shootout = null;
-    refState.nextChatter = 120;
+    refState.nextChatter = 500;
     refState.firstKickoff = match.get(Match)!.lastTouchTeam;
     store.setPhaseLabel(PHASE_LABEL[0]!);
     radio("kickoff", { team: refState.firstKickoff }); // opening whistle call
@@ -474,9 +474,9 @@ export function refereeSystem(world: World, dt: number): void {
   const secs = Math.floor(refState.clock);
   if (secs !== store.clock) store.setClock(secs);
 
-  // colour commentary between actions
+  // colour commentary between actions (~ every 20-35 real seconds)
   if (refState.clock >= refState.nextChatter) {
-    refState.nextChatter = refState.clock + 150 + Math.random() * 120;
+    refState.nextChatter = refState.clock + 600 + Math.random() * 450;
     radioScore(store.score, refState.clock / 60);
   }
 
