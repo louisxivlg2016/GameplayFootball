@@ -29,7 +29,7 @@ export function Systems(): null {
       refereeSystem(world, dt);
       officialsSystem(world, dt);
       commentarySystem(world, dt);
-      recordFrame(world); // rolling buffer feeding the slow-mo replays
+      recordFrame(world, dt); // rolling buffer feeding the slow-mo replays
       radarSystem(world, dt);
     } else if (mode === "goal") {
       // celebration: scorer applauds in close-up, countdown to the replay

@@ -11,6 +11,7 @@ import {
   Position,
   Role,
   Selected,
+  Selected2,
   Stats,
   Team,
   Velocity,
@@ -18,6 +19,7 @@ import {
 import {
   PITCH,
   attackSign,
+  humanSlotFor,
   placeKickoff,
   setSelected,
   swapSides,
@@ -137,7 +139,8 @@ export function startSetPiece(
       taker = e;
     }
   }
-  if (team === 0 && taker) setSelected(world, taker);
+  const slot = humanSlotFor(team);
+  if (slot !== null && taker) setSelected(world, taker, slot);
 
   refState.ceremony = { type, team, x, z, t: 2, ready: false, kickDelay: 0.8, taker };
   world.queryFirst(Match)?.set(Match, { lastTouchTeam: team });
@@ -283,10 +286,10 @@ export { sendOff as executeSendOff };
 function sendOff(world: World, player: Entity): void {
   const b = ballOf(world);
   if (b && b.bs.owner === player) b.bs.owner = null;
-  const wasSelected = player.has(Selected);
+  const slot = player.has(Selected) ? 0 : player.has(Selected2) ? 1 : -1;
   const team = player.get(Team)!.id;
   player.destroy();
-  if (wasSelected) {
+  if (slot >= 0) {
     let best: Entity | null = null;
     let bestD = Infinity;
     const bp = b?.rb.translation() ?? { x: 0, z: 0 };
@@ -299,7 +302,7 @@ function sendOff(world: World, player: Entity): void {
         best = e;
       }
     }
-    setSelected(world, best);
+    setSelected(world, best, slot);
   }
 }
 
@@ -477,9 +480,9 @@ export function refereeSystem(world: World, dt: number): void {
       if (c.t <= 0) {
         c.ready = true;
         whistle(1);
-        // the human gets a LONG window to take their own kicks — the auto-take
+        // a human gets a LONG window to take their own kicks — the auto-take
         // is only a stall safety, not a thief; AI takers go quickly
-        if (c.team === 0) {
+        if (humanSlotFor(c.team) !== null) {
           c.kickDelay = refState.shootout ? 10 : 20;
           banner("À TOI DE JOUER !", 2);
         } else {
@@ -669,7 +672,8 @@ function startShootoutKick(world: World): void {
   const taker = candidates[round % Math.max(candidates.length, 1)] ?? null;
   if (refState.ceremony && taker) {
     refState.ceremony.taker = taker;
-    if (team === 0) setSelected(world, taker);
+    const slot = humanSlotFor(team);
+    if (slot !== null) setSelected(world, taker, slot);
     radio("penTaker", { player: taker.get(Name)?.short ?? "" });
   }
 

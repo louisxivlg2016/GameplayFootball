@@ -37,7 +37,11 @@ interface Frame {
   players: PlayerSnap[];
 }
 
-const RING_FRAMES = 250; // ~4s at 60fps
+const RECORD_HZ = 30; // fixed-timestep recorder, framerate-independent
+const RING_FRAMES = 250; // ~8s of footage at 30Hz
+const GOAL_REPLAY_FRAMES = 85; // ~2.8s before the ball crossed the line
+const CARD_REPLAY_FRAMES = 75; // ~2.5s before the whistle
+const MIN_REPLAY_FRAMES = 12;
 const REPLAY_SPEED = 0.5; // slow motion
 const CARD_SECONDS = 2.6;
 
@@ -56,8 +60,27 @@ const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const tmpQ = new THREE.Quaternion();
 
-/** Call every frame of live play. */
-export function recordFrame(world: World): void {
+function resetCine(gen: number): void {
+  cineState.gen = gen;
+  cineState.ring = [];
+  cineState.celebration = null;
+  cineState.card = null;
+  cineState.replay = null;
+  cineState.queued = null;
+  cineState.sendOffAfter = null;
+}
+
+let recordAcc = 0;
+
+/** Call every frame of live play; samples at a fixed 30Hz. */
+export function recordFrame(world: World, dt: number): void {
+  // sync here (every play frame) — cinematicSystem only runs once a scene is
+  // already queued, which would wipe the very first queue of a new match
+  const gen = useStore.getState().gen;
+  if (gen !== cineState.gen) resetCine(gen);
+  recordAcc += dt;
+  if (recordAcc < 1 / RECORD_HZ) return;
+  recordAcc %= 1 / RECORD_HZ;
   const rb = world.queryFirst(IsBall)?.get(BallRef)?.value;
   if (!rb) return;
   const bp = rb.translation();
@@ -83,7 +106,7 @@ export function queueGoalCinematic(scorer: Entity | null, scoringTeam: number): 
     scorer && scorer.isAlive() && scorer.get(Team)!.id === scoringTeam
       ? { scorer, t: 0 }
       : null;
-  cineState.queued = cineState.ring.slice(-170);
+  cineState.queued = cineState.ring.slice(-GOAL_REPLAY_FRAMES);
 }
 
 /**
@@ -93,14 +116,14 @@ export function queueGoalCinematic(scorer: Entity | null, scoringTeam: number): 
 export function queueCardCinematic(red: boolean, sendOff: Entity | null): void {
   cineState.card = { red, t: 0 };
   cineState.sendOffAfter = sendOff;
-  cineState.queued = cineState.ring.slice(-150);
+  cineState.queued = cineState.ring.slice(-CARD_REPLAY_FRAMES);
   useStore.getState().setMode("cardScene");
 }
 
 /** Goal celebration over: hand off to the replay. True if it took over. */
 export function startGoalReplay(): boolean {
   cineState.celebration = null;
-  if (!cineState.queued || cineState.queued.length < 20) return false;
+  if (!cineState.queued || cineState.queued.length < MIN_REPLAY_FRAMES) return false;
   cineState.replay = { frames: cineState.queued, i: 0, after: "kickoff" };
   cineState.queued = null;
   useStore.getState().setMode("replay");
@@ -117,7 +140,7 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
       new THREE.PlaneGeometry(0.13, 0.18),
       new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
     );
-    mesh.position.set(0, 0.32, 0.02); // in the hand, past the forearm
+    mesh.position.set(0, 0.38, 0.02); // in the hand, past the forearm
     bones.right_elbow?.add(mesh);
     cardProps.set(h, mesh);
   }
@@ -132,15 +155,7 @@ function faceCamera(group: THREE.Group, dt: number): void {
 
 export function cinematicSystem(world: World, dt: number): void {
   const store = useStore.getState();
-  if (store.gen !== cineState.gen) {
-    cineState.gen = store.gen;
-    cineState.ring = [];
-    cineState.celebration = null;
-    cineState.card = null;
-    cineState.replay = null;
-    cineState.queued = null;
-    cineState.sendOffAfter = null;
-  }
+  if (store.gen !== cineState.gen) resetCine(store.gen);
 
   // ---- goal celebration: the scorer applauds into the close-up ----
   const cel = cineState.celebration;
@@ -174,8 +189,9 @@ export function cinematicSystem(world: World, dt: number): void {
     if (h && h.value && h.bones) {
       faceCamera(h.value, dt);
       animateRig(h, 0.3, 0, dt);
-      const up = Math.min(card.t / 0.25, 1) * 2.9; // arm straight up
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -up));
+      const up = Math.min(card.t / 0.25, 1); // arm straight up, card high
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -2.9 * up));
+      h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.5 * up));
       const mesh = cardMesh(h, h.bones);
       (mesh.material as THREE.MeshBasicMaterial).color.set(card.red ? 0xe53935 : 0xffd60a);
       mesh.visible = true;
@@ -186,7 +202,7 @@ export function cinematicSystem(world: World, dt: number): void {
         if (mesh) mesh.visible = false;
       }
       cineState.card = null;
-      if (cineState.queued && cineState.queued.length >= 20) {
+      if (cineState.queued && cineState.queued.length >= MIN_REPLAY_FRAMES) {
         cineState.replay = { frames: cineState.queued, i: 0, after: "resume" };
         cineState.queued = null;
         store.setMode("replay");
@@ -202,7 +218,7 @@ export function cinematicSystem(world: World, dt: number): void {
   // ---- slow-motion replay from the recorder ----
   const rep = cineState.replay;
   if (store.mode === "replay" && rep) {
-    rep.i += dt * 60 * REPLAY_SPEED;
+    rep.i += dt * RECORD_HZ * REPLAY_SPEED;
     const fr = rep.frames[Math.min(Math.floor(rep.i), rep.frames.length - 1)]!;
     const rb = world.queryFirst(IsBall)?.get(BallRef)?.value;
     if (rb) {

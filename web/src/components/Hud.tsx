@@ -9,6 +9,8 @@ export function Hud(): React.ReactNode {
   const banner = useStore((s) => s.banner);
   const pens = useStore((s) => s.pens);
   const selectedName = useStore((s) => s.selectedName);
+  const selectedName2 = useStore((s) => s.selectedName2);
+  const players = useStore((s) => s.players);
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
 
@@ -41,6 +43,11 @@ export function Hud(): React.ReactNode {
                 ▶ {selectedName}
               </span>
             )}
+            {players === 2 && selectedName2 && (
+              <span className="team" style={{ color: "#4ad2ff" }}>
+                ▶ {selectedName2}
+              </span>
+            )}
           </div>
           <ShootoutBoard />
           <Radar />
@@ -64,16 +71,33 @@ export function Hud(): React.ReactNode {
             GAMEPLAY <span>FOOTBALL</span>
           </h1>
           <div className="prompt">Press Enter to kick off</div>
-          <DifficultyPicker />
+          <PlayersToggle />
+          {players === 1 && <DifficultyPicker />}
           <ImportantToggle />
-          <div className="controls">
-            <b>WASD / Arrows</b> move&ensp;<b>Shift</b> sprint
-            <br />
-            <b>Space</b> shoot&ensp;<b>X</b> pass&ensp;<b>C</b> lofted pass&ensp;
-            <b>E</b> slide tackle
-            <br />
-            <b>R</b> radio commentary&ensp;<b>Esc</b> pause
-          </div>
+          {players === 1 ? (
+            <div className="controls">
+              <b>WASD / Arrows</b> move&ensp;<b>Shift</b> sprint
+              <br />
+              <b>Space</b> shoot&ensp;<b>X</b> pass&ensp;<b>C</b> lofted pass&ensp;
+              <b>E</b> slide tackle
+              <br />
+              <b>R</b> radio commentary&ensp;<b>Esc</b> pause
+            </div>
+          ) : (
+            <div className="controls">
+              <span style={{ color: TEAMS[0].color, fontWeight: 700 }}>J1 (RED)</span>
+              &ensp;<b>WASD</b> move&ensp;<b>Shift g.</b> sprint&ensp;
+              <b>Espace</b> tir&ensp;<b>X</b> passe&ensp;<b>C</b> lobée&ensp;
+              <b>E</b> tacle
+              <br />
+              <span style={{ color: "#4ad2ff", fontWeight: 700 }}>J2 (BLU)</span>
+              &ensp;<b>Flèches</b> move&ensp;<b>Shift d.</b> sprint&ensp;
+              <b>K</b> tir&ensp;<b>L</b> passe&ensp;<b>M</b> lobée&ensp;
+              <b>I</b> tacle
+              <br />
+              <b>R</b> radio&ensp;<b>Esc</b> pause
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -138,6 +162,51 @@ function ShootoutBoard(): React.ReactNode {
           })}
         </div>
       ))}
+    </div>
+  );
+}
+
+function PlayersToggle(): React.ReactNode {
+  const players = useStore((s) => s.players);
+  return (
+    <div style={{ textAlign: "center", fontSize: 16, color: "#e8e8e8" }}>
+      <span
+        style={{
+          background: "rgba(255,255,255,0.12)",
+          borderRadius: 4,
+          padding: "1px 7px",
+          color: "#fff",
+          fontWeight: 600,
+        }}
+      >
+        J
+      </span>{" "}
+      Mode :{" "}
+      <span
+        style={{
+          margin: "0 4px",
+          fontWeight: players === 1 ? 800 : 400,
+          color: players === 1 ? "#ffe94a" : "#9fb89f",
+          opacity: players === 1 ? 1 : 0.6,
+        }}
+      >
+        1 JOUEUR
+      </span>
+      <span
+        style={{
+          margin: "0 4px",
+          fontWeight: players === 2 ? 800 : 400,
+          color: players === 2 ? "#4ad2ff" : "#9fb89f",
+          opacity: players === 2 ? 1 : 0.6,
+        }}
+      >
+        2 JOUEURS
+      </span>
+      {players === 2 && (
+        <div style={{ fontSize: 12, opacity: 0.8 }}>
+          versus local : J1 dirige les ROUGES, J2 dirige les BLEUS
+        </div>
+      )}
     </div>
   );
 }

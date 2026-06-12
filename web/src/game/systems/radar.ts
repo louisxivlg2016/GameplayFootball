@@ -1,5 +1,13 @@
 import type { World } from "koota";
-import { BallRef, IsBall, IsPlayer, Position, Selected, Team } from "../traits";
+import {
+  BallRef,
+  IsBall,
+  IsPlayer,
+  Position,
+  Selected,
+  Selected2,
+  Team,
+} from "../traits";
 import { PITCH } from "../levels";
 import { useStore } from "../store";
 
@@ -16,7 +24,7 @@ export function radarSystem(world: World, dt: number): void {
     out.push(
       p.x / PITCH.halfLength,
       p.z / PITCH.halfWidth,
-      e.get(Team)!.id + (e.has(Selected) ? 2 : 0),
+      e.get(Team)!.id + (e.has(Selected) || e.has(Selected2) ? 2 : 0),
     );
   }
   const rb = world.queryFirst(IsBall)?.get(BallRef)!.value;

@@ -15,6 +15,8 @@ interface Store {
   important: boolean;
   /** index into DIFFICULTIES: 0 facile, 1 normal, 2 difficile */
   difficulty: number;
+  /** 1 = solo vs the AI, 2 = local versus on one keyboard (P2 steers BLU) */
+  players: number;
   score: [number, number];
   /** game-time seconds (1 real second ≈ 7.7 game seconds, like the original) */
   clock: number;
@@ -26,11 +28,14 @@ interface Store {
   pensDetail: [string[], string[]] | null;
   /** short name of the player under human control */
   selectedName: string;
+  /** short name of player 2's man in two-player mode */
+  selectedName2: string;
   /** [x0,z0, x1,z1, ...] for 22 players then the ball; normalized to [-1,1] */
   radar: number[];
   setMode: (mode: Mode) => void;
   toggleImportant: () => void;
   cycleDifficulty: () => void;
+  togglePlayers: () => void;
   newMatch: () => void;
   addGoal: (team: number) => void;
   setClock: (clock: number) => void;
@@ -39,6 +44,7 @@ interface Store {
   setPens: (pens: number[] | null) => void;
   setPensDetail: (pensDetail: [string[], string[]] | null) => void;
   setSelectedName: (selectedName: string) => void;
+  setSelectedName2: (selectedName2: string) => void;
   setRadar: (radar: number[]) => void;
 }
 
@@ -47,6 +53,7 @@ export const useStore = create<Store>((set) => ({
   gen: 0,
   important: false,
   difficulty: 1,
+  players: 1,
   score: [0, 0],
   clock: 0,
   phaseLabel: "1ST",
@@ -54,10 +61,12 @@ export const useStore = create<Store>((set) => ({
   pens: null,
   pensDetail: null,
   selectedName: "",
+  selectedName2: "",
   radar: [],
   setMode: (mode) => set({ mode }),
   toggleImportant: () => set((s) => ({ important: !s.important })),
   cycleDifficulty: () => set((s) => ({ difficulty: (s.difficulty + 1) % 3 })),
+  togglePlayers: () => set((s) => ({ players: s.players === 1 ? 2 : 1 })),
   newMatch: (): void =>
     set((s) => ({
       mode: "play",
@@ -68,6 +77,7 @@ export const useStore = create<Store>((set) => ({
       banner: "",
       pens: null,
       pensDetail: null,
+      selectedName2: "",
     })),
   addGoal: (team) =>
     set((s) => {
@@ -82,5 +92,7 @@ export const useStore = create<Store>((set) => ({
   setPensDetail: (pensDetail) => set({ pensDetail }),
   setSelectedName: (selectedName) =>
     set((s) => (s.selectedName === selectedName ? s : { selectedName })),
+  setSelectedName2: (selectedName2) =>
+    set((s) => (s.selectedName2 === selectedName2 ? s : { selectedName2 })),
   setRadar: (radar) => set({ radar }),
 }));

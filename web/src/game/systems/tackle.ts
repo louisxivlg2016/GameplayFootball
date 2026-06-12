@@ -9,12 +9,14 @@ import {
   Position,
   Role,
   Selected,
+  Selected2,
   SlideTackle,
   Stats,
   Team,
   Velocity,
 } from "../traits";
-import { consumePress } from "../input";
+import { consumePress, padFor } from "../input";
+import { useStore } from "../store";
 import { refState, refereeFoul } from "./referee";
 import { releaseBall } from "./kicks";
 import { AI_TEAM, difficulty } from "../difficulty";
@@ -47,11 +49,14 @@ export function tackleSystem(world: World, dt: number): void {
     else cooldowns.set(e, cd - dt);
   }
 
-  // human slide
-  if (consumePress("KeyE") && !refState.ceremony) {
-    const sel = world.queryFirst(Selected);
-    if (sel && bs.owner !== sel && !slides.has(sel) && !cooldowns.has(sel)) {
-      startSlide(sel);
+  // human slides (one pad per control slot in two-player mode)
+  const players = useStore.getState().players;
+  for (let slot = 0; slot < players; slot++) {
+    if (consumePress(padFor(slot, players).tackle) && !refState.ceremony) {
+      const sel = world.queryFirst(slot === 1 ? Selected2 : Selected);
+      if (sel && bs.owner !== sel && !slides.has(sel) && !cooldowns.has(sel)) {
+        startSlide(sel);
+      }
     }
   }
 
@@ -67,6 +72,7 @@ export function tackleSystem(world: World, dt: number): void {
         if (
           e.get(Team)!.id === carrierTeam ||
           e.has(Selected) ||
+          e.has(Selected2) ||
           e.get(PlayerInfo)!.role === Role.GK ||
           slides.has(e) ||
           cooldowns.has(e)

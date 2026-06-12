@@ -10,6 +10,7 @@ import {
   Position,
   Role,
   Selected,
+  Selected2,
   Stats,
   Team,
   Velocity,
@@ -154,7 +155,7 @@ export function aiSystem(world: World, dt: number): void {
   updateRuns(world, players, carrier, carrierTeam);
 
   for (const e of players) {
-    if (e.has(Selected)) continue; // human steers this one
+    if (e.has(Selected) || e.has(Selected2)) continue; // a human steers this one
     const teamId = e.get(Team)!.id;
     const info = e.get(PlayerInfo)!;
 
@@ -213,7 +214,10 @@ function updateAssignments(
     const defendersGoalX = -attackSign(t) * PITCH.halfLength;
     const eligible = players.filter(
       (e) =>
-        e.get(Team)!.id === t && e.get(PlayerInfo)!.role !== Role.GK && !e.has(Selected),
+        e.get(Team)!.id === t &&
+        e.get(PlayerInfo)!.role !== Role.GK &&
+        !e.has(Selected) &&
+        !e.has(Selected2),
     );
 
     // presser: nearest to the ball / carrier
@@ -278,7 +282,13 @@ function updateRuns(
     ts.support = null;
     let bestD = Infinity;
     for (const e of players) {
-      if (e === carrier || e.has(Selected) || e.get(Team)!.id !== carrierTeam) continue;
+      if (
+        e === carrier ||
+        e.has(Selected) ||
+        e.has(Selected2) ||
+        e.get(Team)!.id !== carrierTeam
+      )
+        continue;
       const role = e.get(PlayerInfo)!.role;
       if (role !== Role.MID && role !== Role.ATT) continue;
       const p = e.get(Position)!;
@@ -298,6 +308,7 @@ function updateRuns(
       e === carrier ||
       e === ts.support ||
       e.has(Selected) ||
+      e.has(Selected2) ||
       e.get(Team)!.id !== carrierTeam ||
       state.runs.has(e)
     )

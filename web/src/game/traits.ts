@@ -7,8 +7,10 @@ export const IsBall = trait();
 export const IsPlayer = trait();
 /** The match official: rendered and animated like a player, ignored by play logic. */
 export const IsReferee = trait();
-/** The player the human is currently steering. */
+/** The player human 1 (RED) is currently steering. */
 export const Selected = trait();
+/** The player human 2 (BLU) steers in local two-player mode. */
+export const Selected2 = trait();
 
 export const Team = trait({ id: 0 });
 

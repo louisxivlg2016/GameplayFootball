@@ -23,5 +23,10 @@ export const DIFFICULTIES: DifficultyPreset[] = [
   { name: "DIFFICILE", aiSpeed: 1.08, aiErr: 0.6, shootBoost: 0.06, tackleChance: 1.6, keeperSave: 1.35 },
 ];
 
-export const difficulty = (): DifficultyPreset =>
-  DIFFICULTIES[useStore.getState().difficulty] ?? DIFFICULTIES[1]!;
+export const difficulty = (): DifficultyPreset => {
+  const s = useStore.getState();
+  // local versus: team 1 is human-led, so its AI teammates play it straight —
+  // no handicaps or boosts in either direction
+  if (s.players === 2) return DIFFICULTIES[1]!;
+  return DIFFICULTIES[s.difficulty] ?? DIFFICULTIES[1]!;
+};

@@ -9,6 +9,7 @@ import {
   MeshRef,
   Position,
   Selected,
+  Selected2,
   SlideTackle,
   Stats,
   Velocity,
@@ -87,7 +88,7 @@ export function movementSystem(world: World, dt: number): void {
       // the human's heading comes straight from input (control.ts) — deriving
       // it from velocity stalls in the low-speed band during reversals and
       // leaves the body visibly back-pedaling at high frame rates
-      if (!e.has(Selected)) {
+      if (!e.has(Selected) && !e.has(Selected2)) {
         const maxTurn = (10 + speed * 0.5) * dt;
         heading = normAngle(heading + clamp(diff, -maxTurn, maxTurn));
         e.set(Heading, { angle: heading });
@@ -125,8 +126,17 @@ export function movementSystem(world: World, dt: number): void {
         h.value.rotation.set(0, heading, 0, "YZX");
       }
     }
-    const selected = e.has(Selected);
-    if (h.ring) h.ring.visible = selected;
+    const selected = e.has(Selected) || e.has(Selected2);
+    if (h.ring) {
+      h.ring.visible = selected;
+      if (selected) {
+        // P1 keeps the yellow ring; P2's man gets a cyan one so the couch
+        // can tell at a glance who steers whom
+        (h.ring.material as THREE.MeshBasicMaterial).color.set(
+          e.has(Selected2) ? "#4ad2ff" : "#ffe94a",
+        );
+      }
+    }
     if (h.tag) h.tag.visible = selected;
     animateRig(h, dive || slide ? 0.3 : speed, angleDiff, dt);
     if (dive && h.bones) {

@@ -15,6 +15,7 @@ import {
   Position,
   Role,
   Selected,
+  Selected2,
   Stats,
   Team,
   Velocity,
@@ -191,8 +192,16 @@ export function placeKickoff(world: World, kickingTeam: number): void {
 
   setSelected(
     world,
-    kickingTeam === 0 ? (kicker ?? null) : nearestHuman(world, 0, 0),
+    kickingTeam === 0 ? (kicker ?? null) : nearestOutfield(world, 0, 0, 0),
+    0,
   );
+  if (humanSlotFor(1) !== null) {
+    setSelected(
+      world,
+      kickingTeam === 1 ? (kicker ?? null) : nearestOutfield(world, 1, 0, 0),
+      1,
+    );
+  }
   match.set(Match, {
     lastTouchTeam: kickingTeam,
     resetTimer: 0,
@@ -201,21 +210,41 @@ export function placeKickoff(world: World, kickingTeam: number): void {
   });
 }
 
-export function setSelected(world: World, entity: Entity | null): void {
-  for (const e of [...world.query(Selected)]) e.remove(Selected);
-  entity?.add(Selected);
+/** Which control slot steers `team`: 0 = P1 (RED), 1 = P2 (BLU, two-player mode only). */
+export function humanSlotFor(team: number): number | null {
+  if (team === 0) return 0;
+  return useStore.getState().players === 2 && team === 1 ? 1 : null;
+}
+
+export function setSelected(
+  world: World,
+  entity: Entity | null,
+  slot = 0,
+): void {
+  const Trait = slot === 1 ? Selected2 : Selected;
+  for (const e of [...world.query(Trait)]) e.remove(Trait);
+  entity?.add(Trait);
   const name = entity ? (entity.get(Name)?.short ?? "") : "";
   // deferred: loadMatch runs inside a render (useMemo) and React warns on
   // store updates issued while rendering another component
-  queueMicrotask(() => useStore.getState().setSelectedName(name));
+  queueMicrotask(() => {
+    const s = useStore.getState();
+    if (slot === 1) s.setSelectedName2(name);
+    else s.setSelectedName(name);
+  });
 }
 
-/** Nearest outfield player of the human team (0) to a point. */
-export function nearestHuman(world: World, x: number, z: number): Entity | null {
+/** Nearest outfield player of `team` to a point. */
+export function nearestOutfield(
+  world: World,
+  team: number,
+  x: number,
+  z: number,
+): Entity | null {
   let best: Entity | null = null;
   let bestD = Infinity;
   for (const e of world.query(IsPlayer)) {
-    if (e.get(Team)!.id !== 0 || e.get(PlayerInfo)!.role === Role.GK) continue;
+    if (e.get(Team)!.id !== team || e.get(PlayerInfo)!.role === Role.GK) continue;
     const p = e.get(Position)!;
     const d = Math.hypot(p.x - x, p.z - z);
     if (d < bestD) {
