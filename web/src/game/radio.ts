@@ -283,10 +283,11 @@ function say(text: string, priority = 1, fx?: VoiceFx): void {
   // failed: stay silent — never a robotic fallback
 }
 
-/** The commentator on his feet: loud, fast, pitch up. */
-const SHOUT: VoiceFx = { rate: 1.16, volume: 1.25 };
+/** The commentator on his feet: louder, barely faster — same man, same voice.
+ *  (Bigger rate shifts pitch the voice up enough to sound like a second person.) */
+const SHOUT: VoiceFx = { rate: 1.04, volume: 1.3 };
 /** Rising excitement, not quite full scream. */
-const EXCITED: VoiceFx = { rate: 1.09, volume: 1.12 };
+const EXCITED: VoiceFx = { rate: 1.02, volume: 1.15 };
 
 const pick = (lines: string[]): string =>
   lines[Math.floor(Math.random() * lines.length)]!;
