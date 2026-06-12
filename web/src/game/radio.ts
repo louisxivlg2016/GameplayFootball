@@ -9,7 +9,7 @@
  * Urgent events (goals, cards) interrupt; chatter only plays when the
  * commentator is quiet. Toggle with R.
  */
-import { TtsSession, remove as removeVoice } from "@mintplex-labs/piper-tts-web";
+import { remove as removeVoice } from "@mintplex-labs/piper-tts-web";
 import meSpeak from "mespeak";
 import meSpeakConfig from "mespeak/src/mespeak_config.json";
 import frVoice from "mespeak/voices/fr.json";
@@ -86,39 +86,64 @@ function speakPending(): void {
 }
 
 // ---- Piper neural voice (free model from huggingface.co/rhasspy/piper-voices) ----
-// Note: Kokoro-82M was evaluated for a more natural voice, but its browser
-// phonemizer builds are English-only, so French is not possible with it today.
-let piper: TtsSession | null = null;
+// Runs inside a Web Worker: multi-second WASM inference must never block the
+// game loop. Note: Kokoro-82M was evaluated for an even more natural voice,
+// but its browser phonemizer builds are English-only — no French possible.
+let piperWorker: Worker | null = null;
 let piperState: "idle" | "loading" | "ready" | "failed" = "idle";
+let sayId = 0;
+const sayWaiters = new Map<number, (wav: Blob | null) => void>();
 
 function warmupPiper(): void {
   if (piperState !== "idle") return;
   piperState = "loading";
+  try {
+    piperWorker = new Worker(new URL("./ttsWorker.ts", import.meta.url), {
+      type: "module",
+    });
+  } catch (err) {
+    console.info("[radio] worker failed:", err);
+    piperState = "failed";
+    (globalThis as Record<string, unknown>).__radioEngine = "espeak";
+    return;
+  }
+  piperWorker.onmessage = (e: MessageEvent) => {
+    const msg = e.data as
+      | { type: "ready" }
+      | { type: "error"; error: string }
+      | { type: "wav"; id: number; buf: ArrayBuffer }
+      | { type: "sayError"; id: number };
+    if (msg.type === "ready") {
+      piperState = "ready";
+      console.info("[radio] piper french voice on air (worker)");
+      (globalThis as Record<string, unknown>).__radioEngine = "piper-fr";
+      void removeVoice("fr_FR-gilles-low").catch(() => {});
+      void removeVoice("fr_FR-siwis-medium").catch(() => {});
+      speakPending();
+    } else if (msg.type === "error") {
+      console.info("[radio] piper failed:", msg.error);
+      piperState = "failed"; // offline or unsupported: mespeak takes the mic
+      (globalThis as Record<string, unknown>).__radioEngine = "espeak";
+      speakPending();
+    } else if (msg.type === "wav") {
+      sayWaiters.get(msg.id)?.(new Blob([msg.buf], { type: "audio/wav" }));
+      sayWaiters.delete(msg.id);
+    } else if (msg.type === "sayError") {
+      sayWaiters.get(msg.id)?.(null);
+      sayWaiters.delete(msg.id);
+    }
+  };
   // tom-medium: clean male French Piper voice (22kHz). WASM runtimes are
   // served locally by serve.ts — third-party CDNs are blocked on some networks
-  TtsSession.create({
+  piperWorker.postMessage({
+    type: "init",
     voiceId: "fr_FR-tom-medium",
     wasmPaths: {
       onnxWasm: "/tts/onnx/",
       piperData: "/tts/piper_phonemize.data",
       piperWasm: "/tts/piper_phonemize.wasm",
     },
-  })
-    .then((session) => {
-      piper = session;
-      piperState = "ready";
-      console.info("[radio] piper french voice on air");
-      (globalThis as Record<string, unknown>).__radioEngine = "piper-fr";
-      void removeVoice("fr_FR-gilles-low").catch(() => {});
-      void removeVoice("fr_FR-siwis-medium").catch(() => {});
-      speakPending();
-    })
-    .catch((err) => {
-      console.info("[radio] piper failed:", err);
-      piperState = "failed"; // offline or unsupported: mespeak takes the mic
-      (globalThis as Record<string, unknown>).__radioEngine = "espeak";
-      speakPending();
-    });
+  });
 }
 
 /** Load the neural voice. Runs at page load: downloading needs no user gesture. */
@@ -128,21 +153,51 @@ export function warmupRadioVoice(): void {
 }
 if (typeof window !== "undefined") warmupRadioVoice();
 
+function piperPredict(text: string): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    if (!piperWorker) {
+      resolve(null);
+      return;
+    }
+    const id = ++sayId;
+    sayWaiters.set(id, resolve);
+    piperWorker.postMessage({ type: "say", id, text });
+  });
+}
+
 async function sayPiper(text: string, priority: number): Promise<void> {
-  if (!piper) return;
   const gen = takeMic(priority);
   if (gen === null) return;
-  try {
-    const wav = await piper.predict(text);
-    playBlob(wav, gen);
-  } catch {
+  const wav = await piperPredict(text);
+  if (!wav) {
     playerBusy = false;
-    piperState = "failed";
+    return;
   }
+  playBlob(wav, gen);
 }
 
 export function radioEnabled(): boolean {
   return enabled;
+}
+
+/** Is the commentator free to take a play-by-play line right now? */
+export function radioIdle(): boolean {
+  if (!enabled) return false;
+  if (piperState === "ready") return !playerBusy;
+  if (hasTTS && window.speechSynthesis.getVoices().length > 0) {
+    const synth = window.speechSynthesis;
+    return !synth.speaking && !synth.pending;
+  }
+  if (fallbackReady) return Date.now() >= fallbackBusyUntil;
+  return false; // engine still loading
+}
+
+/** Continuous play-by-play line — spoken only when the mic is free. */
+export function radioFlow(text: string): void {
+  if (!radioIdle()) return;
+  const g = globalThis as Record<string, unknown>;
+  g.__radioLines = ((g.__radioLines as number) ?? 0) + 1;
+  say(text, 1);
 }
 
 export function toggleRadio(): boolean {
@@ -223,6 +278,7 @@ export type RadioEvent =
   | "corner"
   | "goalkick"
   | "throwin"
+  | "pass"
   | "shot"
   | "save"
   | "halftime"
@@ -234,11 +290,17 @@ export type RadioEvent =
 
 export function radio(
   event: RadioEvent,
-  info: { team?: number; score?: [number, number]; player?: string } = {},
+  info: {
+    team?: number;
+    score?: [number, number];
+    player?: string;
+    target?: string;
+  } = {},
 ): void {
   const team = info.team !== undefined ? teamName(info.team) : "";
   const score = info.score;
   const player = info.player ?? "";
+  const target = info.target ?? "";
   switch (event) {
     case "kickoff":
       say(
@@ -299,6 +361,16 @@ export function radio(
       break;
     case "throwin":
       if (Math.random() < 0.25) say(`Touche pour ${team}.`);
+      break;
+    case "pass":
+      if (player && target && radioIdle())
+        say(
+          pick([
+            `${player} pour ${target}.`,
+            `${player} trouve ${target}.`,
+            `${player}... ${target}.`,
+          ]),
+        );
       break;
     case "shot":
       if (Math.random() < 0.5)
