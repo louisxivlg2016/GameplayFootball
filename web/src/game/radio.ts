@@ -7,7 +7,7 @@
  * Urgent events (goals, cards) interrupt; chatter only plays when the
  * commentator is quiet. Toggle with R.
  */
-import { TtsSession } from "@mintplex-labs/piper-tts-web";
+import { TtsSession, remove as removeVoice } from "@mintplex-labs/piper-tts-web";
 import meSpeak from "mespeak";
 import meSpeakConfig from "mespeak/src/mespeak_config.json";
 import frVoice from "mespeak/voices/fr.json";
@@ -52,10 +52,12 @@ let pendingText: string | null = null;
 export function warmupRadioVoice(): void {
   if (piperState !== "idle" || typeof window === "undefined") return;
   piperState = "loading";
-  TtsSession.create({ voiceId: "fr_FR-gilles-low" })
+  // siwis-medium: the cleanest free French Piper voice (22kHz, great prosody)
+  TtsSession.create({ voiceId: "fr_FR-siwis-medium" })
     .then((session) => {
       piper = session;
       piperState = "ready";
+      void removeVoice("fr_FR-gilles-low").catch(() => {}); // purge the old rough model
       if (pendingText && enabled) {
         const text = pendingText;
         pendingText = null;

@@ -569,7 +569,7 @@ function keeper(
         if (!read || state.time > read.until) {
           const shotSpeed = Math.hypot(bv.x, bv.z);
           const spread =
-            (0.4 + shotSpeed * 0.045) * (1.15 - 0.5 * e.get(Stats)!.ballcontrol);
+            (0.25 + shotSpeed * 0.02) * (1.15 - 0.5 * e.get(Stats)!.ballcontrol);
           read = {
             until: state.time + tCross + 0.2,
             off: (Math.random() - 0.5) * 2 * spread,
