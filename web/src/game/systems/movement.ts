@@ -7,7 +7,7 @@ import {
   Selected,
   Velocity,
 } from "../traits";
-import { SPEEDS } from "../levels";
+import { CLIP_VELOCITY } from "../../render/playerRig";
 
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, v));
@@ -31,14 +31,22 @@ export function movementSystem(world: World, dt: number): void {
     }
     if (h.ring) h.ring.visible = e.has(Selected);
 
-    // procedural run cycle: stride speeds up and deepens with velocity
-    const norm = Math.min(1, speed / SPEEDS.sprint);
-    h.phase += dt * (1.5 + speed * 1.7);
-    const a = Math.sin(h.phase) * norm;
-    if (h.legL) h.legL.rotation.x = a * 0.85;
-    if (h.legR) h.legR.rotation.x = -a * 0.85;
-    if (h.armL) h.armL.rotation.x = -a * 0.7;
-    if (h.armR) h.armR.rotation.x = a * 0.7;
-    if (h.body) h.body.rotation.x = norm * 0.17; // lean into the sprint
+    // mocap gait selection, velocity bands from gamedefines.hpp:18-27
+    if (h.mixer && h.actions) {
+      const gait =
+        speed < 1.8 ? "idle" : speed < 4.2 ? "dribble" : speed < 6 ? "walk" : "sprint";
+      const action = h.actions[gait];
+      if (action && gait !== h.gait) {
+        const prev = h.actions[h.gait];
+        action.reset().play();
+        if (prev && prev !== action) prev.crossFadeTo(action, 0.16, true);
+        h.gait = gait;
+      }
+      if (action && gait !== "idle") {
+        // feet match ground speed: original anims are authored at fixed velocities
+        action.timeScale = Math.min(1.8, Math.max(0.4, speed / (CLIP_VELOCITY[gait] ?? 5)));
+      }
+      h.mixer.update(dt);
+    }
   }
 }

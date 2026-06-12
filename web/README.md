@@ -45,3 +45,20 @@ Rapier owns ball collisions (ground bounce restitution 0.62, woodwork, net cage)
 a ball system layers the original's quadratic air drag, rolling friction, and
 net absorption on top. Players are ECS-scripted kinematic actors; goals,
 corners, goal kicks, and throw-ins follow the original referee's last-touch rules.
+
+## Player models
+
+Players use the original game's real assets, converted by
+`tools/convert-player-assets.ts` (run it with bun after changing it):
+
+- `fullbody.ase` mesh with bone weights decoded from vertex colors
+  (channel value v → joint ⌊v/10⌋, weight (v mod 10)/9, normalized)
+- `player.object` skeleton hierarchy + `base.anim.util` bind pose,
+  rendered as a `THREE.SkinnedMesh` per player (GPU skinning)
+- original mocap `.anim` locomotion cycles (idle/dribble/walk/sprint, 10ms
+  per frame, local-to-parent quaternions) played through `AnimationMixer`,
+  selected by the original velocity bands and time-scaled to ground speed;
+  cycles loop via an appended left/right-mirrored copy
+- hairstyles attached to the neck bone; per-player skin tones and heights;
+  flat-color team kits generated in the original kit-texture UV layout
+  (goalkeepers wear the original `goalie_kit.png`)
