@@ -1,0 +1,157 @@
+import type { Entity, World } from "koota";
+import {
+  BallRef,
+  BallState,
+  Heading,
+  HomePos,
+  IsBall,
+  IsPlayer,
+  Match,
+  MeshRef,
+  PlayerInfo,
+  Position,
+  Role,
+  Selected,
+  Team,
+  Velocity,
+} from "./traits";
+
+/** Dimensions straight from the C++ source (gamedefines.hpp:271-279, ball.cpp). */
+export const PITCH = {
+  halfLength: 55, // goal-to-goal, goals at x = ±55
+  halfWidth: 36, // touchline-to-touchline, z = ±36
+  goalHalfWidth: 3.7,
+  goalHeight: 2.5,
+  goalDepth: 2.55,
+  postRadius: 0.07,
+  ballRadius: 0.11,
+} as const;
+
+/** Player velocities from gamedefines.hpp:18-27, in m/s. */
+export const SPEEDS = { dribble: 3.5, walk: 5.0, sprint: 8.0 } as const;
+
+/** Team 0 attacks +x, team 1 attacks -x. */
+export const attackSign = (team: number): number => (team === 0 ? 1 : -1);
+
+/** 4-4-2 anchors for a team attacking +x, at a neutral ball position. */
+const FORMATION: ReadonlyArray<{ role: number; x: number; z: number }> = [
+  { role: Role.GK, x: -52, z: 0 },
+  { role: Role.DEF, x: -36, z: -26 },
+  { role: Role.DEF, x: -38, z: -9 },
+  { role: Role.DEF, x: -38, z: 9 },
+  { role: Role.DEF, x: -36, z: 26 },
+  { role: Role.MID, x: -12, z: -24 },
+  { role: Role.MID, x: -15, z: -7 },
+  { role: Role.MID, x: -15, z: 7 },
+  { role: Role.MID, x: -12, z: 24 },
+  { role: Role.ATT, x: 6, z: -10 },
+  { role: Role.ATT, x: 6, z: 10 },
+];
+
+export function anchor(team: number, index: number): { x: number; z: number } {
+  const f = FORMATION[index]!;
+  const s = attackSign(team);
+  return { x: f.x * s, z: f.z * s };
+}
+
+export function loadMatch(world: World): void {
+  for (const e of [...world.query(IsPlayer)]) e.destroy();
+  for (const e of [...world.query(IsBall)]) e.destroy();
+  for (const e of [...world.query(Match)]) e.destroy();
+
+  world.spawn(IsBall, BallRef, BallState);
+  world.spawn(Match);
+
+  for (let team = 0; team < 2; team++) {
+    for (let i = 0; i < FORMATION.length; i++) {
+      world.spawn(
+        IsPlayer,
+        Team({ id: team }),
+        PlayerInfo({
+          index: i,
+          role: FORMATION[i]!.role,
+          aiTimer: Math.random() * 0.3,
+        }),
+        Position,
+        Velocity,
+        Heading,
+        HomePos,
+        MeshRef,
+      );
+    }
+  }
+  placeKickoff(world, Math.random() < 0.5 ? 0 : 1);
+}
+
+/** Everyone to their own half, ball dead on the centre spot, one striker on it. */
+export function placeKickoff(world: World, kickingTeam: number): void {
+  const ball = world.queryFirst(IsBall);
+  const match = world.queryFirst(Match);
+  if (!ball || !match) return;
+
+  const players = world.query(IsPlayer);
+  for (const e of players) {
+    const team = e.get(Team)!.id;
+    const info = e.get(PlayerInfo)!;
+    const a = anchor(team, info.index);
+    const s = attackSign(team);
+    // own half is -x for team 0, +x for team 1
+    const x = s > 0 ? Math.min(a.x, -2) : Math.max(a.x, 2);
+    e.get(Position)!.set(x, 0, a.z);
+    e.get(Velocity)!.set(0, 0, 0);
+    e.set(Heading, { angle: Math.atan2(-x, -a.z) });
+    e.get(HomePos)!.set(a.x, 0, a.z);
+  }
+
+  const kicker = players.find(
+    (e) =>
+      e.get(Team)!.id === kickingTeam && e.get(PlayerInfo)!.role === Role.ATT,
+  );
+  if (kicker) {
+    kicker.get(Position)!.set(-attackSign(kickingTeam) * 1.0, 0, 0);
+    kicker.set(Heading, { angle: Math.atan2(attackSign(kickingTeam), 0) });
+  }
+
+  const bs = ball.get(BallState)!;
+  bs.owner = kicker ?? null;
+  bs.lastKicker = null;
+  bs.kickCooldown = 0;
+  const rb = ball.get(BallRef)!.value;
+  if (rb) {
+    rb.setTranslation({ x: 0, y: PITCH.ballRadius, z: 0 }, true);
+    rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  }
+
+  setSelected(
+    world,
+    kickingTeam === 0 ? (kicker ?? null) : nearestHuman(world, 0, 0),
+  );
+  match.set(Match, {
+    lastTouchTeam: kickingTeam,
+    resetTimer: 0,
+    pendingKickoffTeam: -1,
+    switchCooldown: 0.5,
+  });
+}
+
+export function setSelected(world: World, entity: Entity | null): void {
+  for (const e of [...world.query(Selected)]) e.remove(Selected);
+  entity?.add(Selected);
+}
+
+/** Nearest outfield player of the human team (0) to a point. */
+export function nearestHuman(world: World, x: number, z: number): Entity | null {
+  let best: Entity | null = null;
+  let bestD = Infinity;
+  for (const e of world.query(IsPlayer)) {
+    if (e.get(Team)!.id !== 0 || e.get(PlayerInfo)!.role === Role.GK) continue;
+    const p = e.get(Position)!;
+    const d = Math.hypot(p.x - x, p.z - z);
+    if (d < bestD) {
+      bestD = d;
+      best = e;
+    }
+  }
+  return best;
+}
