@@ -204,7 +204,12 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
   });
 }
 
-/** Directional pass for the human player: alignment-biased candidate, always kicks. */
+/**
+ * Directional pass for the human player. The receiver is whoever you are
+ * POINTING at — best stick alignment wins, tactics never override the input
+ * (the old tactical filter could pick a different mate than the one aimed
+ * at, or exclude him entirely, which read as "passes miss").
+ */
 export function pass(
   world: World,
   kicker: Entity,
@@ -212,41 +217,47 @@ export function pass(
   dirZ: number,
   lofted: boolean,
 ): void {
-  const choice = evaluateBestPass(world, kicker, dirX, dirZ);
-  if (choice) {
-    executePass(world, kicker, { ...choice, high: lofted });
-    return;
-  }
-  const ball = world.queryFirst(IsBall);
-  const rb = ball?.get(BallRef)!.value;
-  if (!ball || !rb) return;
-  const bp = rb.translation();
-  // even a blind directional punt homes onto the nearest mate in the cone
-  let target: Entity | null = null;
-  let bestD = 32;
   const teamId = kicker.get(Team)!.id;
+  const kp = kicker.get(Position)!;
+  let mate: Entity | null = null;
+  let bestScore = -Infinity;
   for (const e of world.query(IsPlayer)) {
     if (e === kicker || e.get(Team)!.id !== teamId) continue;
     const p = e.get(Position)!;
-    const dx = p.x - bp.x;
-    const dz = p.z - bp.z;
+    const dx = p.x - kp.x;
+    const dz = p.z - kp.z;
     const d = Math.hypot(dx, dz);
-    if (d < 2 || d > bestD) continue;
-    if ((dx * dirX + dz * dirZ) / (d || 1) < 0.55) continue; // ~57° cone
-    bestD = d;
-    target = e;
+    if (d < 1.5 || d > 48) continue;
+    const align = (dx * dirX + dz * dirZ) / (d || 1);
+    if (align < 0.35) continue; // ~70° half-cone around the input
+    // alignment dominates; among similar angles prefer the closer man
+    const score = align * 2 - d * 0.015;
+    if (score > bestScore) {
+      bestScore = score;
+      mate = e;
+    }
   }
-  const speed = lofted ? 16 : 15;
+  if (mate) {
+    const mp = mate.get(Position)!;
+    const mv = mate.get(Velocity)!;
+    const d = Math.hypot(mp.x - kp.x, mp.z - kp.z);
+    const lead = clamp(0.1 + d * 0.02, 0.1, 0.5);
+    executePass(world, kicker, {
+      mate,
+      tx: mp.x + mv.x * lead,
+      tz: mp.z + mv.z * lead,
+      high: lofted,
+      odds: 1,
+      total: 1,
+    });
+    return;
+  }
+  // nobody anywhere near the cone: plain directional punt
   releaseBall(world, kicker, {
-    x: dirX * speed,
+    x: dirX * (lofted ? 16 : 15),
     y: lofted ? 6 : 0.4,
-    z: dirZ * speed,
+    z: dirZ * (lofted ? 16 : 15),
   });
-  if (target) {
-    const bs = ball.get(BallState)!;
-    bs.passTarget = target;
-    bs.passHomingT = 4;
-  }
 }
 
 /**

@@ -37,6 +37,9 @@ function segDist(
 
 const CAPTURE_RADIUS = 0.9;
 const STEAL_RADIUS = 0.62;
+let prevBX = 0;
+let prevBZ = 0;
+let prevSeen = false;
 const OWNER_DROP_RADIUS = 1.8;
 /** Above this ball speed only the keeper can trap it (a "catch"). */
 const TRAP_SPEED = 14;
@@ -56,6 +59,17 @@ export function possessionSystem(world: World, dt: number): void {
   const bp = rb.translation();
   const v = rb.linvel();
   const ballSpeed = Math.hypot(v.x, v.y, v.z);
+
+  // exact swept segment for fast-ball checks: last frame's true position
+  // (v·dt under-sweeps whenever the render frame outlasts the clamped dt,
+  // and a 20+ m/s ball then tunnels straight through the keeper)
+  const jump = Math.hypot(bp.x - prevBX, bp.z - prevBZ);
+  const segOK = prevSeen && jump < 3.5; // a teleport (set piece) breaks the chain
+  const segX = segOK ? prevBX : bp.x - v.x * dt;
+  const segZ = segOK ? prevBZ : bp.z - v.z * dt;
+  prevBX = bp.x;
+  prevBZ = bp.z;
+  prevSeen = true;
 
   // owner loses the ball if it escapes close control (deflection, tackle bounce)
   if (bs.owner) {
@@ -88,7 +102,7 @@ export function possessionSystem(world: World, dt: number): void {
     // a 26 m/s strike covers over a meter per frame: test the keeper against
     // the ball's swept path this frame so shots can't tunnel through him
     if (isKeeper && ballSpeed > TRAP_SPEED) {
-      d = Math.min(d, segDist(p.x, p.z, bp.x - v.x * dt, bp.z - v.z * dt, bp.x, bp.z));
+      d = Math.min(d, segDist(p.x, p.z, segX, segZ, bp.x, bp.z));
     }
     // reach scales with ball control (technical_ballcontrol bonus, humanoidbase.cpp:2108);
     // a diving keeper covers extra ground with his outstretched arms
