@@ -439,10 +439,17 @@ function defendPosition(
 
   if (ts.presser === e) {
     if (carrier) {
-      // goal-side pressing point (playercontroller.cpp:65-134)
+      // cut him off: aim goal-side of where the carrier is GOING, not where
+      // he is — the presser arrives in his path (or shoulder to shoulder on
+      // a chase) instead of trailing in his wake. Lead grows with distance.
       const cp = carrier.get(Position)!;
-      const gd = Math.hypot(ownGoalX - cp.x, cp.z) || 1;
-      seek(e, cp.x + ((ownGoalX - cp.x) / gd) * 0.8, cp.z + (-cp.z / gd) * 0.8, dt);
+      const cv = carrier.get(Velocity)!;
+      const p = e.get(Position)!;
+      const lead = clamp(Math.hypot(cp.x - p.x, cp.z - p.z) / SPEEDS.sprint, 0.15, 0.85);
+      const fx = cp.x + cv.x * lead;
+      const fz = cp.z + cv.z * lead;
+      const gd = Math.hypot(ownGoalX - fx, fz) || 1;
+      seek(e, fx + ((ownGoalX - fx) / gd) * 0.8, fz + (-fz / gd) * 0.8, dt);
     } else {
       seek(e, bp.x + bv.x * 0.25, bp.z + bv.z * 0.25, dt);
     }
@@ -451,9 +458,13 @@ function defendPosition(
 
   const marked = ts.marks.get(e);
   if (marked && carrier) {
+    // mark the runner's near future, goal-side, so he is met front-on
     const op = marked.get(Position)!;
-    const gd = Math.hypot(ownGoalX - op.x, op.z) || 1;
-    seek(e, op.x + ((ownGoalX - op.x) / gd) * 1.5, op.z + (-op.z / gd) * 1.5, dt);
+    const ov = marked.get(Velocity)!;
+    const fx = op.x + ov.x * 0.3;
+    const fz = op.z + ov.z * 0.3;
+    const gd = Math.hypot(ownGoalX - fx, fz) || 1;
+    seek(e, fx + ((ownGoalX - fx) / gd) * 1.5, fz + (-fz / gd) * 1.5, dt);
     return;
   }
 
