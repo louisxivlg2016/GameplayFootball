@@ -90,6 +90,26 @@ export function tackleSystem(world: World, dt: number): void {
         const chance =
           (0.09 + e.get(Stats)!.tackle * 0.16) *
           (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance : 1);
+        // the ball sits in FRONT of the carrier: a man straight behind him
+        // can't play it without going through the player. Shoving through
+        // the back is never a steal — it's a whistled foul (referee.cpp
+        // from-behind factor), and the carrier keeps the ball.
+        const ch = carrier.get(Heading)!.angle;
+        const behind =
+          ((p.x - cp.x) * Math.sin(ch) + (p.z - cp.z) * Math.cos(ch)) /
+          (d || 1);
+        if (behind < -0.35) {
+          if (Math.random() < chance * 0.35) {
+            if (carrier.isAlive() && !carrier.has(Tripped)) {
+              carrier.add(Tripped);
+              carrier.set(Tripped, { t: 0, yaw: ch, fall: 0.5 });
+            }
+            cooldowns.set(e, 2.5);
+            refereeFoul(world, e, carrier, 1.05 + Math.random() * 0.5);
+            break;
+          }
+          continue;
+        }
         if (Math.random() >= chance) continue;
         // every duel resolves differently: a clean steal he comes away
         // with, a toe-poke that leaves the ball loose for anyone, or a
