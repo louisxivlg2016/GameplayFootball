@@ -1,7 +1,9 @@
 import * as THREE from "three";
 import type { World } from "koota";
 import {
+  BallState,
   Heading,
+  IsBall,
   IsPlayer,
   MeshRef,
   Position,
@@ -33,9 +35,28 @@ function startLoop(
 }
 
 export function movementSystem(world: World, dt: number): void {
+  const owner = world.queryFirst(IsBall)?.get(BallState)?.owner ?? null;
   for (const e of world.query(IsPlayer)) {
     const p = e.get(Position)!;
     const v = e.get(Velocity)!;
+
+    // the ball carrier never back-pedals: drop any velocity opposite his
+    // facing so a reversal pivots through a stop instead of sliding backwards
+    // with the ball glued to his feet. The heading below still turns from the
+    // pre-clamp intent, so an AI carrier can complete the turn and re-engage.
+    const intentX = v.x;
+    const intentZ = v.z;
+    if (e === owner) {
+      const ang = e.get(Heading)!.angle;
+      const fwdX = Math.sin(ang);
+      const fwdZ = Math.cos(ang);
+      const fwd = v.x * fwdX + v.z * fwdZ;
+      if (fwd < 0) {
+        v.x -= fwd * fwdX;
+        v.z -= fwd * fwdZ;
+      }
+    }
+
     p.x = clamp(p.x + v.x * dt, -58, 58);
     p.z = clamp(p.z + v.z * dt, -39, 39);
 
@@ -44,8 +65,8 @@ export function movementSystem(world: World, dt: number): void {
     // heading lags velocity — the original turns through animation, not snapping
     let heading = e.get(Heading)!.angle;
     let angleDiff = 0;
-    if (speed > 0.6) {
-      const desired = Math.atan2(v.x, v.z);
+    if (Math.hypot(intentX, intentZ) > 0.6) {
+      const desired = Math.atan2(intentX, intentZ);
       const diff = normAngle(desired - heading);
       // the human's heading comes straight from input (control.ts) — deriving
       // it from velocity stalls in the low-speed band during reversals and

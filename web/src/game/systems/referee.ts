@@ -552,7 +552,9 @@ function endPhase(world: World, score: [number, number]): void {
     startSetPiece(world, "kickoff", team, 0, 0);
     return;
   }
-  if (phase === 1 && tied) {
+  // extra time and penalties are for important matches only — a friendly
+  // that is level after 90 minutes simply ends in a draw
+  if (phase === 1 && tied && store.important) {
     banner("EXTRA TIME", 3);
     radio("extratime");
     refState.phase = 2;

@@ -1,6 +1,7 @@
 import type { World } from "koota";
 import {
   BallRef,
+  BallState,
   Heading,
   IsBall,
   IsReferee,
@@ -23,15 +24,37 @@ const normAngle = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 export function officialsSystem(world: World, dt: number): void {
   const referee = world.queryFirst(IsReferee);
   if (!referee) return;
-  const rb = world.queryFirst(IsBall)?.get(BallRef)?.value;
+  const ballEnt = world.queryFirst(IsBall);
+  const rb = ballEnt?.get(BallRef)?.value;
   const bp = rb ? rb.translation() : { x: 0, y: 0, z: 0 };
 
   const p = referee.get(Position)!;
   const v = referee.get(Velocity)!;
 
+  // run with the play: lead the patrol point along the carrier's velocity so
+  // the ref tracks the same direction as the man on the ball instead of
+  // reacting to where the ball was (free balls lead on ball velocity)
+  const carrier = ballEnt?.get(BallState)?.owner ?? null;
+  let leadX = 0;
+  let leadZ = 0;
+  if (carrier) {
+    const cv = carrier.get(Velocity)!;
+    leadX = cv.x;
+    leadZ = cv.z;
+  } else if (rb) {
+    const bv = rb.linvel();
+    leadX = bv.x;
+    leadZ = bv.z;
+  }
+  const leadM = Math.hypot(leadX, leadZ);
+  if (leadM > 8) {
+    leadX *= 8 / leadM;
+    leadZ *= 8 / leadM;
+  }
+
   // diagonal patrol: behind play, biased to the far touchline
-  let tx = bp.x * 0.82;
-  let tz = bp.z * 0.5 - 8;
+  let tx = (bp.x + leadX * 1.1) * 0.82;
+  let tz = (bp.z + leadZ * 1.1) * 0.5 - 8;
   const c = refState.ceremony;
   if (c) {
     // attend the restart — close for fouls and penalties, discreet otherwise

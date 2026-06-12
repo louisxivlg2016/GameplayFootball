@@ -57,6 +57,7 @@ export function Hud(): React.ReactNode {
             GAMEPLAY <span>FOOTBALL</span>
           </h1>
           <div className="prompt">Press Enter to kick off</div>
+          <ImportantToggle />
           <div className="controls">
             <b>WASD / Arrows</b> move&ensp;<b>Shift</b> sprint
             <br />
@@ -67,6 +68,36 @@ export function Hud(): React.ReactNode {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ImportantToggle(): React.ReactNode {
+  const important = useStore((s) => s.important);
+  return (
+    <div
+      style={{
+        textAlign: "center",
+        color: important ? "#ffe94a" : "#9fb89f",
+        fontSize: 16,
+      }}
+    >
+      <span
+        style={{
+          background: "rgba(255,255,255,0.12)",
+          borderRadius: 4,
+          padding: "1px 7px",
+          color: "#fff",
+          fontWeight: 600,
+        }}
+      >
+        M
+      </span>{" "}
+      Match important : {important ? "OUI" : "NON"}
+      <div style={{ fontSize: 12, opacity: 0.8 }}>
+        deux mi-temps, puis prolongation (deux mi-temps) et tirs au but si le
+        score reste égal
+      </div>
     </div>
   );
 }

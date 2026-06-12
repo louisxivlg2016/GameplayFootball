@@ -24,11 +24,12 @@ export function initInput(): void {
     held.add(e.code);
     pressed.add(e.code);
 
-    const { mode, setMode, newMatch } = useStore.getState();
+    const { mode, setMode, newMatch, toggleImportant } = useStore.getState();
     if (e.code === "Enter") {
       if (mode === "menu") newMatch();
       else if (mode === "pause") setMode("play");
     }
+    if (e.code === "KeyM" && mode === "menu") toggleImportant();
     if (e.code === "Escape") {
       if (mode === "play") setMode("pause");
       else if (mode === "pause") setMode("play");
