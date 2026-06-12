@@ -63,7 +63,7 @@ export function Hud(): React.ReactNode {
             <b>Space</b> shoot&ensp;<b>X</b> pass&ensp;<b>C</b> lofted pass&ensp;
             <b>E</b> slide tackle
             <br />
-            <b>Esc</b> pause
+            <b>R</b> radio commentary&ensp;<b>Esc</b> pause
           </div>
         </div>
       )}

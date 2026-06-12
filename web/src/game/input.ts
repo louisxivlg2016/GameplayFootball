@@ -1,5 +1,6 @@
 import { useStore } from "./store";
 import { initAudio } from "./audio";
+import { toggleRadio } from "./radio";
 
 const held = new Set<string>();
 const pressed = new Set<string>();
@@ -32,6 +33,7 @@ export function initInput(): void {
       if (mode === "play") setMode("pause");
       else if (mode === "pause") setMode("play");
     }
+    if (e.code === "KeyR") toggleRadio();
   });
   window.addEventListener("keyup", (e) => held.delete(e.code));
   window.addEventListener("blur", () => held.clear());

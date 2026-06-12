@@ -14,6 +14,7 @@ import {
 } from "../traits";
 import { PITCH, SPEEDS, attackSign } from "../levels";
 import { kickSound } from "../audio";
+import { radio } from "../radio";
 import { refereeOnKick } from "./referee";
 
 /** AI_GetMindSet by role: defenders 0, mids 0.5, attackers 1 (AIfunctions.cpp). */
@@ -260,6 +261,7 @@ export function shoot(world: World, kicker: Entity, aimZ: number): void {
     y: lift,
     z: (dz / dist) * speed,
   });
+  if (dist < 35) radio("shot");
 }
 
 /** Panic clear for low-mindset players near goal (elizacontroller.cpp:924-939). */

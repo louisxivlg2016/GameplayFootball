@@ -22,6 +22,7 @@ import {
 } from "../levels";
 import { useStore } from "../store";
 import { crowdRoar, whistle } from "../audio";
+import { radio, radioScore } from "../radio";
 import { evaluateBestPass, executePass, pass, releaseBall, shoot } from "./kicks";
 
 const clamp = (v: number, lo: number, hi: number): number =>
@@ -72,6 +73,8 @@ export const refState = {
   flaggedTeam: -1,
   bannerT: 0,
   ended: false,
+  /** game-clock time of the next radio score reminder */
+  nextChatter: 120,
   shootout: null as {
     scores: [number, number];
     taken: [number, number];
@@ -132,6 +135,10 @@ export function startSetPiece(
   world.queryFirst(Match)?.set(Match, { lastTouchTeam: team });
   refState.flagged.clear();
   if (type !== "kickoff") whistle(1);
+  if (type === "kickoff") radio("kickoff", { team });
+  else if (type === "corner") radio("corner", { team });
+  else if (type === "goalkick") radio("goalkick", { team });
+  else if (type === "throwin") radio("throwin", { team });
 }
 
 /** Offside snapshot at the moment of every kick (AIfunctions.cpp:333-372). */
@@ -178,6 +185,7 @@ export function refereeOffside(world: World, player: Entity): boolean {
   if (!spot || refState.flaggedTeam !== player.get(Team)!.id) return false;
   whistle(2);
   banner("OFFSIDE");
+  radio("offside");
   startSetPiece(
     world,
     "freekick",
@@ -206,9 +214,11 @@ export function refereeFoul(
     const second = foulType === 2 && info.yellows >= 1;
     if (foulType === 3 || second) {
       banner(second ? "SECOND YELLOW — RED CARD" : "RED CARD", 3);
+      radio("red");
       sendOff(world, fouler);
     } else {
       banner("YELLOW CARD", 3);
+      radio("yellow");
       fouler.set(PlayerInfo, { yellows: info.yellows + 1 });
     }
   }
@@ -223,9 +233,11 @@ export function refereeFoul(
     whistle(2);
     if (penalty) {
       banner("PENALTY!", 3);
+      radio("penalty");
       startSetPiece(world, "penalty", victimTeam, Math.sign(defGoalX) * 44, 0);
     } else {
       banner("FOUL");
+      radio("foul");
       startSetPiece(world, "freekick", victimTeam, clamp(fp.x, -52, 52), clamp(fp.z, -33, 33));
     }
   };
@@ -395,6 +407,7 @@ export function refereeSystem(world: World, dt: number): void {
     refState.flagged.clear();
     refState.ended = false;
     refState.shootout = null;
+    refState.nextChatter = 120;
     refState.firstKickoff = match.get(Match)!.lastTouchTeam;
     store.setPhaseLabel(PHASE_LABEL[0]!);
   }
@@ -452,6 +465,12 @@ export function refereeSystem(world: World, dt: number): void {
   const secs = Math.floor(refState.clock);
   if (secs !== store.clock) store.setClock(secs);
 
+  // colour commentary between actions
+  if (refState.clock >= refState.nextChatter) {
+    refState.nextChatter = refState.clock + 150 + Math.random() * 120;
+    radioScore(store.score, refState.clock / 60);
+  }
+
   if (refState.clock >= PHASE_END[refState.phase]!) {
     endPhase(world, store.score);
     return;
@@ -480,6 +499,9 @@ export function refereeSystem(world: World, dt: number): void {
       const scorer = attackSign(0) * side > 0 ? 0 : 1;
       crowdRoar();
       store.addGoal(scorer);
+      const newScore: [number, number] = [...store.score];
+      newScore[scorer] += 1;
+      radio("goal", { team: scorer, score: newScore });
       b.bs.owner = null;
       match.set(Match, { resetTimer: 2.8, pendingKickoffTeam: 1 - scorer });
       return;
@@ -515,6 +537,7 @@ function endPhase(world: World, score: [number, number]): void {
 
   if (phase === 0 || phase === 2) {
     banner(phase === 0 ? "HALF TIME" : "ET — SECOND HALF", 3);
+    if (phase === 0) radio("halftime", { score });
     refState.phase++;
     store.setPhaseLabel(PHASE_LABEL[refState.phase]!);
     swapSides();
@@ -529,6 +552,7 @@ function endPhase(world: World, score: [number, number]): void {
   }
   if (phase === 1 && tied) {
     banner("EXTRA TIME", 3);
+    radio("extratime");
     refState.phase = 2;
     store.setPhaseLabel(PHASE_LABEL[2]!);
     const team = refState.firstKickoff;
@@ -538,6 +562,7 @@ function endPhase(world: World, score: [number, number]): void {
   }
   if (phase === 3 && tied) {
     banner("PENALTY SHOOT-OUT", 3);
+    radio("shootout");
     refState.phase = 4;
     store.setPhaseLabel(PHASE_LABEL[4]!);
     refState.shootout = { scores: [0, 0], taken: [0, 0], turn: 0, awaiting: 0 };
@@ -560,6 +585,7 @@ function finishMatch(
       : `FULL TIME — ${winner} ${score[0]}-${score[1]}`,
     6,
   );
+  radio("fulltime", { score: pens ?? score });
   refState.ended = true;
   setTimeout(() => useStore.getState().setMode("menu"), 5000);
 }
@@ -606,8 +632,10 @@ function shootoutSystem(
     crowdRoar();
     so.scores[so.turn] += 1;
     banner("GOAL!");
+    radio("penGoal");
   } else {
     banner("MISSED!");
+    radio("penMiss");
   }
   so.taken[so.turn] += 1;
   store.setPens([...so.scores]);

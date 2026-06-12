@@ -12,6 +12,7 @@ import {
   Team,
 } from "../traits";
 import { refState, refereeOffside } from "./referee";
+import { radio } from "../radio";
 
 const CAPTURE_RADIUS = 0.9;
 const STEAL_RADIUS = 0.62;
@@ -82,6 +83,7 @@ export function possessionSystem(world: World, dt: number): void {
   const stats = best.get(Stats)!;
   const err = (1 - stats.ballcontrol) * 0.3 + Math.min(ballSpeed, 16) * 0.02;
   const isKeeper = best.get(PlayerInfo)!.role === Role.GK;
+  if (isKeeper && ballSpeed > 12) radio("save"); // a real stop, not a pickup
   const damp = isKeeper ? 0 : Math.min(0.25 + err * 0.3, 0.5);
   rb.setLinvel(
     {
