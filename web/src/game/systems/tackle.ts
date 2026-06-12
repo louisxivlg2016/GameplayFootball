@@ -103,7 +103,9 @@ export function tackleSystem(world: World, dt: number): void {
         y: 0.5,
         z: slide.dirZ * 8 + (Math.random() - 0.5) * 3,
       });
-      void owner;
+      // at high fps the poke moves cm before the next possession pass — block
+      // the dispossessed owner briefly or they instantly recapture
+      if (owner) bs.recaptureBlocks.push({ player: owner, t: 0.12 });
       slides.delete(e);
       cooldowns.set(e, 1.2);
       continue;

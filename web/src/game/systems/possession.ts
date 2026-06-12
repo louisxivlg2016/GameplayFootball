@@ -10,12 +10,12 @@ import {
   Role,
   Stats,
   Team,
-  Velocity,
 } from "../traits";
 import { refState, refereeOffside } from "./referee";
 
 const CAPTURE_RADIUS = 0.9;
 const STEAL_RADIUS = 0.62;
+const OWNER_DROP_RADIUS = 1.8;
 /** Above this ball speed only the keeper can trap it (a "catch"). */
 const TRAP_SPEED = 14;
 
@@ -28,17 +28,17 @@ export function possessionSystem(world: World, dt: number): void {
   if (!rb) return;
 
   bs.kickCooldown = Math.max(0, bs.kickCooldown - dt);
+  bs.recaptureBlocks = bs.recaptureBlocks
+    .map((block) => ({ player: block.player, t: block.t - dt }))
+    .filter((block) => block.t > 0 && block.player.isAlive());
   const bp = rb.translation();
   const v = rb.linvel();
   const ballSpeed = Math.hypot(v.x, v.y, v.z);
 
-  // owner keeps possession across knock-ons: at sprint the ball legitimately
-  // rolls several meters ahead, so the control radius scales with their speed
+  // owner loses the ball if it escapes close control (deflection, tackle bounce)
   if (bs.owner) {
     const op = bs.owner.get(Position);
-    const ov = bs.owner.get(Velocity);
-    const reach = op && ov ? 2.0 + Math.hypot(ov.x, ov.z) * 0.9 : 0;
-    if (!op || Math.hypot(op.x - bp.x, op.z - bp.z) > reach) bs.owner = null;
+    if (!op || Math.hypot(op.x - bp.x, op.z - bp.z) > OWNER_DROP_RADIUS) bs.owner = null;
   }
 
   if (bp.y > 1.3) return; // ball above playable height
@@ -55,6 +55,7 @@ export function possessionSystem(world: World, dt: number): void {
     const isKeeper = e.get(PlayerInfo)!.role === Role.GK;
     if (ballSpeed > TRAP_SPEED && !isKeeper) continue;
     if (bs.kickCooldown > 0 && e === bs.lastKicker) continue;
+    if (bs.recaptureBlocks.some((block) => block.player === e)) continue;
     if (bs.owner && e.get(Team)!.id === ownerTeam) continue; // no stealing from teammates
     const p = e.get(Position)!;
     const d = Math.hypot(p.x - bp.x, p.z - bp.z);

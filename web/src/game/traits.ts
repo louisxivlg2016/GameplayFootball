@@ -58,7 +58,9 @@ export const BallState = trait(() => ({
   lastKicker: null as Entity | null,
   /** seconds during which lastKicker may not recapture the ball */
   kickCooldown: 0,
-  /** seconds until the carrier's next dribble touch (touch-based possession) */
+  /** short no-recapture windows after releases and tackle pokes */
+  recaptureBlocks: [] as Array<{ player: Entity; t: number }>,
+  /** seconds until the carrier's next dribble touch */
   touchTimer: 0,
 }));
 

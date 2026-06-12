@@ -36,6 +36,7 @@ export function releaseBall(
   bs.owner = null;
   bs.lastKicker = kicker;
   bs.kickCooldown = 0.45;
+  bs.recaptureBlocks = [{ player: kicker, t: 0.45 }];
   world.queryFirst(Match)?.set(Match, {
     lastTouchTeam: kicker.get(Team)!.id,
   });

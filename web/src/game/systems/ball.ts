@@ -5,7 +5,6 @@ import {
   Heading,
   IsBall,
   Position,
-  Stats,
   Velocity,
 } from "../traits";
 import { PITCH } from "../levels";
@@ -25,77 +24,26 @@ export function ballSystem(world: World, dt: number): void {
   const bp = rb.translation();
   const v = rb.linvel();
 
-  // touch-based dribbling: the carrier plays the ball ahead in discrete touches
-  // and chases it — the ball is genuinely loose (and winnable) between touches
+  // continuous carry (the phase-1 model): keep the ball just in front of the
+  // owner's feet every frame. Contests still happen via the steal radius and
+  // slide-tackle pokes, which clear the owner before this branch runs.
   if (bs.owner && (!refState.ceremony || refState.ceremony.ready)) {
     const p = bs.owner.get(Position)!;
+    const ang = bs.owner.get(Heading)!.angle;
     const ov = bs.owner.get(Velocity)!;
     const speed = Math.hypot(ov.x, ov.z);
-    const ballSpeed = Math.hypot(v.x, v.z);
-    const d = Math.hypot(bp.x - p.x, bp.z - p.z);
-    bs.touchTimer -= dt;
-
-    // recovery: the ball slipped behind the carrier — steer it straight back
-    // to a short front target (what the old continuous carry always did)
-    if (speed > 1 && d < 1.2 && bp.y < 0.5) {
-      const along = ((bp.x - p.x) * ov.x + (bp.z - p.z) * ov.z) / speed;
-      if (along < -0.25) {
-        const tx = p.x + (ov.x / speed) * 0.65 - bp.x;
-        const tz = p.z + (ov.z / speed) * 0.65 - bp.z;
-        const len = Math.hypot(tx, tz) || 0.001;
-        const recoverSpeed = Math.min(7, Math.max(speed * 0.9, 3));
-        rb.setLinvel(
-          { x: (tx / len) * recoverSpeed, y: Math.min(v.y, 0.2), z: (tz / len) * recoverSpeed },
-          true,
-        );
-        bs.touchTimer = 0.12;
-        return;
-      }
+    const tx = p.x + Math.sin(ang) * 0.55;
+    const tz = p.z + Math.cos(ang) * 0.55;
+    const maxCarry = speed + 5;
+    let cx = (tx - bp.x) * 9;
+    let cz = (tz - bp.z) * 9;
+    const cm = Math.hypot(cx, cz);
+    if (cm > maxCarry) {
+      cx *= maxCarry / cm;
+      cz *= maxCarry / cm;
     }
-
-    // a touch fires when the carrier has caught up to the slowing ball, not on
-    // a fixed clock — otherwise a player starting to run outruns their own ball
-    const caughtUp = speed > 1 && ballSpeed < speed * 0.75;
-    if (d < 1.0 && bp.y < 0.5 && (bs.touchTimer <= 0 || caughtUp)) {
-      const stats = bs.owner.get(Stats)!;
-      if (speed >= 1) {
-        // GetBallControlVector (humanoid_utils.cpp): aim the ball at a planned
-        // re-touch point — playerPos + movement·delay + front-of-foot offset,
-        // where delay = (v/sprint)²·0.6 + 0.25s — with just enough pace that
-        // rolling friction kills it there as the carrier arrives.
-        const delay = Math.pow(speed / 8, 2) * 0.6 + 0.25;
-        const frontOffset = 0.34 + speed * 0.08; // GetFrontOfFootOffsetRel scales with pace
-        const err =
-          (1 - stats.ballcontrol) * 0.12 * (Math.random() - 0.5) * 2;
-        const cos = Math.cos(err);
-        const sin = Math.sin(err);
-        const mx = (ov.x * cos - ov.z * sin) / speed;
-        const mz = (ov.x * sin + ov.z * cos) / speed;
-        const plannedX = p.x + mx * (speed * delay + frontOffset);
-        const plannedZ = p.z + mz * (speed * delay + frontOffset);
-        const toX = plannedX - bp.x;
-        const toZ = plannedZ - bp.z;
-        const dist = Math.hypot(toX, toZ) || 0.001;
-        const timeToGo = delay + 0.08;
-        const divisor = timeToGo * (0.38 + 0.02 * stats.ballcontrol) * 1.1;
-        // high-pace touches need extra power or the carrier overruns the ball
-        const veloBias = Math.min(1, Math.max(0, (speed - 5.0) / 2.2));
-        const powerMultiplier = 1 + veloBias * (0.2 - stats.ballcontrol * 0.03);
-        const power = Math.pow(dist / divisor, 0.7) * powerMultiplier;
-        rb.setLinvel(
-          { x: (toX / dist) * power, y: Math.min(v.y, 0.2), z: (toZ / dist) * power },
-          true,
-        );
-        bs.touchTimer = Math.max(0.25, delay * 0.85);
-      } else {
-        // standing: trap the ball dead at the feet, stay ready for the next touch
-        rb.setLinvel({ x: v.x * 0.3, y: v.y, z: v.z * 0.3 }, true);
-        bs.touchTimer = 0.15;
-      }
-      // the drag section below works on this frame's pre-touch velocity and
-      // would cancel the touch we just applied — skip it for this frame
-      return;
-    }
+    rb.setLinvel({ x: cx, y: bp.y > 0.25 ? v.y : Math.min(v.y, 0), z: cz }, true);
+    return; // never let the free-ball drag below overwrite the carry
   }
 
   let { x: vx, y: vy, z: vz } = v;

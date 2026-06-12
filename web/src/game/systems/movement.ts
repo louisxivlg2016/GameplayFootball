@@ -47,14 +47,14 @@ export function movementSystem(world: World, dt: number): void {
     if (speed > 0.6) {
       const desired = Math.atan2(v.x, v.z);
       const diff = normAngle(desired - heading);
-      const selected = e.has(Selected);
-      // fast turns — and near-instant reversals for the human player, who
-      // otherwise visibly runs backwards while the body catches up
-      const turnRate = selected && Math.abs(diff) > Math.PI * 0.55 ? 28 : 10 + speed * 0.5;
-      const maxTurn = turnRate * dt;
-      heading = normAngle(heading + clamp(diff, -maxTurn, maxTurn));
-      if (selected && Math.abs(diff) > Math.PI * 0.9) heading = desired;
-      e.set(Heading, { angle: heading });
+      // the human's heading comes straight from input (control.ts) — deriving
+      // it from velocity stalls in the low-speed band during reversals and
+      // leaves the body visibly back-pedaling at high frame rates
+      if (!e.has(Selected)) {
+        const maxTurn = (10 + speed * 0.5) * dt;
+        heading = normAngle(heading + clamp(diff, -maxTurn, maxTurn));
+        e.set(Heading, { angle: heading });
+      }
       angleDiff = normAngle(desired - heading);
     }
 
@@ -72,8 +72,14 @@ export function movementSystem(world: World, dt: number): void {
     if (!h.mixer || !h.actions) continue;
 
     // gait by the original velocity bands, variant by the angle quadrant
-    const gait =
+    let gait =
       speed < 1.8 ? "idle" : speed < 4.2 ? "dribble" : speed < 6 ? "walk" : "sprint";
+    // hysteresis: a reversal dips through the idle band for a few frames at
+    // high fps — don't thrash into idle bridges while still clearly moving
+    const curGait = CLIP_META[h.variant]?.gait;
+    if (curGait && curGait !== "idle" && gait === "idle" && speed > 0.6) {
+      gait = curGait;
+    }
     const deg = (angleDiff * 180) / Math.PI;
     const variants = VARIANTS[gait] ?? [0];
     let bestA = 0;
