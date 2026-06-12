@@ -63,19 +63,22 @@ export function ballSystem(world: World, dt: number): void {
       const dz = mp.z + mv.z * 0.2 - bp.z;
       const dist = Math.hypot(dx, dz) || 1;
       const dot = (v.x * dx + v.z * dz) / (speed2d * dist);
-      if (dist < 0.5 || dot < 0.2) {
+      if (dist < 0.4 || dot < 0) {
         bs.passTarget = null;
       } else {
-        const k = Math.min(1, dt * 4);
+        // strong correction: the pass tracks the man, and a long ball that
+        // friction would kill short keeps just enough roll to reach him
+        const k = Math.min(1, dt * 7);
+        const sp =
+          dist > 1.5 && speed2d < 4.5
+            ? Math.min(4.5, speed2d + 9 * dt)
+            : speed2d;
         const nx = v.x / speed2d + (dx / dist - v.x / speed2d) * k;
         const nz = v.z / speed2d + (dz / dist - v.z / speed2d) * k;
         const nl = Math.hypot(nx, nz) || 1;
-        rb.setLinvel(
-          { x: (nx / nl) * speed2d, y: v.y, z: (nz / nl) * speed2d },
-          true,
-        );
-        v.x = (nx / nl) * speed2d;
-        v.z = (nz / nl) * speed2d;
+        rb.setLinvel({ x: (nx / nl) * sp, y: v.y, z: (nz / nl) * sp }, true);
+        v.x = (nx / nl) * sp;
+        v.z = (nz / nl) * sp;
       }
     }
   }

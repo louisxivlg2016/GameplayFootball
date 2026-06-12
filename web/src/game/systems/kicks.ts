@@ -181,7 +181,7 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
   // technique noise from technical_shortpass, scaled by difficulty for the AI
   const diffErr = kicker.get(Team)!.id === AI_TEAM ? difficulty().aiErr : 1;
   const err =
-    (1 - kicker.get(Stats)!.shortpass) * 0.04 * diffErr * (Math.random() - 0.5) * 2;
+    (1 - kicker.get(Stats)!.shortpass) * 0.015 * diffErr * (Math.random() - 0.5) * 2;
   const cos = Math.cos(err);
   const sin = Math.sin(err);
   const rawX = choice.tx - bp.x;
@@ -197,7 +197,7 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
   // arm the pass assist: the ball bends onto this receiver while in flight
   const bsAfter = ball.get(BallState)!;
   bsAfter.passTarget = choice.mate;
-  bsAfter.passHomingT = 1.6;
+  bsAfter.passHomingT = 2.4;
   radio("pass", {
     player: kicker.get(Name)?.short ?? "",
     target: choice.mate.get(Name)?.short ?? "",
@@ -245,7 +245,7 @@ export function pass(
   if (target) {
     const bs = ball.get(BallState)!;
     bs.passTarget = target;
-    bs.passHomingT = 1.6;
+    bs.passHomingT = 2.4;
   }
 }
 
