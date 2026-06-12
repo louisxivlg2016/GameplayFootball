@@ -149,10 +149,10 @@ export function tackleSystem(world: World, dt: number): void {
           continue;
         const p = e.get(Position)!;
         const d = Math.hypot(cp.x - p.x, cp.z - p.z);
-        // slides are the exception now, not the default duel — pokes and
-        // contains carry most of the defending
+        // slides are a rare, committed choice — pokes and contains carry
+        // almost all of the defending
         const chance =
-          (0.12 + e.get(Stats)!.tackle * 0.14) *
+          (0.05 + e.get(Stats)!.tackle * 0.06) *
           (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance : 1);
         if (d > 1.2 && d < 2.6 && Math.random() < chance) {
           startSlide(e);
@@ -196,7 +196,8 @@ export function tackleSystem(world: World, dt: number): void {
         }
       }
       slides.delete(e);
-      cooldowns.set(e, 1.2);
+      // humans recover fast (E/I stays responsive); the AI commits rarely
+      cooldowns.set(e, e.has(Selected) || e.has(Selected2) ? 1.2 : 2.5);
       continue;
     }
 
@@ -226,7 +227,7 @@ export function tackleSystem(world: World, dt: number): void {
         if (!victim.has(Tripped)) victim.add(Tripped);
         victim.set(Tripped, { t: 0, yaw: fallYaw, fall: 1 });
         slides.delete(e);
-        cooldowns.set(e, 2);
+        cooldowns.set(e, 3.5);
         refereeFoul(world, e, victim, severity);
         continue;
       }
@@ -234,7 +235,7 @@ export function tackleSystem(world: World, dt: number): void {
 
     if (slide.t <= 0) {
       slides.delete(e);
-      cooldowns.set(e, 1.5);
+      cooldowns.set(e, e.has(Selected) || e.has(Selected2) ? 1.5 : 3);
     }
   }
 }
