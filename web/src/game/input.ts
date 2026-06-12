@@ -1,6 +1,6 @@
 import { useStore } from "./store";
 import { initAudio } from "./audio";
-import { toggleRadio } from "./radio";
+import { toggleRadio, warmupRadioVoice } from "./radio";
 
 const held = new Set<string>();
 const pressed = new Set<string>();
@@ -21,6 +21,7 @@ export function initInput(): void {
     if (MOVE_KEYS.has(e.code) || e.code === "Space") e.preventDefault();
     if (e.repeat) return;
     initAudio(); // browsers unlock audio on the first user gesture
+    warmupRadioVoice(); // start the neural voice download in the background
     held.add(e.code);
     pressed.add(e.code);
 

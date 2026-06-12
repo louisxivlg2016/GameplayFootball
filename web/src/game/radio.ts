@@ -1,11 +1,13 @@
 /**
- * Radio commentary: a French play-by-play voice. Uses the browser's
- * speechSynthesis when it actually has voices; many Linux setups ship none
- * (no speech-dispatcher/espeak), so we fall back to a bundled eSpeak port
- * (mespeak) with its French voice — works everywhere, sounds like AM radio.
+ * Radio commentary: a French play-by-play voice, best engine available:
+ * 1. the browser's own speechSynthesis voices when installed,
+ * 2. Piper neural TTS (free fr_FR voice fetched from Hugging Face, cached
+ *    locally, synthesized in-browser via WASM) once it has loaded,
+ * 3. a bundled eSpeak port (mespeak) as the instant always-works fallback.
  * Urgent events (goals, cards) interrupt; chatter only plays when the
  * commentator is quiet. Toggle with R.
  */
+import { TtsSession } from "@mintplex-labs/piper-tts-web";
 import meSpeak from "mespeak";
 import meSpeakConfig from "mespeak/src/mespeak_config.json";
 import frVoice from "mespeak/voices/fr.json";
@@ -36,6 +38,60 @@ function ensureFallback(): void {
   fallbackReady = true;
 }
 
+// ---- Piper neural voice (free model from huggingface.co/rhasspy/piper-voices) ----
+let piper: TtsSession | null = null;
+let piperState: "idle" | "loading" | "ready" | "failed" = "idle";
+let piperAudio: HTMLAudioElement | null = null;
+let piperBusy = false;
+let piperGen = 0;
+
+/** Kick off the neural voice download (call after the first user gesture). */
+export function warmupRadioVoice(): void {
+  if (piperState !== "idle" || typeof window === "undefined") return;
+  piperState = "loading";
+  TtsSession.create({ voiceId: "fr_FR-gilles-low" })
+    .then((session) => {
+      piper = session;
+      piperState = "ready";
+    })
+    .catch(() => {
+      piperState = "failed"; // offline or unsupported: mespeak keeps the mic
+    });
+}
+
+async function sayPiper(text: string, priority: number): Promise<void> {
+  if (!piper) return;
+  if (priority >= 2) {
+    piperAudio?.pause();
+    piperBusy = false;
+  } else if (piperBusy) {
+    return;
+  }
+  piperBusy = true;
+  const gen = ++piperGen;
+  try {
+    const wav = await piper.predict(text);
+    if (gen !== piperGen || !enabled) {
+      piperBusy = false;
+      return;
+    }
+    const url = URL.createObjectURL(wav);
+    piperAudio?.pause();
+    const audio = new Audio(url);
+    piperAudio = audio;
+    const done = (): void => {
+      if (piperAudio === audio) piperBusy = false;
+      URL.revokeObjectURL(url);
+    };
+    audio.onended = done;
+    audio.onerror = done;
+    void audio.play().catch(done);
+  } catch {
+    piperBusy = false;
+    piperState = "failed";
+  }
+}
+
 export function radioEnabled(): boolean {
   return enabled;
 }
@@ -45,6 +101,9 @@ export function toggleRadio(): boolean {
   if (!enabled) {
     if (hasTTS) window.speechSynthesis.cancel();
     if (fallbackReady) meSpeak.stop();
+    piperAudio?.pause();
+    piperBusy = false;
+    piperGen++;
   } else {
     say("La radio du match est de retour à l'antenne !", 2);
   }
@@ -70,7 +129,13 @@ function say(text: string, priority = 1): void {
     return;
   }
 
-  // bundled eSpeak fallback
+  // neural Piper voice once its model has downloaded
+  if (piperState === "ready") {
+    void sayPiper(text, priority);
+    return;
+  }
+
+  // bundled eSpeak fallback (instant, robotic) while Piper loads / offline
   ensureFallback();
   const now = Date.now();
   if (priority >= 2) meSpeak.stop();
