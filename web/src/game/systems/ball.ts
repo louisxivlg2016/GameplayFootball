@@ -69,13 +69,15 @@ export function ballSystem(world: World, dt: number): void {
       if (dist < 0.4 || dot < 0) {
         bs.passTarget = null;
       } else {
-        // strong correction: the pass tracks the man, and a long ball that
-        // friction would kill short keeps just enough roll to reach him
+        // strong correction: the pass tracks the man — and it always rolls
+        // faster than he runs, so it reaches a receiver in full sprint
+        // instead of dying in his wake
         const k = Math.min(1, dt * 7);
+        const mateSpeed = Math.hypot(mv.x, mv.z);
+        const minSp =
+          dist > 1.2 ? Math.min(12, Math.max(4.5, mateSpeed + 2.5)) : 0;
         const sp =
-          dist > 1.5 && speed2d < 4.5
-            ? Math.min(4.5, speed2d + 9 * dt)
-            : speed2d;
+          speed2d < minSp ? Math.min(minSp, speed2d + 14 * dt) : speed2d;
         const nx = v.x / speed2d + (dx / dist - v.x / speed2d) * k;
         const nz = v.z / speed2d + (dz / dist - v.z / speed2d) * k;
         const nl = Math.hypot(nx, nz) || 1;

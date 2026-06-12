@@ -145,7 +145,7 @@ export function movementSystem(world: World, dt: number): void {
         const upK = dive.t < 0.55 ? 1 : Math.max(0, 1 - (dive.t - 0.55) / 0.55);
         const amt = inK * upK;
         const air =
-          dive.t < 0.5 ? Math.sin(Math.min(dive.t / 0.5, 1) * Math.PI) * 0.3 : 0;
+          dive.t < 0.5 ? Math.sin(Math.min(dive.t / 0.5, 1) * Math.PI) * 0.45 : 0;
         h.value.position.set(p.x, air, p.z);
         h.value.rotation.set(0.3 * amt, heading, -dive.side * 1.4 * amt, "YZX");
       } else if (slide) {

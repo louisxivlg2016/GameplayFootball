@@ -197,7 +197,7 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
   // arm the pass assist: the ball bends onto this receiver while in flight
   const bsAfter = ball.get(BallState)!;
   bsAfter.passTarget = choice.mate;
-  bsAfter.passHomingT = 2.4;
+  bsAfter.passHomingT = 4;
   radio("pass", {
     player: kicker.get(Name)?.short ?? "",
     target: choice.mate.get(Name)?.short ?? "",
@@ -245,7 +245,7 @@ export function pass(
   if (target) {
     const bs = ball.get(BallState)!;
     bs.passTarget = target;
-    bs.passHomingT = 2.4;
+    bs.passHomingT = 4;
   }
 }
 
