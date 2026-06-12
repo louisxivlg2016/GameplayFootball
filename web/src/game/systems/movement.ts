@@ -47,10 +47,13 @@ export function movementSystem(world: World, dt: number): void {
     if (speed > 0.6) {
       const desired = Math.atan2(v.x, v.z);
       const diff = normAngle(desired - heading);
-      // fast turn: ~0.25s for a 180 like the original's turn anims — slow
-      // rates leave players visibly running backwards while the body catches up
-      const maxTurn = (10 + speed * 0.5) * dt;
+      const selected = e.has(Selected);
+      // fast turns — and near-instant reversals for the human player, who
+      // otherwise visibly runs backwards while the body catches up
+      const turnRate = selected && Math.abs(diff) > Math.PI * 0.55 ? 28 : 10 + speed * 0.5;
+      const maxTurn = turnRate * dt;
       heading = normAngle(heading + clamp(diff, -maxTurn, maxTurn));
+      if (selected && Math.abs(diff) > Math.PI * 0.9) heading = desired;
       e.set(Heading, { angle: heading });
       angleDiff = normAngle(desired - heading);
     }

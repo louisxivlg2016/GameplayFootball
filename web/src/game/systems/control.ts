@@ -65,11 +65,16 @@ export function controlSystem(world: World, dt: number): void {
   const dir = moveDir();
   const moving = dir.x !== 0 || dir.z !== 0;
   const hasBall = bs.owner === sel;
+  // ownership persists across knock-ons, so the with-ball speed cap must only
+  // apply to actual close control — never while chasing your own knock-on
+  const sp = sel.get(Position)!;
+  const dBall = Math.hypot(sp.x - bp.x, sp.z - bp.z);
+  const closeControl = hasBall && dBall < 1.4 && bp.y < 1;
   // physical_velocity + stamina multipliers (playerbase.cpp:136-139)
   const stats = sel.get(Stats)!;
   const statMul = (0.9 + 0.1 * stats.velocity) * (0.75 + 0.25 * stats.energy);
   const top =
-    (isSprinting() ? SPEEDS.sprint : SPEEDS.walk) * (hasBall ? 0.82 : 1) * statMul;
+    (isSprinting() ? SPEEDS.sprint : SPEEDS.walk) * (closeControl ? 0.82 : 1) * statMul;
   const vel = sel.get(Velocity)!;
   const k = Math.min(1, dt * 8);
   vel.x += (dir.x * top - vel.x) * k;
@@ -80,12 +85,13 @@ export function controlSystem(world: World, dt: number): void {
   const ceremony = refState.ceremony;
   if (ceremony && (!ceremony.ready || ceremony.taker !== sel)) return;
 
-  // touch-based dribbling leaves the ball rolling ahead between touches —
-  // a kick is allowed whenever the ball is in striking range, like the original
-  const sp = sel.get(Position)!;
-  const dBall = Math.hypot(sp.x - bp.x, sp.z - bp.z);
+  // kicks need the ball physically in striking range — logical ownership of a
+  // far-rolling knock-on must not allow remote passes/shots
   const kickable =
-    hasBall || (bs.owner === null && dBall < 1.5 && bp.y < 1 && bs.kickCooldown <= 0);
+    (closeControl || bs.owner === null) &&
+    dBall < 1.5 &&
+    bp.y < 1 &&
+    bs.kickCooldown <= 0;
 
   if (kickable) {
     const h = sel.get(Heading)!.angle;
