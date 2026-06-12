@@ -1,10 +1,32 @@
-/** Synthesized stadium audio: crowd bed, kick thumps, referee whistle, goal roar. */
+/** Synthesized stadium audio: crowd bed, kick thumps, referee whistle, goal roar.
+ *
+ * The AudioContext and the crowd graph live on globalThis: hot reloads
+ * re-evaluate this module, and stacking a fresh AudioContext per reload hits
+ * Chrome's 6-context page limit — at which point ALL sound dies until a full
+ * page reload. Sharing one global context makes audio immortal across HMR. */
 
-let ctx: AudioContext | null = null;
-let crowdGain: GainNode | null = null;
+interface SharedAudio {
+  ctx: AudioContext;
+  crowdGain: GainNode;
+}
+const g = globalThis as { __gpfAudio?: SharedAudio | null };
+
+let ctx: AudioContext | null = g.__gpfAudio?.ctx ?? null;
+let crowdGain: GainNode | null = g.__gpfAudio?.crowdGain ?? null;
+
+/** One page-wide AudioContext, shared with the radio. */
+export function sharedAudioContext(): AudioContext | null {
+  initAudio();
+  return ctx;
+}
 
 export function initAudio(): void {
   if (ctx) return;
+  if (g.__gpfAudio) {
+    ctx = g.__gpfAudio.ctx;
+    crowdGain = g.__gpfAudio.crowdGain;
+    return;
+  }
   try {
     ctx = new AudioContext();
   } catch {
@@ -30,6 +52,7 @@ export function initAudio(): void {
   crowdGain.gain.value = 0.035; // under the radio voice
   src.connect(filter).connect(crowdGain).connect(ctx.destination);
   src.start();
+  g.__gpfAudio = { ctx, crowdGain };
 }
 
 export function kickSound(power = 1): void {
@@ -72,7 +95,11 @@ export function whistle(blasts: 1 | 2 | 3): void {
   }
 }
 
-let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+// heartbeat handle is global too — an orphaned interval from a hot-reloaded
+// module copy would keep thumping forever
+const gHeart = globalThis as { __gpfHeartbeat?: ReturnType<typeof setInterval> | null };
+let heartbeatTimer: ReturnType<typeof setInterval> | null =
+  gHeart.__gpfHeartbeat ?? null;
 
 function thump(volume = 1): void {
   if (!ctx) return;
@@ -103,9 +130,11 @@ export function setTension(on: boolean): void {
     };
     beat();
     heartbeatTimer = setInterval(beat, 1150);
+    gHeart.__gpfHeartbeat = heartbeatTimer;
   } else if (!on && heartbeatTimer !== null) {
     clearInterval(heartbeatTimer);
     heartbeatTimer = null;
+    gHeart.__gpfHeartbeat = null;
   }
 }
 

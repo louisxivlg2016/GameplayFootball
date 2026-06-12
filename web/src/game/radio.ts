@@ -7,6 +7,7 @@
  * commentator is quiet. Toggle with R.
  */
 import { remove as removeVoice } from "@mintplex-labs/piper-tts-web";
+import { sharedAudioContext } from "./audio";
 
 let enabled = true;
 
@@ -21,17 +22,28 @@ let playerGen = 0;
 
 function ensureRadioCtx(): AudioContext {
   if (!radioCtx) {
-    radioCtx = new AudioContext();
-    const comp = radioCtx.createDynamicsCompressor();
-    comp.threshold.value = -14;
-    comp.knee.value = 18;
-    comp.ratio.value = 10;
-    comp.attack.value = 0.002;
-    comp.release.value = 0.18;
-    comp.connect(radioCtx.destination);
-    radioOut = radioCtx.createGain();
-    radioOut.gain.value = 1;
-    radioOut.connect(comp);
+    // share the page-wide context: a fresh AudioContext per hot reload hits
+    // Chrome's 6-context limit and kills ALL sound until a full page reload
+    const shared = globalThis as {
+      __gpfRadioOut?: { ctx: AudioContext; out: GainNode } | null;
+    };
+    if (shared.__gpfRadioOut) {
+      radioCtx = shared.__gpfRadioOut.ctx;
+      radioOut = shared.__gpfRadioOut.out;
+    } else {
+      radioCtx = sharedAudioContext() ?? new AudioContext();
+      const comp = radioCtx.createDynamicsCompressor();
+      comp.threshold.value = -14;
+      comp.knee.value = 18;
+      comp.ratio.value = 10;
+      comp.attack.value = 0.002;
+      comp.release.value = 0.18;
+      comp.connect(radioCtx.destination);
+      radioOut = radioCtx.createGain();
+      radioOut.gain.value = 1;
+      radioOut.connect(comp);
+      shared.__gpfRadioOut = { ctx: radioCtx, out: radioOut };
+    }
   }
   void radioCtx.resume();
   return radioCtx;

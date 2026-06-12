@@ -1,0 +1,250 @@
+import * as THREE from "three";
+import type { Entity, World } from "koota";
+import {
+  BallRef,
+  Heading,
+  IsBall,
+  IsPlayer,
+  IsReferee,
+  MeshRef,
+  Position,
+  Team,
+  Velocity,
+} from "../traits";
+import { useStore } from "../store";
+import { placeKickoff } from "../levels";
+import { animateRig } from "./movement";
+import type { RigHolder } from "./movement";
+
+/**
+ * Broadcast cinematics: a rolling recorder of the last ~4s of play feeds
+ * slow-motion replays of goals and bookings; the scorer applauds in close-up
+ * and the on-pitch referee raises the actual card to the lens.
+ */
+
+interface PlayerSnap {
+  e: Entity;
+  x: number;
+  z: number;
+  heading: number;
+  speed: number;
+}
+interface Frame {
+  ball: { x: number; y: number; z: number };
+  players: PlayerSnap[];
+}
+
+const RING_FRAMES = 250; // ~4s at 60fps
+const REPLAY_SPEED = 0.5; // slow motion
+const CELEBRATION_SECONDS = 3.2;
+const CARD_SECONDS = 2.6;
+
+export const cineState = {
+  ring: [] as Frame[],
+  celebration: null as { scorer: Entity; t: number } | null,
+  card: null as { red: boolean; t: number } | null,
+  replay: null as { frames: Frame[]; i: number; after: "kickoff" | "resume" } | null,
+  queued: null as Frame[] | null,
+  /** red-carded player whose send-off waits until the replay has aired */
+  sendOffAfter: null as Entity | null,
+  gen: -1,
+};
+
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+const tmpQ = new THREE.Quaternion();
+
+/** Call every frame of live play. */
+export function recordFrame(world: World): void {
+  const rb = world.queryFirst(IsBall)?.get(BallRef)?.value;
+  if (!rb) return;
+  const bp = rb.translation();
+  const players: PlayerSnap[] = [];
+  for (const e of world.query(IsPlayer)) {
+    const p = e.get(Position)!;
+    const v = e.get(Velocity)!;
+    players.push({
+      e,
+      x: p.x,
+      z: p.z,
+      heading: e.get(Heading)!.angle,
+      speed: Math.hypot(v.x, v.z),
+    });
+  }
+  cineState.ring.push({ ball: { x: bp.x, y: bp.y, z: bp.z }, players });
+  if (cineState.ring.length > RING_FRAMES) cineState.ring.shift();
+}
+
+/** Goal scored: stage the applauding close-up + the slow-mo of the shot. */
+export function queueGoalCinematic(scorer: Entity | null, scoringTeam: number): void {
+  cineState.celebration =
+    scorer && scorer.isAlive() && scorer.get(Team)!.id === scoringTeam
+      ? { scorer, t: 0 }
+      : null;
+  cineState.queued = cineState.ring.slice(-170);
+}
+
+/**
+ * A booking: freeze play on the referee raising the card, then air the slow-mo
+ * of the tackle. For reds the send-off itself waits until the replay ends.
+ */
+export function queueCardCinematic(red: boolean, sendOff: Entity | null): void {
+  cineState.card = { red, t: 0 };
+  cineState.sendOffAfter = sendOff;
+  cineState.queued = cineState.ring.slice(-150);
+  useStore.getState().setMode("cardScene");
+}
+
+/** Goal celebration over: hand off to the replay. True if it took over. */
+export function startGoalReplay(): boolean {
+  cineState.celebration = null;
+  if (!cineState.queued || cineState.queued.length < 20) return false;
+  cineState.replay = { frames: cineState.queued, i: 0, after: "kickoff" };
+  cineState.queued = null;
+  useStore.getState().setMode("replay");
+  useStore.getState().setBanner("REPLAY");
+  return true;
+}
+
+const cardProps = new WeakMap<RigHolder, THREE.Mesh>();
+
+function cardMesh(h: RigHolder & { bones: Record<string, THREE.Bone> }): THREE.Mesh {
+  let mesh = cardProps.get(h);
+  if (!mesh) {
+    mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.13, 0.18),
+      new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+    );
+    mesh.position.set(0, 0.32, 0.02); // in the hand, past the forearm
+    h.bones.right_elbow?.add(mesh);
+    cardProps.set(h, mesh);
+  }
+  return mesh;
+}
+
+function faceCamera(group: THREE.Group, dt: number): void {
+  // the broadcast camera sits on +z: turn the actor toward the lens
+  const k = Math.min(1, dt * 6);
+  group.rotation.set(0, group.rotation.y + (0 - group.rotation.y) * k, 0);
+}
+
+export function cinematicSystem(world: World, dt: number): void {
+  const store = useStore.getState();
+  if (store.gen !== cineState.gen) {
+    cineState.gen = store.gen;
+    cineState.ring = [];
+    cineState.celebration = null;
+    cineState.card = null;
+    cineState.replay = null;
+    cineState.queued = null;
+    cineState.sendOffAfter = null;
+  }
+
+  // ---- goal celebration: the scorer applauds into the close-up ----
+  const cel = cineState.celebration;
+  if (store.mode === "goal" && cel) {
+    if (!cel.scorer.isAlive()) {
+      cineState.celebration = null;
+      return;
+    }
+    cel.t += dt;
+    const h = cel.scorer.get(MeshRef)!;
+    if (h.value && h.bones) {
+      faceCamera(h.value, dt);
+      const hop = Math.abs(Math.sin(cel.t * 5.5)) * 0.12;
+      h.value.position.y = hop;
+      animateRig(h, 0.3, 0, dt);
+      const up = Math.min(cel.t / 0.3, 1) * 2.5; // arms overhead
+      const clap = 0.35 + Math.sin(cel.t * 9) * 0.3; // hands meet and part
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -up));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -up));
+      h.bones.left_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, clap));
+      h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, -clap));
+    }
+    return;
+  }
+
+  // ---- booking: the referee raises the card to the camera ----
+  const card = cineState.card;
+  if (store.mode === "cardScene" && card) {
+    card.t += dt;
+    const referee = world.queryFirst(IsReferee);
+    const h = referee?.get(MeshRef);
+    if (h && h.value && h.bones) {
+      faceCamera(h.value, dt);
+      animateRig(h, 0.3, 0, dt);
+      const up = Math.min(card.t / 0.25, 1) * 2.9; // arm straight up
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -up));
+      const mesh = cardMesh(h as RigHolder & { bones: Record<string, THREE.Bone> });
+      (mesh.material as THREE.MeshBasicMaterial).color.set(card.red ? 0xe53935 : 0xffd60a);
+      mesh.visible = true;
+    }
+    if (card.t >= CARD_SECONDS) {
+      if (h) {
+        const mesh = cardProps.get(h);
+        if (mesh) mesh.visible = false;
+      }
+      cineState.card = null;
+      if (cineState.queued && cineState.queued.length >= 20) {
+        cineState.replay = { frames: cineState.queued, i: 0, after: "resume" };
+        cineState.queued = null;
+        store.setMode("replay");
+        store.setBanner("REPLAY");
+      } else {
+        finishCardScene(world);
+        store.setMode("play");
+      }
+    }
+    return;
+  }
+
+  // ---- slow-motion replay from the recorder ----
+  const rep = cineState.replay;
+  if (store.mode === "replay" && rep) {
+    rep.i += dt * 60 * REPLAY_SPEED;
+    const fr = rep.frames[Math.min(Math.floor(rep.i), rep.frames.length - 1)]!;
+    const rb = world.queryFirst(IsBall)?.get(BallRef)?.value;
+    if (rb) {
+      rb.setTranslation(fr.ball, true);
+      rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    }
+    for (const ps of fr.players) {
+      if (!ps.e.isAlive()) continue;
+      const h = ps.e.get(MeshRef);
+      if (!h?.value) continue;
+      h.value.position.set(ps.x, 0, ps.z);
+      h.value.rotation.set(0, ps.heading, 0);
+      animateRig(h, ps.speed, 0, dt);
+    }
+    if (rep.i >= rep.frames.length - 1) {
+      cineState.replay = null;
+      store.setBanner("");
+      if (rep.after === "kickoff") {
+        const match = world.queryFirst(IsBall) ? world : world; // placate flow
+        void match;
+        const team = pendingKickoff(world);
+        placeKickoff(world, team);
+        // deferred import avoids a hard referee<->cinematic cycle at eval time
+        void import("./referee").then((m) => m.startSetPiece(world, "kickoff", team, 0, 0));
+      } else {
+        finishCardScene(world);
+      }
+      store.setMode("play");
+    }
+    return;
+  }
+}
+
+function pendingKickoff(world: World): number {
+  // Match trait import kept local to avoid widening the module surface
+  const { Match } = require("../traits") as typeof import("../traits");
+  return world.queryFirst(Match)?.get(Match)!.pendingKickoffTeam ?? 0;
+}
+
+function finishCardScene(world: World): void {
+  const off = cineState.sendOffAfter;
+  cineState.sendOffAfter = null;
+  if (off && off.isAlive()) {
+    void import("./referee").then((m) => m.executeSendOff(world, off));
+  }
+}
