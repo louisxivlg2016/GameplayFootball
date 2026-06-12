@@ -9,6 +9,7 @@ import {
   MeshRef,
   Position,
   Selected,
+  SlideTackle,
   Stats,
   Velocity,
 } from "../traits";
@@ -64,10 +65,23 @@ export function movementSystem(world: World, dt: number): void {
     const speed = Math.hypot(v.x, v.z);
     const dive = e.get(KeeperDive);
 
+    // slide-tackle pose timer: 0.5s on the turf, then 0.5s getting back up
+    let slide = e.get(SlideTackle);
+    if (slide) {
+      const t = slide.t + dt;
+      if (t > 1.0) {
+        e.remove(SlideTackle);
+        slide = undefined;
+      } else {
+        e.set(SlideTackle, { t });
+        slide = { ...slide, t };
+      }
+    }
+
     // heading lags velocity — the original turns through animation, not snapping
     let heading = e.get(Heading)!.angle;
     let angleDiff = 0;
-    if (!dive && Math.hypot(intentX, intentZ) > 0.6) {
+    if (!dive && !slide && Math.hypot(intentX, intentZ) > 0.6) {
       const desired = Math.atan2(intentX, intentZ);
       const diff = normAngle(desired - heading);
       // the human's heading comes straight from input (control.ts) — deriving
@@ -98,6 +112,14 @@ export function movementSystem(world: World, dt: number): void {
           dive.t < 0.5 ? Math.sin(Math.min(dive.t / 0.5, 1) * Math.PI) * 0.3 : 0;
         h.value.position.set(p.x, air, p.z);
         h.value.rotation.set(0.3 * amt, heading, -dive.side * 1.4 * amt, "YZX");
+      } else if (slide) {
+        // procedural slide tackle: recline low along the locked lunge yaw,
+        // ride the turf, then climb back to the feet
+        const inK = Math.min(slide.t / 0.1, 1);
+        const upK = slide.t < 0.5 ? 1 : Math.max(0, 1 - (slide.t - 0.5) / 0.5);
+        const amt = inK * upK;
+        h.value.position.set(p.x, -0.25 * amt, p.z);
+        h.value.rotation.set(-1.05 * amt, slide.yaw, 0.18 * amt, "YZX");
       } else {
         h.value.position.set(p.x, 0, p.z);
         h.value.rotation.set(0, heading, 0, "YZX");

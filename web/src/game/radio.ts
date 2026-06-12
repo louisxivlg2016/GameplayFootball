@@ -99,10 +99,28 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
       }
     };
     src.start();
-  } catch {
+    radioDebug.lastPlayAt = Date.now();
+    radioDebug.ctxState = ctx.state;
+  } catch (err) {
+    radioDebug.lastError = String(err);
     if (gen === playerGen) playerBusy = false;
   }
 }
+
+/** Wake the playback context — browsers may suspend it; call on user gestures. */
+export function resumeRadio(): void {
+  if (radioCtx && radioCtx.state !== "running") void radioCtx.resume();
+}
+
+/** Live diagnostics: inspect with __radioDebug in the console. */
+const radioDebug = {
+  lastSay: "",
+  lastSayAt: 0,
+  lastPlayAt: 0,
+  ctxState: "none",
+  lastError: "",
+};
+(globalThis as Record<string, unknown>).__radioDebug = radioDebug;
 
 function playQueuedFlow(): void {
   if (!queuedFlow || playerBusy || !enabled) return;
@@ -297,6 +315,8 @@ export function toggleRadio(): boolean {
 
 function say(text: string, priority = 1, fx?: VoiceFx): void {
   if (!enabled) return;
+  radioDebug.lastSay = text.slice(0, 60);
+  radioDebug.lastSayAt = Date.now();
 
   if (piperState === "ready") {
     void sayPiper(text, priority, fx);

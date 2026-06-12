@@ -9,6 +9,7 @@ import {
   Position,
   Role,
   Selected,
+  SlideTackle,
   Stats,
   Team,
   Velocity,
@@ -151,4 +152,8 @@ export function tackleSystem(world: World, dt: number): void {
 function startSlide(e: Entity): void {
   const h = e.get(Heading)!.angle;
   slides.set(e, { t: 0.5, dirX: Math.sin(h), dirZ: Math.cos(h) });
+  // the visual pose lives in movementSystem and outlasts the physics window
+  // (it includes the get-up), so it runs on its own timer
+  e.add(SlideTackle);
+  e.set(SlideTackle, { t: 0, yaw: h });
 }
