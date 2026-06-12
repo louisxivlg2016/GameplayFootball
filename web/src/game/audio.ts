@@ -27,7 +27,7 @@ export function initAudio(): void {
   filter.frequency.value = 420;
   filter.Q.value = 0.4;
   crowdGain = ctx.createGain();
-  crowdGain.gain.value = 0.05;
+  crowdGain.gain.value = 0.035; // under the radio voice
   src.connect(filter).connect(crowdGain).connect(ctx.destination);
   src.start();
 }

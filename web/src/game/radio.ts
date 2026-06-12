@@ -11,9 +11,41 @@ import { remove as removeVoice } from "@mintplex-labs/piper-tts-web";
 let enabled = true;
 
 // ---- shared player for the neural engine ----
-let playerAudio: HTMLAudioElement | null = null;
+// WebAudio playback: an HTMLAudioElement caps at volume 1.0 — the commentator
+// needs to be LOUD, so we run through a gain (x3) into a compressor.
+let radioCtx: AudioContext | null = null;
+let radioOut: GainNode | null = null;
+let currentSource: AudioBufferSourceNode | null = null;
 let playerBusy = false;
 let playerGen = 0;
+
+function ensureRadioCtx(): AudioContext {
+  if (!radioCtx) {
+    radioCtx = new AudioContext();
+    const comp = radioCtx.createDynamicsCompressor();
+    comp.threshold.value = -14;
+    comp.knee.value = 18;
+    comp.ratio.value = 10;
+    comp.attack.value = 0.002;
+    comp.release.value = 0.18;
+    comp.connect(radioCtx.destination);
+    radioOut = radioCtx.createGain();
+    radioOut.gain.value = 1;
+    radioOut.connect(comp);
+  }
+  void radioCtx.resume();
+  return radioCtx;
+}
+
+function stopCurrent(): void {
+  try {
+    currentSource?.stop();
+  } catch {
+    /* already stopped */
+  }
+  currentSource = null;
+  playerBusy = false;
+}
 // the latest urgent line called while a model is still loading — spoken the
 // moment the voice is ready, so the radio joins with the good voice, not eSpeak
 let pendingText: string | null = null;
@@ -28,28 +60,42 @@ interface VoiceFx {
   volume?: number;
 }
 
-function playBlob(wav: Blob, gen: number, fx?: VoiceFx): void {
+async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
   if (gen !== playerGen || !enabled) {
     playerBusy = false;
     return;
   }
-  const url = URL.createObjectURL(wav);
-  playerAudio?.pause();
-  const audio = new Audio(url);
-  audio.volume = fx?.volume ?? 0.82;
-  if (fx?.rate && fx.rate !== 1) {
-    audio.playbackRate = fx.rate;
-    (audio as HTMLAudioElement & { preservesPitch?: boolean }).preservesPitch = false;
+  try {
+    const ctx = ensureRadioCtx();
+    const pcm = await ctx.decodeAudioData(await wav.arrayBuffer());
+    if (gen !== playerGen || !enabled) {
+      playerBusy = false;
+      return;
+    }
+    try {
+      currentSource?.stop();
+    } catch {
+      /* already stopped */
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = pcm;
+    src.playbackRate.value = fx?.rate ?? 1; // pitch rides up with rate: the shout
+    const gain = ctx.createGain();
+    gain.gain.value = (fx?.volume ?? 0.85) * 3; // LOUD — compressor catches peaks
+    src.connect(gain);
+    gain.connect(radioOut!);
+    currentSource = src;
+    src.onended = (): void => {
+      if (currentSource === src) {
+        playerBusy = false;
+        currentSource = null;
+      }
+      playQueuedFlow();
+    };
+    src.start();
+  } catch {
+    playerBusy = false;
   }
-  playerAudio = audio;
-  const done = (): void => {
-    if (playerAudio === audio) playerBusy = false;
-    URL.revokeObjectURL(url);
-    playQueuedFlow();
-  };
-  audio.onended = done;
-  audio.onerror = done;
-  void audio.play().catch(done);
 }
 
 function playQueuedFlow(): void {
@@ -64,8 +110,7 @@ function playQueuedFlow(): void {
 
 function takeMic(priority: number): number | null {
   if (priority >= 2) {
-    playerAudio?.pause();
-    playerBusy = false;
+    stopCurrent();
   } else if (playerBusy) {
     return null;
   }
@@ -207,8 +252,7 @@ export function radioFlow(text: string): void {
 export function toggleRadio(): boolean {
   enabled = !enabled;
   if (!enabled) {
-    playerAudio?.pause();
-    playerBusy = false;
+    stopCurrent();
     playerGen++;
     pendingText = null;
     queuedFlow = null;
