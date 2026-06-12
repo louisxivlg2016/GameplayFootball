@@ -6,6 +6,7 @@ import {
   HomePos,
   IsBall,
   IsPlayer,
+  IsReferee,
   Match,
   MeshRef,
   PlayerInfo,
@@ -74,10 +75,12 @@ export function loadMatch(world: World): void {
   for (const e of [...world.query(IsPlayer)]) e.destroy();
   for (const e of [...world.query(IsBall)]) e.destroy();
   for (const e of [...world.query(Match)]) e.destroy();
+  for (const e of [...world.query(IsReferee)]) e.destroy();
   resetSides();
 
   world.spawn(IsBall, BallRef, BallState);
   world.spawn(Match);
+  world.spawn(IsReferee, Position, Velocity, Heading, MeshRef);
 
   for (let team = 0; team < 2; team++) {
     for (let i = 0; i < FORMATION.length; i++) {
@@ -135,6 +138,13 @@ export function placeKickoff(world: World, kickingTeam: number): void {
   if (kicker) {
     kicker.get(Position)!.set(-attackSign(kickingTeam) * 1.0, 0, 0);
     kicker.set(Heading, { angle: Math.atan2(attackSign(kickingTeam), 0) });
+  }
+
+  const referee = world.queryFirst(IsReferee);
+  if (referee) {
+    referee.get(Position)!.set(-2, 0, -9);
+    referee.get(Velocity)!.set(0, 0, 0);
+    referee.set(Heading, { angle: Math.atan2(2, 9) });
   }
 
   const bs = ball.get(BallState)!;

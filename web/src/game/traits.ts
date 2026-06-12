@@ -5,6 +5,8 @@ import type { RapierRigidBody } from "@react-three/rapier";
 
 export const IsBall = trait();
 export const IsPlayer = trait();
+/** The match official: rendered and animated like a player, ignored by play logic. */
+export const IsReferee = trait();
 /** The player the human is currently steering. */
 export const Selected = trait();
 

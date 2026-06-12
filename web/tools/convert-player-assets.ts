@@ -652,6 +652,7 @@ const texDir = path.join(playersDir, "textures");
 const copies = [
   "kit_template.png",
   "goalie_kit.png",
+  "referee_kit.png",
   "skin01.png",
   "skin02.png",
   "skin03.png",

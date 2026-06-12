@@ -9,6 +9,7 @@ import { aiSystem } from "../game/systems/ai";
 import { movementSystem } from "../game/systems/movement";
 import { ballSystem } from "../game/systems/ball";
 import { refereeSystem } from "../game/systems/referee";
+import { officialsSystem } from "../game/systems/officials";
 import { cameraSystem } from "../game/systems/camera";
 import { radarSystem } from "../game/systems/radar";
 
@@ -24,11 +25,13 @@ export function Systems(): null {
       movementSystem(world, dt);
       ballSystem(world, dt);
       refereeSystem(world, dt);
+      officialsSystem(world, dt);
       radarSystem(world, dt);
     } else if (mode === "goal") {
       // celebration: ball keeps rolling in the net, countdown to kickoff
       ballSystem(world, dt);
       refereeSystem(world, dt);
+      officialsSystem(world, dt);
       radarSystem(world, dt);
     }
     cameraSystem(world, dt, state.camera);

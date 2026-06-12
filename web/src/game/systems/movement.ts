@@ -69,7 +69,30 @@ export function movementSystem(world: World, dt: number): void {
       h.value.rotation.y = heading;
     }
     if (h.ring) h.ring.visible = e.has(Selected);
-    if (!h.mixer || !h.actions) continue;
+    animateRig(h, speed, angleDiff, dt);
+  }
+}
+
+export interface RigHolder {
+  mixer: THREE.AnimationMixer | null;
+  actions: Record<string, THREE.AnimationAction> | null;
+  bones: Record<string, THREE.Bone> | null;
+  variant: string;
+  bridging: string | null;
+  pending: string | null;
+  prevSpeed: number;
+  lean: number;
+}
+
+/** Gait/variant selection + bridges + post-mixer adaptation for one rig. */
+export function animateRig(
+  h: RigHolder,
+  speed: number,
+  angleDiff: number,
+  dt: number,
+): void {
+  {
+    if (!h.mixer || !h.actions) return;
 
     // gait by the original velocity bands, variant by the angle quadrant
     let gait =

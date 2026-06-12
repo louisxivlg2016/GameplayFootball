@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import type { Entity } from "koota";
-import { useQuery } from "koota/react";
+import { useQuery, useQueryFirst } from "koota/react";
 import {
   IsPlayer,
+  IsReferee,
   MeshRef,
   PlayerInfo,
   Position,
@@ -20,6 +21,36 @@ export function Players(): React.ReactNode {
         <PlayerView key={e.id()} entity={e} />
       ))}
     </>
+  );
+}
+
+export function RefereeView(): React.ReactNode {
+  const entity = useQueryFirst(IsReferee);
+  const rig = useMemo(() => {
+    if (!entity) return null;
+    const r = createPlayerRig("referee", "#222222", 9, 1.86 / 1.92);
+    const h = entity.get(MeshRef);
+    if (h) {
+      h.mixer = r.mixer;
+      h.actions = r.actions;
+      h.bones = r.bones;
+      h.variant = "idle";
+    }
+    return r;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entity]);
+  if (!entity || !rig) return null;
+  const p = entity.get(Position)!;
+  return (
+    <group
+      position={[p.x, 0, p.z]}
+      ref={(node) => {
+        const h = entity.isAlive() ? entity.get(MeshRef) : undefined;
+        if (h) h.value = node;
+      }}
+    >
+      <primitive object={rig.root} />
+    </group>
   );
 }
 

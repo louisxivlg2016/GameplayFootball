@@ -38,6 +38,7 @@ interface AnimsData {
 const modelData = modelJson as unknown as ModelData;
 const animData = animsJson as unknown as AnimsData;
 import goalieKitUrl from "../assets/players/goalie_kit.png";
+import refereeKitUrl from "../assets/players/referee_kit.png";
 import skin01Url from "../assets/players/skin01.png";
 import skin02Url from "../assets/players/skin02.png";
 import skin03Url from "../assets/players/skin03.png";
@@ -58,6 +59,7 @@ function loadTex(url: string): THREE.Texture {
 }
 
 const goalieTex = loadTex(goalieKitUrl);
+const refereeTex = loadTex(refereeKitUrl);
 const skinTex = [skin01Url, skin02Url, skin03Url, skin04Url].map(loadTex);
 const shoeTex = loadTex(shoeUrl);
 const soleTex = loadTex(soleUrl);
@@ -203,9 +205,12 @@ function kitMaterial(kind: string, teamColor: string): THREE.MeshStandardMateria
   let mat = kitMatCache.get(kind);
   if (!mat) {
     mat = new THREE.MeshStandardMaterial({
-      map: kind.startsWith("gk")
-        ? goalieTex
-        : makeKitTexture(teamColor, "#f2f2f2", teamColor),
+      map:
+        kind === "referee"
+          ? refereeTex
+          : kind.startsWith("gk")
+            ? goalieTex
+            : makeKitTexture(teamColor, "#f2f2f2", teamColor),
       roughness: 0.85,
     });
     kitMatCache.set(kind, mat);
@@ -224,7 +229,7 @@ export interface PlayerRig {
 }
 
 export function createPlayerRig(
-  kitKind: "team0" | "team1" | "gk0" | "gk1",
+  kitKind: "team0" | "team1" | "gk0" | "gk1" | "referee",
   teamColor: string,
   variant: number,
   heightScale: number,
