@@ -9,6 +9,7 @@ import {
   Position,
   Role,
   Selected,
+  Stats,
   Team,
   Velocity,
 } from "../traits";
@@ -22,6 +23,7 @@ import {
   shoot,
   shotOdds,
 } from "./kicks";
+import { ceremonyTarget, refState } from "./referee";
 
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, v));
@@ -62,10 +64,13 @@ const state = {
 function seek(e: Entity, tx: number, tz: number, dt: number, maxSpeed: number = SPEEDS.sprint): void {
   const p = e.get(Position)!;
   const v = e.get(Velocity)!;
+  const stats = e.get(Stats)!;
+  // physical_velocity + stamina multipliers (playerbase.cpp:136-139)
+  const top = maxSpeed * (0.9 + 0.1 * stats.velocity) * (0.75 + 0.25 * stats.energy);
   const dx = tx - p.x;
   const dz = tz - p.z;
   const d = Math.hypot(dx, dz);
-  const speed = d < 0.4 ? 0 : Math.min(d * 2.6, maxSpeed); // gamedefines.hpp:54
+  const speed = d < 0.4 ? 0 : Math.min(d * 2.6, top); // gamedefines.hpp:54
   const k = Math.min(1, dt * 6);
   v.x += ((d > 0 ? (dx / d) * speed : 0) - v.x) * k;
   v.z += ((d > 0 ? (dz / d) * speed : 0) - v.z) * k;
@@ -146,6 +151,21 @@ export function aiSystem(world: World, dt: number): void {
     if (e.has(Selected)) continue; // human steers this one
     const teamId = e.get(Team)!.id;
     const info = e.get(PlayerInfo)!;
+
+    // restart ceremony: everyone moves to their staged spot
+    if (refState.ceremony) {
+      const target = ceremonyTarget(world, e);
+      if (target) {
+        seek(e, target.x, target.z, dt, SPEEDS.walk * 1.25);
+        continue;
+      }
+      // others fall back to formation holding, never chasing the dead ball
+      const a = e.get(HomePos)!;
+      if (info.role !== Role.GK) {
+        seek(e, state.avgBX * 0.4 + a.x * 0.8, a.z * 0.8, dt, SPEEDS.walk);
+        continue;
+      }
+    }
 
     if (info.role === Role.GK) {
       keeper(world, e, teamId, bs, bp, bv, dt);

@@ -5,6 +5,9 @@ export function Hud(): React.ReactNode {
   const mode = useStore((s) => s.mode);
   const score = useStore((s) => s.score);
   const clock = useStore((s) => s.clock);
+  const phaseLabel = useStore((s) => s.phaseLabel);
+  const banner = useStore((s) => s.banner);
+  const pens = useStore((s) => s.pens);
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
 
@@ -14,7 +17,7 @@ export function Hud(): React.ReactNode {
         <>
           <div className="scoreboard">
             <span className="clock">
-              {mm}:{ss}
+              {mm}:{ss} {phaseLabel}
             </span>
             <span className="team">
               <span className="swatch" style={{ background: TEAMS[0].color }} />
@@ -27,11 +30,21 @@ export function Hud(): React.ReactNode {
               <span className="swatch" style={{ background: TEAMS[1].color }} />
               {TEAMS[1].name}
             </span>
+            {pens && (
+              <span className="score">
+                p {pens[0]} - {pens[1]}
+              </span>
+            )}
           </div>
           <Radar />
         </>
       )}
       {mode === "goal" && <div className="banner">GOAL!</div>}
+      {banner && mode !== "goal" && (
+        <div className="banner" style={{ fontSize: 40, letterSpacing: 3 }}>
+          {banner}
+        </div>
+      )}
       {mode === "pause" && (
         <div className="menu">
           <h1>PAUSED</h1>
@@ -47,7 +60,8 @@ export function Hud(): React.ReactNode {
           <div className="controls">
             <b>WASD / Arrows</b> move&ensp;<b>Shift</b> sprint
             <br />
-            <b>Space</b> shoot&ensp;<b>X</b> pass&ensp;<b>C</b> lofted pass
+            <b>Space</b> shoot&ensp;<b>X</b> pass&ensp;<b>C</b> lofted pass&ensp;
+            <b>E</b> slide tackle
             <br />
             <b>Esc</b> pause
           </div>

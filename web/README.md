@@ -24,8 +24,23 @@ Type-check: `bunx tsc --noEmit`
 | Space | shoot (vertical input aims at the corners) |
 | X | ground pass |
 | C | lofted pass |
+| E | slide tackle (mistimed = foul, card, maybe penalty) |
 | Enter | start match / resume |
 | Esc | pause |
+
+## Match rules
+
+Ported from referee.cpp: offside (second-last defender, snapshot at the pass,
+indirect free kick), fouls from mistimed slides with the original severity
+model (from-behind + lateness → free kick / yellow / red, two yellows = red,
+advantage played up to 3s), penalties for box fouls, staged set-piece
+ceremonies (2s prepare, whistle, 9.15m retreat, walls on close free kicks),
+45-minute halves at the original 7.7× clock with halftime side swap, extra
+time and a best-of-5 penalty shootout when tied. Players carry individual
+ratings (speed, control, passing, shooting, tackling, stamina) that drive
+movement and technique noise, and possession is touch-based — the ball is
+genuinely loose between dribble touches. Crowd, kicks, and whistles are
+synthesized with WebAudio.
 
 ## Architecture
 

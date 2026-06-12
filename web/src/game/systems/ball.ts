@@ -1,6 +1,15 @@
 import type { World } from "koota";
-import { BallRef, BallState, Heading, IsBall, Position, Velocity } from "../traits";
+import {
+  BallRef,
+  BallState,
+  Heading,
+  IsBall,
+  Position,
+  Stats,
+  Velocity,
+} from "../traits";
 import { PITCH } from "../levels";
+import { refState } from "./referee";
 
 /**
  * Free-ball aerodynamics ported from ball.cpp: quadratic air drag (0.015·v²),
@@ -16,23 +25,29 @@ export function ballSystem(world: World, dt: number): void {
   const bp = rb.translation();
   const v = rb.linvel();
 
-  if (bs.owner) {
-    // carry the ball ~0.55m in front of the owner's feet
+  // touch-based dribbling: the carrier plays the ball ahead in discrete touches
+  // and chases it — the ball is genuinely loose (and winnable) between touches
+  if (bs.owner && (!refState.ceremony || refState.ceremony.ready)) {
     const p = bs.owner.get(Position)!;
-    const ang = bs.owner.get(Heading)!.angle;
-    const tx = p.x + Math.sin(ang) * 0.55;
-    const tz = p.z + Math.cos(ang) * 0.55;
     const ov = bs.owner.get(Velocity)!;
-    const maxCarry = Math.hypot(ov.x, ov.z) + 5;
-    let cx = (tx - bp.x) * 9;
-    let cz = (tz - bp.z) * 9;
-    const cm = Math.hypot(cx, cz);
-    if (cm > maxCarry) {
-      cx *= maxCarry / cm;
-      cz *= maxCarry / cm;
+    const speed = Math.hypot(ov.x, ov.z);
+    const d = Math.hypot(bp.x - p.x, bp.z - p.z);
+    bs.touchTimer -= dt;
+    if (d < 0.8 && bp.y < 0.5 && bs.touchTimer <= 0) {
+      const stats = bs.owner.get(Stats)!;
+      const ang = bs.owner.get(Heading)!.angle;
+      // touch error from technical_ballcontrol, worse at speed
+      const err = ((1 - stats.ballcontrol) * 0.22 + speed * 0.012) * (Math.random() - 0.5) * 2;
+      const dir = ang + err;
+      const push = Math.max(speed, 0.001) < 1 ? 0 : Math.min(speed, 8) * 1.12 + 1.1;
+      if (push > 0) {
+        rb.setLinvel({ x: Math.sin(dir) * push, y: v.y, z: Math.cos(dir) * push }, true);
+      } else {
+        rb.setLinvel({ x: v.x * 0.4, y: v.y, z: v.z * 0.4 }, true); // shield it
+      }
+      // touch cadence shortens as the dribble slows (~the original's per-step touches)
+      bs.touchTimer = Math.min(0.7, Math.max(0.28, 2.0 / Math.max(speed, 2)));
     }
-    rb.setLinvel({ x: cx, y: bp.y > 0.25 ? v.y : Math.min(v.y, 0), z: cz }, true);
-    return;
   }
 
   let { x: vx, y: vy, z: vz } = v;

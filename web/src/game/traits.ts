@@ -18,6 +18,17 @@ export const PlayerInfo = trait({
   role: Role.MID as number,
   /** seconds until this AI player may make a new kick decision */
   aiTimer: 0,
+  yellows: 0,
+});
+
+/** Per-player ratings, 0..1, like playerdata.cpp; energy is live stamina. */
+export const Stats = trait({
+  velocity: 0.5, // playerbase.cpp:136 — max speed = sprint·(0.9 + 0.1·v)
+  ballcontrol: 0.5,
+  shortpass: 0.5,
+  shot: 0.5,
+  tackle: 0.5,
+  energy: 1,
 });
 
 export const Position = trait(() => new THREE.Vector3());
@@ -47,6 +58,8 @@ export const BallState = trait(() => ({
   lastKicker: null as Entity | null,
   /** seconds during which lastKicker may not recapture the ball */
   kickCooldown: 0,
+  /** seconds until the carrier's next dribble touch (touch-based possession) */
+  touchTimer: 0,
 }));
 
 /** Match-flow singleton. */

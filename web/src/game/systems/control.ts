@@ -11,11 +11,13 @@ import {
   Position,
   Role,
   Selected,
+  Stats,
   Team,
   Velocity,
 } from "../traits";
 import { PITCH, SPEEDS, setSelected } from "../levels";
 import { pass, shoot } from "./kicks";
+import { refState } from "./referee";
 
 export function controlSystem(world: World, dt: number): void {
   const ball = world.queryFirst(IsBall);
@@ -63,13 +65,20 @@ export function controlSystem(world: World, dt: number): void {
   const dir = moveDir();
   const moving = dir.x !== 0 || dir.z !== 0;
   const hasBall = bs.owner === sel;
+  // physical_velocity + stamina multipliers (playerbase.cpp:136-139)
+  const stats = sel.get(Stats)!;
+  const statMul = (0.9 + 0.1 * stats.velocity) * (0.75 + 0.25 * stats.energy);
   const top =
-    (isSprinting() ? SPEEDS.sprint : SPEEDS.walk) * (hasBall ? 0.82 : 1);
+    (isSprinting() ? SPEEDS.sprint : SPEEDS.walk) * (hasBall ? 0.82 : 1) * statMul;
   const vel = sel.get(Velocity)!;
   const k = Math.min(1, dt * 8);
   vel.x += (dir.x * top - vel.x) * k;
   vel.z += (dir.z * top - vel.z) * k;
   // heading follows velocity with turn-rate lag in the movement system
+
+  // during a restart only the taker may play the ball, and only after the whistle
+  const ceremony = refState.ceremony;
+  if (ceremony && (!ceremony.ready || ceremony.taker !== sel)) return;
 
   if (hasBall) {
     const h = sel.get(Heading)!.angle;

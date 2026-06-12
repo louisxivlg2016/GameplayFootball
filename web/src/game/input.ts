@@ -1,4 +1,5 @@
 import { useStore } from "./store";
+import { initAudio } from "./audio";
 
 const held = new Set<string>();
 const pressed = new Set<string>();
@@ -18,6 +19,7 @@ export function initInput(): void {
   window.addEventListener("keydown", (e) => {
     if (MOVE_KEYS.has(e.code) || e.code === "Space") e.preventDefault();
     if (e.repeat) return;
+    initAudio(); // browsers unlock audio on the first user gesture
     held.add(e.code);
     pressed.add(e.code);
 

@@ -12,6 +12,7 @@ import {
   Position,
   Role,
   Selected,
+  Stats,
   Team,
   Velocity,
 } from "./traits";
@@ -30,8 +31,17 @@ export const PITCH = {
 /** Player velocities from gamedefines.hpp:18-27, in m/s. */
 export const SPEEDS = { dribble: 3.5, walk: 5.0, sprint: 8.0 } as const;
 
-/** Team 0 attacks +x, team 1 attacks -x. */
-export const attackSign = (team: number): number => (team === 0 ? 1 : -1);
+/** Team 0 attacks +x in the first half; sides swap at halftime. */
+const sides: [number, number] = [1, -1];
+export const attackSign = (team: number): number => sides[team]!;
+export function resetSides(): void {
+  sides[0] = 1;
+  sides[1] = -1;
+}
+export function swapSides(): void {
+  sides[0] = -sides[0]!;
+  sides[1] = -sides[1]!;
+}
 
 /** 4-4-2 anchors for a team attacking +x, at a neutral ball position. */
 const FORMATION: ReadonlyArray<{ role: number; x: number; z: number }> = [
@@ -54,23 +64,38 @@ export function anchor(team: number, index: number): { x: number; z: number } {
   return { x: f.x * s, z: f.z * s };
 }
 
+/** Deterministic 0..1 pseudo-random for stat generation. */
+const statRand = (seed: number): number => {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
 export function loadMatch(world: World): void {
   for (const e of [...world.query(IsPlayer)]) e.destroy();
   for (const e of [...world.query(IsBall)]) e.destroy();
   for (const e of [...world.query(Match)]) e.destroy();
+  resetSides();
 
   world.spawn(IsBall, BallRef, BallState);
   world.spawn(Match);
 
   for (let team = 0; team < 2; team++) {
     for (let i = 0; i < FORMATION.length; i++) {
+      const role = FORMATION[i]!.role;
+      const seed = team * 31 + i;
+      // role-flavored ratings: attackers shoot, defenders tackle, mids pass
+      const r = (n: number): number => 0.3 + statRand(seed * 7 + n) * 0.6;
       world.spawn(
         IsPlayer,
         Team({ id: team }),
-        PlayerInfo({
-          index: i,
-          role: FORMATION[i]!.role,
-          aiTimer: Math.random() * 0.3,
+        PlayerInfo({ index: i, role, aiTimer: Math.random() * 0.3, yellows: 0 }),
+        Stats({
+          velocity: r(1) + (role === Role.ATT ? 0.1 : 0),
+          ballcontrol: r(2) + (role === Role.ATT ? 0.1 : 0),
+          shortpass: r(3) + (role === Role.MID ? 0.15 : 0),
+          shot: r(4) + (role === Role.ATT ? 0.15 : 0),
+          tackle: r(5) + (role === Role.DEF ? 0.15 : 0),
+          energy: 1,
         }),
         Position,
         Velocity,

@@ -6,6 +6,7 @@ import {
   MeshRef,
   Position,
   Selected,
+  Stats,
   Velocity,
 } from "../traits";
 import { CLIP_META, VARIANTS } from "../../render/playerRig";
@@ -51,6 +52,11 @@ export function movementSystem(world: World, dt: number): void {
       e.set(Heading, { angle: heading });
       angleDiff = normAngle(desired - heading);
     }
+
+    // stamina: sprinting drains, easing off recovers (physical_stamina-ish)
+    const stats = e.get(Stats)!;
+    const drain = speed > 6.5 ? 0.004 : speed > 4.2 ? 0.0012 : -0.0015;
+    e.set(Stats, { energy: clamp(stats.energy - drain * dt * 7.69, 0.3, 1) });
 
     const h = e.get(MeshRef)!;
     if (h.value) {

@@ -8,10 +8,13 @@ import {
   PlayerInfo,
   Position,
   Role,
+  Stats,
   Team,
   Velocity,
 } from "../traits";
 import { PITCH, SPEEDS, attackSign } from "../levels";
+import { kickSound } from "../audio";
+import { refereeOnKick } from "./referee";
 
 /** AI_GetMindSet by role: defenders 0, mids 0.5, attackers 1 (AIfunctions.cpp). */
 export const MINDSET = [0, 0, 0.5, 1] as const;
@@ -36,6 +39,8 @@ export function releaseBall(
   world.queryFirst(Match)?.set(Match, {
     lastTouchTeam: kicker.get(Team)!.id,
   });
+  kickSound(Math.hypot(vel.x, vel.y, vel.z) / 20);
+  refereeOnKick(world, kicker); // offside snapshot + set-piece completion
 }
 
 /**
@@ -168,8 +173,14 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
   const rb = ball?.get(BallRef)!.value;
   if (!ball || !rb) return;
   const bp = rb.translation();
-  const dx = choice.tx - bp.x;
-  const dz = choice.tz - bp.z;
+  // technique noise from technical_shortpass
+  const err = (1 - kicker.get(Stats)!.shortpass) * 0.07 * (Math.random() - 0.5) * 2;
+  const cos = Math.cos(err);
+  const sin = Math.sin(err);
+  const rawX = choice.tx - bp.x;
+  const rawZ = choice.tz - bp.z;
+  const dx = rawX * cos - rawZ * sin;
+  const dz = rawX * sin + rawZ * cos;
   const d = Math.hypot(dx, dz) || 1;
   const speed = choice.high
     ? Math.min(21, Math.max(9, d * 1.15))
@@ -234,7 +245,9 @@ export function shoot(world: World, kicker: Entity, aimZ: number): void {
   if (!ball || !rb) return;
   const bp = rb.translation();
   const goalX = attackSign(kicker.get(Team)!.id) * PITCH.halfLength;
-  const tz = clamp(aimZ, -PITCH.goalHalfWidth + 0.4, PITCH.goalHalfWidth - 0.4);
+  // technical_shot scatter: poor shooters spray wide and high
+  const scatter = (1 - kicker.get(Stats)!.shot) * 2.2 * (Math.random() - 0.5) * 2;
+  const tz = clamp(aimZ + scatter, -PITCH.goalHalfWidth - 0.6, PITCH.goalHalfWidth + 0.6);
   const dx = goalX - bp.x;
   const dz = tz - bp.z;
   const dist = Math.hypot(dx, dz);
