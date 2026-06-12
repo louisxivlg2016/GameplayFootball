@@ -57,6 +57,7 @@ export function Hud(): React.ReactNode {
             GAMEPLAY <span>FOOTBALL</span>
           </h1>
           <div className="prompt">Press Enter to kick off</div>
+          <DifficultyPicker />
           <ImportantToggle />
           <div className="controls">
             <b>WASD / Arrows</b> move&ensp;<b>Shift</b> sprint
@@ -68,6 +69,42 @@ export function Hud(): React.ReactNode {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+const DIFFICULTY_NAMES = ["FACILE", "NORMAL", "DIFFICILE"];
+const DIFFICULTY_COLORS = ["#7ddb5a", "#ffe94a", "#ff6b4a"];
+
+function DifficultyPicker(): React.ReactNode {
+  const difficulty = useStore((s) => s.difficulty);
+  return (
+    <div style={{ textAlign: "center", fontSize: 16, color: "#e8e8e8" }}>
+      <span
+        style={{
+          background: "rgba(255,255,255,0.12)",
+          borderRadius: 4,
+          padding: "1px 7px",
+          color: "#fff",
+          fontWeight: 600,
+        }}
+      >
+        D
+      </span>{" "}
+      Difficulté :{" "}
+      {DIFFICULTY_NAMES.map((name, i) => (
+        <span
+          key={name}
+          style={{
+            margin: "0 4px",
+            fontWeight: i === difficulty ? 800 : 400,
+            color: i === difficulty ? DIFFICULTY_COLORS[i] : "#9fb89f",
+            opacity: i === difficulty ? 1 : 0.6,
+          }}
+        >
+          {name}
+        </span>
+      ))}
     </div>
   );
 }

@@ -16,6 +16,7 @@ import { PITCH, SPEEDS, attackSign } from "../levels";
 import { kickSound } from "../audio";
 import { radio } from "../radio";
 import { refereeOnKick } from "./referee";
+import { AI_TEAM, difficulty } from "../difficulty";
 
 /** AI_GetMindSet by role: defenders 0, mids 0.5, attackers 1 (AIfunctions.cpp). */
 export const MINDSET = [0, 0, 0.5, 1] as const;
@@ -175,8 +176,10 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
   const rb = ball?.get(BallRef)!.value;
   if (!ball || !rb) return;
   const bp = rb.translation();
-  // technique noise from technical_shortpass
-  const err = (1 - kicker.get(Stats)!.shortpass) * 0.07 * (Math.random() - 0.5) * 2;
+  // technique noise from technical_shortpass, scaled by difficulty for the AI
+  const diffErr = kicker.get(Team)!.id === AI_TEAM ? difficulty().aiErr : 1;
+  const err =
+    (1 - kicker.get(Stats)!.shortpass) * 0.07 * diffErr * (Math.random() - 0.5) * 2;
   const cos = Math.cos(err);
   const sin = Math.sin(err);
   const rawX = choice.tx - bp.x;
@@ -248,7 +251,9 @@ export function shoot(world: World, kicker: Entity, aimZ: number): void {
   const bp = rb.translation();
   const goalX = attackSign(kicker.get(Team)!.id) * PITCH.halfLength;
   // technical_shot scatter: poor shooters spray wide and high
-  const scatter = (1 - kicker.get(Stats)!.shot) * 2.2 * (Math.random() - 0.5) * 2;
+  const shotDiffErr = kicker.get(Team)!.id === AI_TEAM ? difficulty().aiErr : 1;
+  const scatter =
+    (1 - kicker.get(Stats)!.shot) * 2.2 * shotDiffErr * (Math.random() - 0.5) * 2;
   const tz = clamp(aimZ + scatter, -PITCH.goalHalfWidth - 0.6, PITCH.goalHalfWidth + 0.6);
   const dx = goalX - bp.x;
   const dz = tz - bp.z;

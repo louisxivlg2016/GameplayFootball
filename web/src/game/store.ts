@@ -13,6 +13,8 @@ interface Store {
   gen: number;
   /** important match: extra time then penalties when level after 90' */
   important: boolean;
+  /** index into DIFFICULTIES: 0 facile, 1 normal, 2 difficile */
+  difficulty: number;
   score: [number, number];
   /** game-time seconds (1 real second ≈ 7.7 game seconds, like the original) */
   clock: number;
@@ -24,6 +26,7 @@ interface Store {
   radar: number[];
   setMode: (mode: Mode) => void;
   toggleImportant: () => void;
+  cycleDifficulty: () => void;
   newMatch: () => void;
   addGoal: (team: number) => void;
   setClock: (clock: number) => void;
@@ -37,6 +40,7 @@ export const useStore = create<Store>((set) => ({
   mode: "menu",
   gen: 0,
   important: false,
+  difficulty: 1,
   score: [0, 0],
   clock: 0,
   phaseLabel: "1ST",
@@ -45,6 +49,7 @@ export const useStore = create<Store>((set) => ({
   radar: [],
   setMode: (mode) => set({ mode }),
   toggleImportant: () => set((s) => ({ important: !s.important })),
+  cycleDifficulty: () => set((s) => ({ difficulty: (s.difficulty + 1) % 3 })),
   newMatch: (): void =>
     set((s) => ({
       mode: "play",

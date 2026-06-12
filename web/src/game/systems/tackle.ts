@@ -16,6 +16,7 @@ import {
 import { consumePress } from "../input";
 import { refState, refereeFoul } from "./referee";
 import { releaseBall } from "./kicks";
+import { AI_TEAM, difficulty } from "../difficulty";
 
 /**
  * Slide tackles. A slide is a ~0.5s lunge along the heading; touching the ball
@@ -72,7 +73,10 @@ export function tackleSystem(world: World, dt: number): void {
           continue;
         const p = e.get(Position)!;
         const d = Math.hypot(cp.x - p.x, cp.z - p.z);
-        if (d > 1.2 && d < 2.6 && Math.random() < 0.25 + e.get(Stats)!.tackle * 0.2) {
+        const chance =
+          (0.25 + e.get(Stats)!.tackle * 0.2) *
+          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance : 1);
+        if (d > 1.2 && d < 2.6 && Math.random() < chance) {
           startSlide(e);
           break; // one new slide per tick
         }

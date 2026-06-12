@@ -24,6 +24,7 @@ import {
   shotOdds,
 } from "./kicks";
 import { ceremonyTarget, refState } from "./referee";
+import { AI_TEAM, difficulty } from "../difficulty";
 
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, v));
@@ -66,7 +67,8 @@ function seek(e: Entity, tx: number, tz: number, dt: number, maxSpeed: number = 
   const v = e.get(Velocity)!;
   const stats = e.get(Stats)!;
   // physical_velocity + stamina multipliers (playerbase.cpp:136-139)
-  const top = maxSpeed * (0.9 + 0.1 * stats.velocity) * (0.75 + 0.25 * stats.energy);
+  let top = maxSpeed * (0.9 + 0.1 * stats.velocity) * (0.75 + 0.25 * stats.energy);
+  if (e.get(Team)!.id === AI_TEAM) top *= difficulty().aiSpeed;
   const dx = tx - p.x;
   const dz = tz - p.z;
   const d = Math.hypot(dx, dz);
@@ -455,10 +457,11 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
     const distGoal = Math.hypot(goalX - p.x, p.z);
 
     const shot = shotOdds(world, e);
+    const eagerness = teamId === AI_TEAM ? difficulty().shootBoost : 0;
     if (
       distGoal < 32 &&
       shot.idealFactor > 0.1 &&
-      Math.pow(shot.odds, 0.5) + Math.random() * 0.5 > 0.55
+      Math.pow(shot.odds, 0.5) + Math.random() * 0.5 > 0.55 - eagerness
     ) {
       shoot(world, e, shot.aimZ + (Math.random() - 0.5) * 1.2);
       return;
