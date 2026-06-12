@@ -61,14 +61,18 @@ interface VoiceFx {
 }
 
 async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
-  if (gen !== playerGen || !enabled) {
+  // only the LATEST mic owner may free the mic — a superseded line returning
+  // late must not release it while a long goal scream is still synthesizing
+  if (gen !== playerGen) return;
+  if (!enabled) {
     playerBusy = false;
     return;
   }
   try {
     const ctx = ensureRadioCtx();
     const pcm = await ctx.decodeAudioData(await wav.arrayBuffer());
-    if (gen !== playerGen || !enabled) {
+    if (gen !== playerGen) return;
+    if (!enabled) {
       playerBusy = false;
       return;
     }
@@ -96,7 +100,7 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
     };
     src.start();
   } catch {
-    playerBusy = false;
+    if (gen === playerGen) playerBusy = false;
   }
 }
 
@@ -218,10 +222,10 @@ async function sayPiper(text: string, priority: number, fx?: VoiceFx): Promise<v
   if (gen === null) return;
   const wav = await piperPredict(text);
   if (!wav) {
-    playerBusy = false;
+    if (gen === playerGen) playerBusy = false; // only the owner frees the mic
     return;
   }
-  playBlob(wav, gen, fx);
+  void playBlob(wav, gen, fx);
 }
 
 export function radioEnabled(): boolean {
