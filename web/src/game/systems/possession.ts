@@ -19,6 +19,22 @@ import { AI_TEAM, difficulty } from "../difficulty";
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, v));
 
+/** 2D distance from point (px,pz) to segment (ax,az)-(bx,bz). */
+function segDist(
+  px: number,
+  pz: number,
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+): number {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const len2 = dx * dx + dz * dz;
+  const t = len2 > 0 ? clamp(((px - ax) * dx + (pz - az) * dz) / len2, 0, 1) : 0;
+  return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+}
+
 const CAPTURE_RADIUS = 0.9;
 const STEAL_RADIUS = 0.62;
 const OWNER_DROP_RADIUS = 1.8;
@@ -47,7 +63,7 @@ export function possessionSystem(world: World, dt: number): void {
     if (!op || Math.hypot(op.x - bp.x, op.z - bp.z) > OWNER_DROP_RADIUS) bs.owner = null;
   }
 
-  if (bp.y > 1.3) return; // ball above playable height
+  if (bp.y > 2.35) return; // above even a keeper's raised arms
 
   // during a restart ceremony only the taker may take the ball
   const ceremony = refState.ceremony;
@@ -60,11 +76,17 @@ export function possessionSystem(world: World, dt: number): void {
     if (ceremony && e !== ceremony.taker) continue;
     const isKeeper = e.get(PlayerInfo)!.role === Role.GK;
     if (ballSpeed > TRAP_SPEED && !isKeeper) continue;
+    if (bp.y > 1.3 && !isKeeper) continue; // only a keeper plays chest-high balls
     if (bs.kickCooldown > 0 && e === bs.lastKicker) continue;
     if (bs.recaptureBlocks.some((block) => block.player === e)) continue;
     if (bs.owner && e.get(Team)!.id === ownerTeam) continue; // no stealing from teammates
     const p = e.get(Position)!;
-    const d = Math.hypot(p.x - bp.x, p.z - bp.z);
+    let d = Math.hypot(p.x - bp.x, p.z - bp.z);
+    // a 26 m/s strike covers over a meter per frame: test the keeper against
+    // the ball's swept path this frame so shots can't tunnel through him
+    if (isKeeper && ballSpeed > TRAP_SPEED) {
+      d = Math.min(d, segDist(p.x, p.z, bp.x - v.x * dt, bp.z - v.z * dt, bp.x, bp.z));
+    }
     // reach scales with ball control (technical_ballcontrol bonus, humanoidbase.cpp:2108);
     // a diving keeper covers extra ground with his outstretched arms
     const radius =

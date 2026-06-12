@@ -398,6 +398,10 @@ function attackPosition(
     if (tx * s > offside * s - 0.2) tx = (offside * s - 0.2) * s;
   }
 
+  // rest defense: even in full attack the back line stays goal-side of
+  // halfway (both teams), so losing the ball never opens a free counter
+  if (info.role === Role.DEF && tx * s > 3) tx = 3 * s;
+
   tx = clamp(tx, -52, 52);
   tz = clamp(tz, -34, 34);
   seek(e, tx, tz, dt, run ? SPEEDS.sprint : SPEEDS.walk * 1.25);

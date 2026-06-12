@@ -69,6 +69,52 @@ export function tackleSystem(world: World, dt: number): void {
     if (carrier) {
       const carrierTeam = carrier.get(Team)!.id;
       const cp = carrier.get(Position)!;
+
+      // standing poke: a chaser glued to the carrier (shoulder to shoulder or
+      // right behind him) sometimes toes the ball loose without going to
+      // ground — so shielding the ball with your back is never fully safe
+      for (const e of world.query(IsPlayer)) {
+        if (
+          e.get(Team)!.id === carrierTeam ||
+          e.has(Selected) ||
+          e.has(Selected2) ||
+          e.get(PlayerInfo)!.role === Role.GK ||
+          slides.has(e) ||
+          cooldowns.has(e)
+        )
+          continue;
+        const p = e.get(Position)!;
+        const d = Math.hypot(cp.x - p.x, cp.z - p.z);
+        if (d > 1.05) continue;
+        const chance =
+          (0.09 + e.get(Stats)!.tackle * 0.16) *
+          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance : 1);
+        if (Math.random() >= chance) continue;
+        // nick it ahead of the poker; the victim is blocked just long enough
+        // for the thief (or anyone closer) to claim it
+        bs.owner = null;
+        bs.lastKicker = null;
+        const h = e.get(Heading)!.angle;
+        rb.setLinvel(
+          {
+            x: Math.sin(h) * 4 + (Math.random() - 0.5) * 1.5,
+            y: 0.15,
+            z: Math.cos(h) * 4 + (Math.random() - 0.5) * 1.5,
+          },
+          true,
+        );
+        bs.recaptureBlocks.push({ player: carrier, t: 0.55 });
+        if (carrier.isAlive() && !carrier.has(Tripped)) {
+          carrier.add(Tripped);
+          carrier.set(Tripped, { t: 0, yaw: carrier.get(Heading)!.angle, fall: 0.5 });
+        }
+        cooldowns.set(e, 1.2);
+        break;
+      }
+    }
+    if (bs.owner) {
+      const carrierTeam = bs.owner.get(Team)!.id;
+      const cp = bs.owner.get(Position)!;
       for (const e of world.query(IsPlayer)) {
         if (
           e.get(Team)!.id === carrierTeam ||
