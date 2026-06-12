@@ -81,9 +81,11 @@ export function possessionSystem(world: World, dt: number): void {
   const stats = best.get(Stats)!;
   const isKeeper = best.get(PlayerInfo)!.role === Role.GK;
 
-  // a keeper facing a real strike sometimes misjudges it — the ball beats the
-  // gloves and, if on target, ends up in the net. Save odds fall with shot
-  // speed and how far he has to stretch; only an opponent's kick can beat him
+  // a keeper facing a real strike sometimes gets beaten — but only in
+  // proportion to how hard the save actually is. A ball straight into his
+  // chest is virtually always held no matter the difficulty; the leak odds
+  // grow with shot pace AND the stretch he needs at contact, so misses
+  // concentrate on fingertip rockets. Only an opponent's kick can beat him
   // (he never fumbles a teammate's backpass).
   if (
     isKeeper &&
@@ -92,12 +94,12 @@ export function possessionSystem(world: World, dt: number): void {
     bs.lastKicker.isAlive() &&
     bs.lastKicker.get(Team)!.id !== best.get(Team)!.id
   ) {
-    let save =
-      clamp(1.45 - ballSpeed / 24, 0.3, 0.92) *
-      (0.85 + 0.3 * stats.ballcontrol) *
-      (1 - 0.3 * Math.min(bestD / CAPTURE_RADIUS, 1));
-    if (best.get(Team)!.id === AI_TEAM) save *= difficulty().keeperSave;
-    if (Math.random() > Math.min(save, 0.95)) {
+    const pace = clamp((ballSpeed - TRAP_SPEED) / 12, 0, 1);
+    const reach = CAPTURE_RADIUS * (0.85 + 0.3 * stats.ballcontrol);
+    const stretch = Math.min(bestD / reach, 1);
+    let hardness = pace * (0.15 + 0.85 * stretch);
+    if (best.get(Team)!.id === AI_TEAM) hardness /= difficulty().keeperSave;
+    if (Math.random() < clamp(hardness, 0, 0.95)) {
       // beaten: the ball flies past — block him briefly so it isn't re-caught
       bs.recaptureBlocks.push({ player: best, t: 0.4 });
       return;

@@ -10,6 +10,7 @@ import { movementSystem } from "../game/systems/movement";
 import { ballSystem } from "../game/systems/ball";
 import { refereeSystem } from "../game/systems/referee";
 import { officialsSystem } from "../game/systems/officials";
+import { commentarySystem } from "../game/systems/commentary";
 import { cameraSystem } from "../game/systems/camera";
 import { radarSystem } from "../game/systems/radar";
 
@@ -26,6 +27,7 @@ export function Systems(): null {
       ballSystem(world, dt);
       refereeSystem(world, dt);
       officialsSystem(world, dt);
+      commentarySystem(world, dt);
       radarSystem(world, dt);
     } else if (mode === "goal") {
       // celebration: ball keeps rolling in the net, countdown to kickoff

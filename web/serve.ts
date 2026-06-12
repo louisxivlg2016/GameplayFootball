@@ -12,6 +12,16 @@ const PIPER_DIR = join(
   "node_modules/@diffusionstudio/piper-wasm/build",
 );
 
+// the TTS worker is bundled once at startup and served from /tts/worker.js —
+// the dev HTML bundler does not handle `new Worker(new URL(...))` entries
+const workerBuild = await Bun.build({
+  entrypoints: [join(import.meta.dir, "src/game/ttsWorker.ts")],
+  target: "browser",
+  format: "esm",
+  minify: false,
+});
+const workerJs = await workerBuild.outputs[0]!.text();
+
 async function serveFile(path: string): Promise<Response> {
   const f = Bun.file(path);
   return (await f.exists())
@@ -31,6 +41,11 @@ const server = Bun.serve({
   },
   async fetch(req) {
     const { pathname } = new URL(req.url);
+    if (pathname === "/tts/worker.js") {
+      return new Response(workerJs, {
+        headers: { "content-type": "text/javascript" },
+      });
+    }
     if (pathname.startsWith("/tts/onnx/")) {
       const name = pathname.slice("/tts/onnx/".length);
       if (!/^[\w.-]+$/.test(name)) return new Response("bad", { status: 400 });

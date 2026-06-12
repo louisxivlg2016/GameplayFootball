@@ -14,7 +14,6 @@
     "@react-three/fiber": "^9.6.1",
     "@react-three/rapier": "^2.2.0",
     "koota": "^0.6.6",
-    "mespeak": "^2.0.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "three": "^0.184.0",

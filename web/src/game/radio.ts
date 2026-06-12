@@ -1,46 +1,16 @@
 /**
- * Radio commentary: a French play-by-play voice, best engine available:
- * 1. Kokoro-82M (near-human neural TTS, run in-browser via transformers.js;
- *    kokoro-js only phonemizes English, so we phonemize French ourselves with
- *    espeak-ng WASM and call the model with the ff_siwis French voice),
- * 2. Piper neural TTS (fr_FR-tom-medium) if Kokoro fails,
- * 3. the platform's speechSynthesis voices,
- * 4. a bundled eSpeak port (mespeak) as the instant always-works fallback.
+ * Radio commentary: a French play-by-play voice. Piper neural TTS
+ * (fr_FR-tom-medium) synthesized in a Web Worker, WASM runtimes self-hosted
+ * by serve.ts. There is deliberately NO robotic fallback: if the neural voice
+ * cannot load, the radio stays silent (see console [radio] lines for why).
  * Urgent events (goals, cards) interrupt; chatter only plays when the
  * commentator is quiet. Toggle with R.
  */
 import { remove as removeVoice } from "@mintplex-labs/piper-tts-web";
-import meSpeak from "mespeak";
-import meSpeakConfig from "mespeak/src/mespeak_config.json";
-import frVoice from "mespeak/voices/fr.json";
 
 let enabled = true;
-let voice: SpeechSynthesisVoice | null = null;
 
-const hasTTS = typeof window !== "undefined" && "speechSynthesis" in window;
-
-function pickVoice(): void {
-  if (!hasTTS) return;
-  const voices = window.speechSynthesis.getVoices();
-  voice =
-    voices.find((v) => v.lang.toLowerCase().startsWith("fr")) ?? voices[0] ?? null;
-}
-if (hasTTS) {
-  pickVoice();
-  window.speechSynthesis.onvoiceschanged = pickVoice;
-}
-
-let fallbackReady = false;
-let fallbackBusyUntil = 0;
-
-function ensureFallback(): void {
-  if (fallbackReady) return;
-  meSpeak.loadConfig(meSpeakConfig as object);
-  meSpeak.loadVoice(frVoice as object);
-  fallbackReady = true;
-}
-
-// ---- shared player for the neural engines ----
+// ---- shared player for the neural engine ----
 let playerAudio: HTMLAudioElement | null = null;
 let playerBusy = false;
 let playerGen = 0;
@@ -98,15 +68,19 @@ function warmupPiper(): void {
   if (piperState !== "idle") return;
   piperState = "loading";
   try {
-    piperWorker = new Worker(new URL("./ttsWorker.ts", import.meta.url), {
-      type: "module",
-    });
+    // pre-bundled by serve.ts — the dev HTML bundler can't bundle worker URLs
+    piperWorker = new Worker("/tts/worker.js", { type: "module" });
   } catch (err) {
     console.info("[radio] worker failed:", err);
     piperState = "failed";
-    (globalThis as Record<string, unknown>).__radioEngine = "espeak";
+    (globalThis as Record<string, unknown>).__radioEngine = "none";
     return;
   }
+  piperWorker.onerror = (e) => {
+    console.info("[radio] worker error:", e.message ?? e);
+    piperState = "failed";
+    (globalThis as Record<string, unknown>).__radioEngine = "none";
+  };
   piperWorker.onmessage = (e: MessageEvent) => {
     const msg = e.data as
       | { type: "ready" }
@@ -122,8 +96,8 @@ function warmupPiper(): void {
       speakPending();
     } else if (msg.type === "error") {
       console.info("[radio] piper failed:", msg.error);
-      piperState = "failed"; // offline or unsupported: mespeak takes the mic
-      (globalThis as Record<string, unknown>).__radioEngine = "espeak";
+      piperState = "failed"; // offline or unsupported: the radio stays silent
+      (globalThis as Record<string, unknown>).__radioEngine = "none";
       speakPending();
     } else if (msg.type === "wav") {
       sayWaiters.get(msg.id)?.(new Blob([msg.buf], { type: "audio/wav" }));
@@ -183,13 +157,7 @@ export function radioEnabled(): boolean {
 /** Is the commentator free to take a play-by-play line right now? */
 export function radioIdle(): boolean {
   if (!enabled) return false;
-  if (piperState === "ready") return !playerBusy;
-  if (hasTTS && window.speechSynthesis.getVoices().length > 0) {
-    const synth = window.speechSynthesis;
-    return !synth.speaking && !synth.pending;
-  }
-  if (fallbackReady) return Date.now() >= fallbackBusyUntil;
-  return false; // engine still loading
+  return piperState === "ready" && !playerBusy;
 }
 
 /** Continuous play-by-play line — spoken only when the mic is free. */
@@ -203,8 +171,6 @@ export function radioFlow(text: string): void {
 export function toggleRadio(): boolean {
   enabled = !enabled;
   if (!enabled) {
-    if (hasTTS) window.speechSynthesis.cancel();
-    if (fallbackReady) meSpeak.stop();
     playerAudio?.pause();
     playerBusy = false;
     playerGen++;
@@ -218,47 +184,15 @@ export function toggleRadio(): boolean {
 function say(text: string, priority = 1): void {
   if (!enabled) return;
 
-  // best neural engine first
   if (piperState === "ready") {
     void sayPiper(text, priority);
     return;
   }
-  // still loading: hold the latest urgent line for the good voice instead of
-  // letting a robot speak the opening minutes; chatter is simply dropped
-  if (piperState === "loading") {
-    if (priority >= 2) pendingText = text;
-    return;
+  // still loading: hold the latest urgent line for the good voice
+  if (piperState === "loading" && priority >= 2) {
+    pendingText = text;
   }
-
-  // platform voices (often robotic on Linux, decent elsewhere)
-  const nativeVoices = hasTTS && window.speechSynthesis.getVoices().length > 0;
-  if (nativeVoices) {
-    const synth = window.speechSynthesis;
-    if (priority >= 2) synth.cancel();
-    else if (synth.speaking || synth.pending) return; // don't pile up chatter
-    const u = new SpeechSynthesisUtterance(text);
-    if (voice) u.voice = voice;
-    u.lang = voice?.lang ?? "fr-FR";
-    u.rate = 1.1 + Math.random() * 0.1;
-    u.pitch = 0.95 + Math.random() * 0.1;
-    u.volume = 1;
-    // Chrome can swallow a speak() issued in the same tick as cancel()
-    setTimeout(() => synth.speak(u), priority >= 2 ? 60 : 0);
-    return;
-  }
-
-  // bundled eSpeak fallback (instant, robotic) — only when everything failed
-  ensureFallback();
-  const now = Date.now();
-  if (priority >= 2) meSpeak.stop();
-  else if (now < fallbackBusyUntil) return;
-  fallbackBusyUntil = now + 500 + text.length * 70; // rough utterance length
-  meSpeak.speak(text, {
-    speed: 165,
-    pitch: 55 + Math.floor(Math.random() * 10),
-    amplitude: 100,
-    variant: "m3",
-  });
+  // failed: stay silent — never a robotic fallback
 }
 
 const pick = (lines: string[]): string =>

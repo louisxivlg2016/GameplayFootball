@@ -557,8 +557,9 @@ function keeper(
     return;
   }
 
-  // goal-bound ball: sprint to the predicted crossing point
-  if (!bs.owner && bv.x * -s > 6) {
+  // goal-bound ball: sprint to the predicted crossing point (the low gate
+  // keeps him active even on soft rollers heading for his net)
+  if (!bs.owner && bv.x * -s > 3) {
     const tCross = (gx - bp.x) / bv.x;
     if (tCross > 0 && tCross < 1.3) {
       const zAtGoal = bp.z + bv.z * tCross;

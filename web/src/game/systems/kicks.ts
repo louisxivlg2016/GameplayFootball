@@ -5,6 +5,7 @@ import {
   IsBall,
   IsPlayer,
   Match,
+  Name,
   PlayerInfo,
   Position,
   Role,
@@ -192,6 +193,10 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
     : Math.min(23, Math.max(10, d * 1.5));
   const lift = choice.high ? Math.min(8.5, Math.max(4, d * 0.3)) : 0.4;
   releaseBall(world, kicker, { x: (dx / d) * speed, y: lift, z: (dz / d) * speed });
+  radio("pass", {
+    player: kicker.get(Name)?.short ?? "",
+    target: choice.mate.get(Name)?.short ?? "",
+  });
 }
 
 /** Directional pass for the human player: alignment-biased candidate, always kicks. */
