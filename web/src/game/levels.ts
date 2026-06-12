@@ -1,4 +1,5 @@
 import type { Entity, World } from "koota";
+import { useStore } from "./store";
 import {
   BallRef,
   BallState,
@@ -9,6 +10,7 @@ import {
   IsReferee,
   Match,
   MeshRef,
+  Name,
   PlayerInfo,
   Position,
   Role,
@@ -71,6 +73,32 @@ const statRand = (seed: number): number => {
   return x - Math.floor(x);
 };
 
+// fictional squad names: common given names + generic surnames, combined randomly
+const FIRST_NAMES = [
+  "Karim", "Théo", "Moussa", "Lucas", "Pablo", "Enzo", "Idriss", "Mathis",
+  "Diego", "Yanis", "Rafael", "Antoine", "Kofi", "Nolan", "Samuel", "Aurélien",
+  "Dario", "Malik", "Jules", "Oscar", "Tiago", "Bakary", "Léo", "Marco",
+];
+const LAST_NAMES = [
+  "Morel", "Duval", "Lefort", "Charrier", "Vasseur", "Toussaint", "Beaulieu",
+  "Janvier", "Falcone", "Marchetti", "Ribeiro", "Cardoso", "Almeida", "Brunet",
+  "Okafor", "Mendes", "Roussel", "Maréchal", "Sylla", "Costa", "Perrin",
+  "Delgado", "Marin", "Verdier",
+];
+
+function makeName(seed: number, taken: Set<string>): { full: string; short: string } {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const first = FIRST_NAMES[Math.floor(statRand(seed * 13 + attempt * 7 + 1) * FIRST_NAMES.length)]!;
+    const last = LAST_NAMES[Math.floor(statRand(seed * 17 + attempt * 11 + 2) * LAST_NAMES.length)]!;
+    if (!taken.has(last)) {
+      taken.add(last);
+      return { full: `${first} ${last}`, short: `${first[0]}. ${last}` };
+    }
+  }
+  const last = LAST_NAMES[seed % LAST_NAMES.length]!;
+  return { full: `Rémi ${last}`, short: `R. ${last}` };
+}
+
 export function loadMatch(world: World): void {
   for (const e of [...world.query(IsPlayer)]) e.destroy();
   for (const e of [...world.query(IsBall)]) e.destroy();
@@ -82,10 +110,12 @@ export function loadMatch(world: World): void {
   world.spawn(Match);
   world.spawn(IsReferee, Position, Velocity, Heading, MeshRef);
 
+  const takenNames = new Set<string>();
   for (let team = 0; team < 2; team++) {
     for (let i = 0; i < FORMATION.length; i++) {
       const role = FORMATION[i]!.role;
       const seed = team * 31 + i;
+      const name = makeName(seed, takenNames);
       // role-flavored ratings: attackers shoot, defenders tackle, mids pass
       const r = (n: number): number => 0.3 + statRand(seed * 7 + n) * 0.6;
       world.spawn(
@@ -100,6 +130,7 @@ export function loadMatch(world: World): void {
           tackle: r(5) + (role === Role.DEF ? 0.15 : 0),
           energy: 1,
         }),
+        Name(name),
         Position,
         Velocity,
         Heading,
@@ -173,6 +204,9 @@ export function placeKickoff(world: World, kickingTeam: number): void {
 export function setSelected(world: World, entity: Entity | null): void {
   for (const e of [...world.query(Selected)]) e.remove(Selected);
   entity?.add(Selected);
+  useStore
+    .getState()
+    .setSelectedName(entity ? (entity.get(Name)?.short ?? "") : "");
 }
 
 /** Nearest outfield player of the human team (0) to a point. */

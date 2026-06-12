@@ -89,7 +89,9 @@ export function movementSystem(world: World, dt: number): void {
       h.value.position.set(p.x, 0, p.z);
       h.value.rotation.y = heading;
     }
-    if (h.ring) h.ring.visible = e.has(Selected);
+    const selected = e.has(Selected);
+    if (h.ring) h.ring.visible = selected;
+    if (h.tag) h.tag.visible = selected;
     animateRig(h, speed, angleDiff, dt);
   }
 }

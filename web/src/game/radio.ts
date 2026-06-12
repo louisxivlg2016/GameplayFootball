@@ -112,10 +112,11 @@ export type RadioEvent =
 
 export function radio(
   event: RadioEvent,
-  info: { team?: number; score?: [number, number] } = {},
+  info: { team?: number; score?: [number, number]; player?: string } = {},
 ): void {
   const team = info.team !== undefined ? teamName(info.team) : "";
   const score = info.score;
+  const player = info.player ?? "";
   switch (event) {
     case "kickoff":
       say(
@@ -127,12 +128,16 @@ export function radio(
       break;
     case "goal":
       say(
-        pick([
-          `Buuuut ! Quel but pour ${team} !`,
-          `Au fond des filets ! ${team} font trembler le stade !`,
-          `C'est dedans ! Magnifique réalisation de ${team} !`,
-        ]) +
-          (score ? ` ${score[0]} à ${score[1]} !` : ""),
+        (player
+          ? pick([
+              `Buuuut ! Quel but de ${player} pour ${team} !`,
+              `Au fond des filets ! ${player} fait trembler le stade !`,
+              `C'est dedans ! Magnifique réalisation de ${player} !`,
+            ])
+          : pick([
+              `Buuuut ! Quel but pour ${team} !`,
+              `Au fond des filets ! ${team} font trembler le stade !`,
+            ])) + (score ? ` ${score[0]} à ${score[1]} !` : ""),
         2,
       );
       break;
@@ -140,14 +145,21 @@ export function radio(
       say(pick(["Faute sifflée !", "L'arbitre arrête le jeu, faute !", "Oh la semelle ! Coup franc."]), 2);
       break;
     case "yellow":
-      say(pick(["Carton jaune, il est averti !", "Le jaune sort de la poche de l'arbitre !"]), 2);
+      say(
+        player
+          ? `Carton jaune pour ${player} !`
+          : pick(["Carton jaune, il est averti !", "Le jaune sort de la poche de l'arbitre !"]),
+        2,
+      );
       break;
     case "red":
       say(
-        pick([
-          "Carton rouge ! Il prend la direction des vestiaires !",
-          "Expulsé ! Son match s'arrête là !",
-        ]),
+        player
+          ? `Carton rouge ! ${player} prend la direction des vestiaires !`
+          : pick([
+              "Carton rouge ! Il prend la direction des vestiaires !",
+              "Expulsé ! Son match s'arrête là !",
+            ]),
         2,
       );
       break;

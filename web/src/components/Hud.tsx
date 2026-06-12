@@ -8,6 +8,7 @@ export function Hud(): React.ReactNode {
   const phaseLabel = useStore((s) => s.phaseLabel);
   const banner = useStore((s) => s.banner);
   const pens = useStore((s) => s.pens);
+  const selectedName = useStore((s) => s.selectedName);
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
 
@@ -33,6 +34,11 @@ export function Hud(): React.ReactNode {
             {pens && (
               <span className="score">
                 p {pens[0]} - {pens[1]}
+              </span>
+            )}
+            {selectedName && (
+              <span className="team" style={{ color: "#ffe94a" }}>
+                ▶ {selectedName}
               </span>
             )}
           </div>

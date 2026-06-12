@@ -33,6 +33,9 @@ export const Stats = trait({
   energy: 1,
 });
 
+/** Generated player identity (fictional names). */
+export const Name = trait(() => ({ full: "", short: "" }));
+
 export const Position = trait(() => new THREE.Vector3());
 export const Velocity = trait(() => new THREE.Vector3());
 export const Heading = trait({ angle: 0 });
@@ -42,6 +45,7 @@ export const HomePos = trait(() => new THREE.Vector3());
 export const MeshRef = trait(() => ({
   value: null as THREE.Group | null,
   ring: null as THREE.Mesh | null,
+  tag: null as THREE.Sprite | null,
   /** skinned-mesh rig: mocap clips selected by gait + angle quadrant */
   mixer: null as THREE.AnimationMixer | null,
   actions: null as Record<string, THREE.AnimationAction> | null,

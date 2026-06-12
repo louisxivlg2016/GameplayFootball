@@ -5,6 +5,7 @@ import {
   IsBall,
   IsPlayer,
   Match,
+  Name,
   PlayerInfo,
   Position,
   Role,
@@ -212,13 +213,18 @@ export function refereeFoul(
   if (foulType >= 2) {
     const info = fouler.get(PlayerInfo)!;
     const second = foulType === 2 && info.yellows >= 1;
+    const foulerName = fouler.get(Name)?.short ?? "";
     if (foulType === 3 || second) {
-      banner(second ? "SECOND YELLOW — RED CARD" : "RED CARD", 3);
-      radio("red");
+      banner(
+        (second ? "SECOND YELLOW — RED CARD" : "RED CARD") +
+          (foulerName ? ` — ${foulerName}` : ""),
+        3,
+      );
+      radio("red", { player: foulerName });
       sendOff(world, fouler);
     } else {
-      banner("YELLOW CARD", 3);
-      radio("yellow");
+      banner("YELLOW CARD" + (foulerName ? ` — ${foulerName}` : ""), 3);
+      radio("yellow", { player: foulerName });
       fouler.set(PlayerInfo, { yellows: info.yellows + 1 });
     }
   }
@@ -504,7 +510,17 @@ export function refereeSystem(world: World, dt: number): void {
       store.addGoal(scorer);
       const newScore: [number, number] = [...store.score];
       newScore[scorer] += 1;
-      radio("goal", { team: scorer, score: newScore });
+      // credit the last kicker — opposite team means an own goal
+      const kicker = b.bs.lastKicker;
+      const kickerName = kicker?.isAlive() ? (kicker.get(Name)?.short ?? "") : "";
+      const ownGoal = kicker?.isAlive() && kicker.get(Team)!.id !== scorer;
+      const scorerName = ownGoal ? `${kickerName} (c.s.c.)` : kickerName;
+      store.setBanner(scorerName ? `GOAL — ${scorerName}` : "");
+      radio("goal", {
+        team: scorer,
+        score: newScore,
+        player: ownGoal ? "" : kickerName,
+      });
       b.bs.owner = null;
       match.set(Match, { resetTimer: 2.8, pendingKickoffTeam: 1 - scorer });
       return;

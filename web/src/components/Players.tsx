@@ -1,10 +1,12 @@
 import { useMemo } from "react";
+import * as THREE from "three";
 import type { Entity } from "koota";
 import { useQuery, useQueryFirst } from "koota/react";
 import {
   IsPlayer,
   IsReferee,
   MeshRef,
+  Name,
   PlayerInfo,
   Position,
   Role,
@@ -12,6 +14,29 @@ import {
 } from "../game/traits";
 import { TEAMS } from "../game/store";
 import { createPlayerRig } from "../render/playerRig";
+
+const nameTextureCache = new Map<string, THREE.CanvasTexture>();
+
+function nameTexture(name: string): THREE.CanvasTexture {
+  let tex = nameTextureCache.get(name);
+  if (tex) return tex;
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 56;
+  const ctx = canvas.getContext("2d")!;
+  ctx.font = "bold 30px 'Segoe UI', Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "rgba(0,0,0,0.75)";
+  ctx.strokeText(name, 128, 28);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(name, 128, 28);
+  tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  nameTextureCache.set(name, tex);
+  return tex;
+}
 
 export function Players(): React.ReactNode {
   const players = useQuery(IsPlayer);
@@ -103,6 +128,21 @@ function PlayerView({ entity }: { entity: Entity }): React.ReactNode {
         <ringGeometry args={[0.55, 0.78, 24]} />
         <meshBasicMaterial color="#ffe94a" />
       </mesh>
+      <sprite
+        position={[0, 2.45, 0]}
+        scale={[2.2, 0.48, 1]}
+        visible={false}
+        ref={(node) => {
+          const h = entity.isAlive() ? entity.get(MeshRef) : undefined;
+          if (h) h.tag = node;
+        }}
+      >
+        <spriteMaterial
+          map={nameTexture(entity.get(Name)?.short ?? "")}
+          transparent
+          depthTest={false}
+        />
+      </sprite>
     </group>
   );
 }

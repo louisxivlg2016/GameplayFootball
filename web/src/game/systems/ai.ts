@@ -60,6 +60,8 @@ const state = {
   runs: new Map<Entity, { until: number; tx: number; tz: number }>(),
   carrier: null as Entity | null,
   carrierSeconds: 0,
+  /** keepers' committed (imperfect) reads of incoming shots */
+  reads: new Map<Entity, { until: number; off: number }>(),
 };
 
 function seek(e: Entity, tx: number, tz: number, dt: number, maxSpeed: number = SPEEDS.sprint): void {
@@ -121,6 +123,7 @@ export function aiSystem(world: World, dt: number): void {
     state.avgBZ = 0;
     state.teams = [newTeam(), newTeam()];
     state.runs.clear();
+    state.reads.clear();
     state.carrier = null;
     state.carrierSeconds = 0;
   }
@@ -560,7 +563,20 @@ function keeper(
     if (tCross > 0 && tCross < 1.3) {
       const zAtGoal = bp.z + bv.z * tCross;
       if (Math.abs(zAtGoal) < 4.4) {
-        seek(e, gx + s * 0.4, clamp(zAtGoal, -3.5, 3.5), dt);
+        // one imperfect read per shot: the dive commits to a guessed crossing
+        // point (worse on fast strikes), so a clean hit can beat him outright
+        let read = state.reads.get(e);
+        if (!read || state.time > read.until) {
+          const shotSpeed = Math.hypot(bv.x, bv.z);
+          const spread =
+            (0.4 + shotSpeed * 0.045) * (1.15 - 0.5 * e.get(Stats)!.ballcontrol);
+          read = {
+            until: state.time + tCross + 0.2,
+            off: (Math.random() - 0.5) * 2 * spread,
+          };
+          state.reads.set(e, read);
+        }
+        seek(e, gx + s * 0.4, clamp(zAtGoal + read.off, -3.5, 3.5), dt);
         return;
       }
     }

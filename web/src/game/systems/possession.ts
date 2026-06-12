@@ -13,6 +13,10 @@ import {
 } from "../traits";
 import { refState, refereeOffside } from "./referee";
 import { radio } from "../radio";
+import { AI_TEAM, difficulty } from "../difficulty";
+
+const clamp = (v: number, lo: number, hi: number): number =>
+  Math.min(hi, Math.max(lo, v));
 
 const CAPTURE_RADIUS = 0.9;
 const STEAL_RADIUS = 0.62;
@@ -74,15 +78,39 @@ export function possessionSystem(world: World, dt: number): void {
   // offside: flagged players are whistled the moment they take the ball
   if (refereeOffside(world, best)) return;
 
+  const stats = best.get(Stats)!;
+  const isKeeper = best.get(PlayerInfo)!.role === Role.GK;
+
+  // a keeper facing a real strike sometimes misjudges it — the ball beats the
+  // gloves and, if on target, ends up in the net. Save odds fall with shot
+  // speed and how far he has to stretch; only an opponent's kick can beat him
+  // (he never fumbles a teammate's backpass).
+  if (
+    isKeeper &&
+    ballSpeed > TRAP_SPEED &&
+    bs.lastKicker &&
+    bs.lastKicker.isAlive() &&
+    bs.lastKicker.get(Team)!.id !== best.get(Team)!.id
+  ) {
+    let save =
+      clamp(1.45 - ballSpeed / 24, 0.3, 0.92) *
+      (0.85 + 0.3 * stats.ballcontrol) *
+      (1 - 0.3 * Math.min(bestD / CAPTURE_RADIUS, 1));
+    if (best.get(Team)!.id === AI_TEAM) save *= difficulty().keeperSave;
+    if (Math.random() > Math.min(save, 0.95)) {
+      // beaten: the ball flies past — block him briefly so it isn't re-caught
+      bs.recaptureBlocks.push({ player: best, t: 0.4 });
+      return;
+    }
+  }
+
   bs.owner = best;
   bs.lastKicker = null;
   bs.touchTimer = 0; // first touch happens immediately in the ball system
   match.set(Match, { lastTouchTeam: best.get(Team)!.id });
 
   // first-touch trap: error grows with incoming speed, shrinks with control
-  const stats = best.get(Stats)!;
   const err = (1 - stats.ballcontrol) * 0.3 + Math.min(ballSpeed, 16) * 0.02;
-  const isKeeper = best.get(PlayerInfo)!.role === Role.GK;
   if (isKeeper && ballSpeed > 12) radio("save"); // a real stop, not a pickup
   const damp = isKeeper ? 0 : Math.min(0.25 + err * 0.3, 0.5);
   rb.setLinvel(
