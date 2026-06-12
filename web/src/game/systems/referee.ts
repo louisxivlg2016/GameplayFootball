@@ -412,6 +412,7 @@ export function refereeSystem(world: World, dt: number): void {
     refState.nextChatter = 120;
     refState.firstKickoff = match.get(Match)!.lastTouchTeam;
     store.setPhaseLabel(PHASE_LABEL[0]!);
+    radio("kickoff", { team: refState.firstKickoff }); // opening whistle call
   }
 
   if (refState.bannerT > 0) {

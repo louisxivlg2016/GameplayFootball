@@ -1,8 +1,14 @@
 /**
- * Radio commentary: a French play-by-play voice built on the browser's
- * speechSynthesis. Urgent events (goals, cards) interrupt; chatter only
- * plays when the commentator is quiet. Toggle with R.
+ * Radio commentary: a French play-by-play voice. Uses the browser's
+ * speechSynthesis when it actually has voices; many Linux setups ship none
+ * (no speech-dispatcher/espeak), so we fall back to a bundled eSpeak port
+ * (mespeak) with its French voice — works everywhere, sounds like AM radio.
+ * Urgent events (goals, cards) interrupt; chatter only plays when the
+ * commentator is quiet. Toggle with R.
  */
+import meSpeak from "mespeak";
+import meSpeakConfig from "mespeak/src/mespeak_config.json";
+import frVoice from "mespeak/voices/fr.json";
 
 let enabled = true;
 let voice: SpeechSynthesisVoice | null = null;
@@ -20,29 +26,62 @@ if (hasTTS) {
   window.speechSynthesis.onvoiceschanged = pickVoice;
 }
 
+let fallbackReady = false;
+let fallbackBusyUntil = 0;
+
+function ensureFallback(): void {
+  if (fallbackReady) return;
+  meSpeak.loadConfig(meSpeakConfig as object);
+  meSpeak.loadVoice(frVoice as object);
+  fallbackReady = true;
+}
+
 export function radioEnabled(): boolean {
   return enabled;
 }
 
 export function toggleRadio(): boolean {
   enabled = !enabled;
-  if (!enabled && hasTTS) window.speechSynthesis.cancel();
-  else say("La radio du match est de retour à l'antenne !", 2);
+  if (!enabled) {
+    if (hasTTS) window.speechSynthesis.cancel();
+    if (fallbackReady) meSpeak.stop();
+  } else {
+    say("La radio du match est de retour à l'antenne !", 2);
+  }
   return enabled;
 }
 
 function say(text: string, priority = 1): void {
-  if (!enabled || !hasTTS) return;
-  const synth = window.speechSynthesis;
-  if (priority >= 2) synth.cancel();
-  else if (synth.speaking || synth.pending) return; // don't pile up chatter
-  const u = new SpeechSynthesisUtterance(text);
-  if (voice) u.voice = voice;
-  u.lang = voice?.lang ?? "fr-FR";
-  u.rate = 1.1 + Math.random() * 0.1;
-  u.pitch = 0.95 + Math.random() * 0.1;
-  u.volume = 1;
-  synth.speak(u);
+  if (!enabled) return;
+  const nativeVoices = hasTTS && window.speechSynthesis.getVoices().length > 0;
+
+  if (nativeVoices) {
+    const synth = window.speechSynthesis;
+    if (priority >= 2) synth.cancel();
+    else if (synth.speaking || synth.pending) return; // don't pile up chatter
+    const u = new SpeechSynthesisUtterance(text);
+    if (voice) u.voice = voice;
+    u.lang = voice?.lang ?? "fr-FR";
+    u.rate = 1.1 + Math.random() * 0.1;
+    u.pitch = 0.95 + Math.random() * 0.1;
+    u.volume = 1;
+    // Chrome can swallow a speak() issued in the same tick as cancel()
+    setTimeout(() => synth.speak(u), priority >= 2 ? 60 : 0);
+    return;
+  }
+
+  // bundled eSpeak fallback
+  ensureFallback();
+  const now = Date.now();
+  if (priority >= 2) meSpeak.stop();
+  else if (now < fallbackBusyUntil) return;
+  fallbackBusyUntil = now + 500 + text.length * 70; // rough utterance length
+  meSpeak.speak(text, {
+    speed: 165,
+    pitch: 55 + Math.floor(Math.random() * 10),
+    amplitude: 100,
+    variant: "m3",
+  });
 }
 
 const pick = (lines: string[]): string =>

@@ -9,6 +9,7 @@
         "@react-three/fiber": "^9.6.1",
         "@react-three/rapier": "^2.2.0",
         "koota": "^0.6.6",
+        "mespeak": "^2.0.2",
         "react": "^19.2.7",
         "react-dom": "^19.2.7",
         "three": "^0.184.0",
@@ -109,6 +110,8 @@
     "meshline": ["meshline@3.3.1", "", { "peerDependencies": { "three": ">=0.137" } }, "sha512-/TQj+JdZkeSUOl5Mk2J7eLcYTLiQm2IDzmlSvYm7ov15anEcDJ92GHqqazxTSreeNgfnYu24kiEvvv0WlbCdFQ=="],
 
     "meshoptimizer": ["meshoptimizer@1.1.1", "", {}, "sha512-oRFNWJRDA/WTrVj7NWvqa5HqE1t9MYDj2VaWirQCzCCrAd2GHrqR/sQezCxiWATPNlKTcRaPRHPJwIRoPBAp5g=="],
+
+    "mespeak": ["mespeak@2.0.2", "", {}, "sha512-vrSqilK/IXXpgPqyFQjuJLqwO6TYgVXd84hGj76F1jQ/DEBna4wjSntyTz/zlaH/6oJm8cRj50AkpKcLzQiuxQ=="],
 
     "path-key": ["path-key@3.1.1", "", {}, "sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q=="],
 
