@@ -18,6 +18,10 @@ let playerGen = 0;
 // moment the voice is ready, so the radio joins with the good voice, not eSpeak
 let pendingText: string | null = null;
 
+// next play-by-play line, pre-synthesized while the current one plays so the
+// commentary chains without dead air
+let queuedFlow: { blob: Blob; at: number } | null = null;
+
 function playBlob(wav: Blob, gen: number): void {
   if (gen !== playerGen || !enabled) {
     playerBusy = false;
@@ -30,10 +34,21 @@ function playBlob(wav: Blob, gen: number): void {
   const done = (): void => {
     if (playerAudio === audio) playerBusy = false;
     URL.revokeObjectURL(url);
+    playQueuedFlow();
   };
   audio.onended = done;
   audio.onerror = done;
   void audio.play().catch(done);
+}
+
+function playQueuedFlow(): void {
+  if (!queuedFlow || playerBusy || !enabled) return;
+  const fresh = Date.now() - queuedFlow.at < 8000; // stale lines are dropped
+  const blob = queuedFlow.blob;
+  queuedFlow = null;
+  if (!fresh) return;
+  const gen = takeMic(1);
+  if (gen !== null) playBlob(blob, gen);
 }
 
 function takeMic(priority: number): number | null {
@@ -160,12 +175,22 @@ export function radioIdle(): boolean {
   return piperState === "ready" && !playerBusy;
 }
 
-/** Continuous play-by-play line — spoken only when the mic is free. */
+/** Continuous play-by-play line. If the mic is busy, the line is synthesized
+ *  right away (the worker is free while audio plays) and chained next. */
 export function radioFlow(text: string): void {
-  if (!radioIdle()) return;
+  if (!enabled || piperState !== "ready") return;
   const g = globalThis as Record<string, unknown>;
   g.__radioLines = ((g.__radioLines as number) ?? 0) + 1;
-  say(text, 1);
+  if (!playerBusy) {
+    say(text, 1);
+    return;
+  }
+  void piperPredict(text).then((blob) => {
+    if (blob) {
+      queuedFlow = { blob, at: Date.now() };
+      playQueuedFlow(); // mic may have freed while we were synthesizing
+    }
+  });
 }
 
 export function toggleRadio(): boolean {
@@ -175,6 +200,7 @@ export function toggleRadio(): boolean {
     playerBusy = false;
     playerGen++;
     pendingText = null;
+    queuedFlow = null;
   } else {
     say("La radio du match est de retour à l'antenne !", 2);
   }

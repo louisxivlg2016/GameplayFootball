@@ -13,7 +13,7 @@ import {
 } from "../traits";
 import { PITCH, attackSign } from "../levels";
 import { useStore } from "../store";
-import { radioFlow, radioIdle, teamName } from "../radio";
+import { radioFlow, teamName } from "../radio";
 import { refState } from "./referee";
 
 const pick = (lines: string[]): string =>
@@ -28,11 +28,11 @@ let lastKind = "";
  */
 export function commentarySystem(world: World, dt: number): void {
   if (refState.ceremony || refState.ended) return;
-  if (!radioIdle()) return;
 
   gap -= dt;
   if (gap > 0) return;
-  gap = 0.7 + Math.random() * 1.6;
+  // radioFlow pre-synthesizes while the mic is busy, chaining without dead air
+  gap = 1.6 + Math.random() * 1.8;
 
   const ball = world.queryFirst(IsBall);
   const rb = ball?.get(BallRef)?.value;
