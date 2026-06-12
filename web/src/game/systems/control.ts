@@ -80,7 +80,14 @@ export function controlSystem(world: World, dt: number): void {
   const ceremony = refState.ceremony;
   if (ceremony && (!ceremony.ready || ceremony.taker !== sel)) return;
 
-  if (hasBall) {
+  // touch-based dribbling leaves the ball rolling ahead between touches —
+  // a kick is allowed whenever the ball is in striking range, like the original
+  const sp = sel.get(Position)!;
+  const dBall = Math.hypot(sp.x - bp.x, sp.z - bp.z);
+  const kickable =
+    hasBall || (bs.owner === null && dBall < 1.5 && bp.y < 1 && bs.kickCooldown <= 0);
+
+  if (kickable) {
     const h = sel.get(Heading)!.angle;
     const fx = moving ? dir.x : Math.sin(h);
     const fz = moving ? dir.z : Math.cos(h);
