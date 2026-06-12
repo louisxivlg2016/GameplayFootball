@@ -492,11 +492,12 @@ export function refereeSystem(world: World, dt: number): void {
       if (c.t <= 0) {
         c.ready = true;
         whistle(1);
-        // a human gets a LONG window to take their own kicks — the auto-take
-        // is only a stall safety, not a thief; AI takers go quickly
+        // a human gets a comfortable window to take their own kicks — long
+        // enough to aim, short enough that the frozen-pitch wait never drags
+        // (the auto-take remains a stall safety, not a thief)
         if (humanSlotFor(c.team) !== null) {
-          c.kickDelay = refState.shootout ? 10 : 20;
-          banner("À TOI DE JOUER !", 2);
+          c.kickDelay = refState.shootout ? 10 : 8;
+          banner("À TOI DE JOUER !", 2.5);
         } else {
           c.kickDelay = 0.6 + Math.random() * 0.6;
         }

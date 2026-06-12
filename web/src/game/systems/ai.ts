@@ -167,10 +167,18 @@ export function aiSystem(world: World, dt: number): void {
         seek(e, target.x, target.z, dt, SPEEDS.walk * 1.25);
         continue;
       }
-      // others fall back to formation holding, never chasing the dead ball
+      // others fall back to formation holding, never chasing the dead ball —
+      // with a slow per-player drift so the pitch never looks like statues
+      // while a human lines up his kick
       const a = e.get(HomePos)!;
       if (info.role !== Role.GK) {
-        seek(e, state.avgBX * 0.4 + a.x * 0.8, a.z * 0.8, dt, SPEEDS.walk);
+        seek(
+          e,
+          state.avgBX * 0.4 + a.x * 0.8 + Math.sin(state.time * 0.6 + info.index * 1.7) * 1.6,
+          a.z * 0.8 + Math.cos(state.time * 0.5 + info.index * 2.3) * 1.4,
+          dt,
+          SPEEDS.walk,
+        );
         continue;
       }
     }
@@ -544,11 +552,14 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
 
     const shot = shotOdds(world, e);
     const eagerness = teamId === AI_TEAM ? difficulty().shootBoost : 0;
+    // the further from goal, the pickier the decision — speculative 30m
+    // punts give way to carrying the ball closer first
+    const farPenalty = Math.max(0, distGoal - 16) * 0.012;
     if (
       !cleanThrough && // when clean through he carries closer instead
-      distGoal < 32 &&
+      distGoal < 27 &&
       shot.idealFactor > 0.1 &&
-      Math.pow(shot.odds, 0.5) + Math.random() * 0.5 > 0.55 - eagerness
+      Math.pow(shot.odds, 0.5) + Math.random() * 0.5 > 0.55 - eagerness + farPenalty
     ) {
       shoot(world, e, shot.aimZ + (Math.random() - 0.5) * 1.2);
       return;
