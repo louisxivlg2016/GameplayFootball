@@ -2,6 +2,7 @@ import type { Entity, World } from "koota";
 import {
   BallRef,
   BallState,
+  Heading,
   IsBall,
   IsPlayer,
   Match,
@@ -308,6 +309,10 @@ export function ceremonyTarget(
     if (teamId !== c.team && e.get(PlayerInfo)!.role === Role.GK) {
       return { x: Math.sign(c.x) * (PITCH.halfLength - 0.5), z: 0 }; // on the line
     }
+    // shoot-out: everyone already staged around the centre circle — hold there
+    if (refState.shootout) {
+      return { x: clamp(p.x, -16, 8), z: clamp(p.z, -16, 16) };
+    }
     // everyone else outside the box — and clear of the behind-the-taker camera axis
     const edge = Math.sign(c.x) * (PITCH.halfLength - 20);
     let waitZ = clamp(p.z, -19, 19);
@@ -459,7 +464,10 @@ export function refereeSystem(world: World, dt: number): void {
       if (c.t <= 0) {
         c.ready = true;
         whistle(1);
-        c.kickDelay = c.team === 0 && !refState.shootout ? 6 : 0.6 + Math.random() * 0.6;
+        // the human gets a real window to take their own kicks (5s in the
+        // shoot-out, 6s in open play); AI takers go quickly
+        c.kickDelay =
+          c.team === 0 ? (refState.shootout ? 5 : 6) : 0.6 + Math.random() * 0.6;
       }
     } else {
       c.kickDelay -= dt;
@@ -645,6 +653,25 @@ function startShootoutKick(world: World): void {
     refState.ceremony.taker = taker;
     if (team === 0) setSelected(world, taker);
     radio("penTaker", { player: taker.get(Name)?.short ?? "" });
+  }
+
+  // stage the scene: ceremonies are too short to run across the pitch, so
+  // place everyone — defending keeper ON his line, taker at the spot, the
+  // rest grouped around the centre circle like a real shoot-out
+  for (const e of world.query(IsPlayer)) {
+    const p = e.get(Position)!;
+    const v = e.get(Velocity)!;
+    v.set(0, 0, 0);
+    if (e === taker) {
+      p.set(41.5, 0, 0);
+      e.set(Heading, { angle: Math.PI / 2 }); // facing the goal (+x)
+    } else if (e.get(Team)!.id !== team && e.get(PlayerInfo)!.role === Role.GK) {
+      p.set(PITCH.halfLength - 0.7, 0, 0);
+      e.set(Heading, { angle: -Math.PI / 2 }); // on the line, facing the taker
+    } else if (p.x > 10 || Math.abs(p.z) > 22) {
+      p.set(-4 - Math.random() * 10, 0, (Math.random() - 0.5) * 26);
+      e.set(Heading, { angle: Math.PI / 2 });
+    }
   }
   setTension(true); // hush the crowd, heartbeat in
 }
