@@ -39,6 +39,8 @@ export const Name = trait(() => ({ full: "", short: "" }));
 export const Position = trait(() => new THREE.Vector3());
 export const Velocity = trait(() => new THREE.Vector3());
 export const Heading = trait({ angle: 0 });
+/** A keeper mid-dive: committed flight, procedural pose, extended reach. */
+export const KeeperDive = trait({ t: 0, side: 1 });
 /** Formation anchor at a neutral ball position (x/z only). */
 export const HomePos = trait(() => new THREE.Vector3());
 

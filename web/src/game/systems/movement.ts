@@ -5,6 +5,7 @@ import {
   Heading,
   IsBall,
   IsPlayer,
+  KeeperDive,
   MeshRef,
   Position,
   Selected,
@@ -61,11 +62,12 @@ export function movementSystem(world: World, dt: number): void {
     p.z = clamp(p.z + v.z * dt, -39, 39);
 
     const speed = Math.hypot(v.x, v.z);
+    const dive = e.get(KeeperDive);
 
     // heading lags velocity — the original turns through animation, not snapping
     let heading = e.get(Heading)!.angle;
     let angleDiff = 0;
-    if (Math.hypot(intentX, intentZ) > 0.6) {
+    if (!dive && Math.hypot(intentX, intentZ) > 0.6) {
       const desired = Math.atan2(intentX, intentZ);
       const diff = normAngle(desired - heading);
       // the human's heading comes straight from input (control.ts) — deriving
@@ -86,13 +88,31 @@ export function movementSystem(world: World, dt: number): void {
 
     const h = e.get(MeshRef)!;
     if (h.value) {
-      h.value.position.set(p.x, 0, p.z);
-      h.value.rotation.y = heading;
+      if (dive) {
+        // procedural dive: roll horizontal toward the ball side, arms-first,
+        // a short airborne arc, then recover upright (no clip exists for it)
+        const inK = Math.min(dive.t / 0.22, 1); // launch ramp
+        const upK = dive.t < 0.55 ? 1 : Math.max(0, 1 - (dive.t - 0.55) / 0.55);
+        const amt = inK * upK;
+        const air =
+          dive.t < 0.5 ? Math.sin(Math.min(dive.t / 0.5, 1) * Math.PI) * 0.3 : 0;
+        h.value.position.set(p.x, air, p.z);
+        h.value.rotation.set(0.3 * amt, heading, -dive.side * 1.4 * amt, "YZX");
+      } else {
+        h.value.position.set(p.x, 0, p.z);
+        h.value.rotation.set(0, heading, 0, "YZX");
+      }
     }
     const selected = e.has(Selected);
     if (h.ring) h.ring.visible = selected;
     if (h.tag) h.tag.visible = selected;
-    animateRig(h, speed, angleDiff, dt);
+    animateRig(h, dive ? 0.3 : speed, angleDiff, dt);
+    if (dive && h.bones) {
+      // arms stretched out toward the ball, like the reference dive
+      const reach = Math.min(dive.t / 0.22, 1) * (dive.t < 0.7 ? 1 : Math.max(0, 1 - (dive.t - 0.7) / 0.45)) * 2.3;
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -reach));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -reach));
+    }
   }
 }
 

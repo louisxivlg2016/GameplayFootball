@@ -5,6 +5,7 @@ import {
   HomePos,
   IsBall,
   IsPlayer,
+  KeeperDive,
   PlayerInfo,
   Position,
   Role,
@@ -159,6 +160,7 @@ export function aiSystem(world: World, dt: number): void {
 
     // restart ceremony: everyone moves to their staged spot
     if (refState.ceremony) {
+      if (e.has(KeeperDive)) e.remove(KeeperDive); // dead ball cancels a dive
       const target = ceremonyTarget(world, e);
       if (target) {
         seek(e, target.x, target.z, dt, SPEEDS.walk * 1.25);
@@ -459,6 +461,29 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
     const goalX = s * PITCH.halfLength;
     const distGoal = Math.hypot(goalX - p.x, p.z);
 
+    // clean through: nobody between him and the goal but the keeper — SHOOT
+    if (distGoal < 30) {
+      let blockers = 0;
+      const corridorLen = Math.hypot(goalX - p.x, -p.z) || 1;
+      const cx = (goalX - p.x) / corridorLen;
+      const cz = (0 - p.z) / corridorLen;
+      for (const o of world.query(IsPlayer)) {
+        if (o.get(Team)!.id === teamId || o.get(PlayerInfo)!.role === Role.GK)
+          continue;
+        const op = o.get(Position)!;
+        const along = (op.x - p.x) * cx + (op.z - p.z) * cz;
+        if (along < 0.5 || along > corridorLen) continue;
+        const offX = op.x - (p.x + cx * along);
+        const offZ = op.z - (p.z + cz * along);
+        if (Math.hypot(offX, offZ) < 5) blockers++;
+      }
+      if (blockers === 0) {
+        const oneOnOne = shotOdds(world, e);
+        shoot(world, e, oneOnOne.aimZ + (Math.random() - 0.5) * 0.8);
+        return;
+      }
+    }
+
     const shot = shotOdds(world, e);
     const eagerness = teamId === AI_TEAM ? difficulty().shootBoost : 0;
     if (
@@ -543,6 +568,24 @@ function keeper(
   const s = attackSign(teamId);
   const gx = -s * PITCH.halfLength;
 
+  // mid-dive: he is committed — fly, scrub along the turf, then get back up
+  const dive = e.get(KeeperDive);
+  if (dive) {
+    const t = dive.t + dt;
+    if (t > 1.15) {
+      e.remove(KeeperDive);
+    } else {
+      e.set(KeeperDive, { t });
+      if (t > 0.45) {
+        const f = Math.pow(0.02, dt); // landed: the turf eats the slide
+        const v = e.get(Velocity)!;
+        v.x *= f;
+        v.z *= f;
+      }
+      return;
+    }
+  }
+
   // distribution: keeper holds briefly, then plays out
   if (bs.owner === e) {
     const info = e.get(PlayerInfo)!;
@@ -577,7 +620,25 @@ function keeper(
           };
           state.reads.set(e, read);
         }
-        seek(e, gx + s * 0.4, clamp(zAtGoal + read.off, -3.5, 3.5), dt);
+        const tz = clamp(zAtGoal + read.off, -3.5, 3.5);
+        const kp = e.get(Position)!;
+        const lateral = tz - kp.z;
+        // the ball is beating his feet to the corner: launch a full dive at
+        // the read point — body airborne, arms first, like a real keeper
+        if (
+          tCross < 0.5 &&
+          Math.abs(lateral) > 0.9 &&
+          Math.hypot(bv.x, bv.z) > 10
+        ) {
+          e.add(KeeperDive);
+          e.set(KeeperDive, { t: 0, side: Math.sign(lateral) || 1 });
+          const v = e.get(Velocity)!;
+          const tFly = Math.max(tCross, 0.18);
+          v.z = clamp(lateral / tFly, -9.5, 9.5);
+          v.x = clamp((gx + s * 0.4 - kp.x) / tFly, -6, 6);
+          return;
+        }
+        seek(e, gx + s * 0.4, tz, dt);
         return;
       }
     }

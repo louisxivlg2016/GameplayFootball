@@ -464,10 +464,14 @@ export function refereeSystem(world: World, dt: number): void {
       if (c.t <= 0) {
         c.ready = true;
         whistle(1);
-        // the human gets a real window to take their own kicks (5s in the
-        // shoot-out, 6s in open play); AI takers go quickly
-        c.kickDelay =
-          c.team === 0 ? (refState.shootout ? 5 : 6) : 0.6 + Math.random() * 0.6;
+        // the human gets a LONG window to take their own kicks — the auto-take
+        // is only a stall safety, not a thief; AI takers go quickly
+        if (c.team === 0) {
+          c.kickDelay = refState.shootout ? 10 : 20;
+          banner("À TOI DE JOUER !", 2);
+        } else {
+          c.kickDelay = 0.6 + Math.random() * 0.6;
+        }
       }
     } else {
       c.kickDelay -= dt;

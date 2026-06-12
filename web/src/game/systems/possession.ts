@@ -4,6 +4,7 @@ import {
   BallState,
   IsBall,
   IsPlayer,
+  KeeperDive,
   Match,
   PlayerInfo,
   Position,
@@ -64,10 +65,12 @@ export function possessionSystem(world: World, dt: number): void {
     if (bs.owner && e.get(Team)!.id === ownerTeam) continue; // no stealing from teammates
     const p = e.get(Position)!;
     const d = Math.hypot(p.x - bp.x, p.z - bp.z);
-    // reach scales with ball control (technical_ballcontrol bonus, humanoidbase.cpp:2108)
+    // reach scales with ball control (technical_ballcontrol bonus, humanoidbase.cpp:2108);
+    // a diving keeper covers extra ground with his outstretched arms
     const radius =
       (bs.owner ? STEAL_RADIUS : CAPTURE_RADIUS) *
-      (0.85 + 0.3 * e.get(Stats)!.ballcontrol);
+      (0.85 + 0.3 * e.get(Stats)!.ballcontrol) *
+      (e.has(KeeperDive) ? 1.45 : 1);
     if (d < radius && d < bestD) {
       bestD = d;
       best = e;
