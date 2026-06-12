@@ -103,6 +103,10 @@ function mirrorQuat(v: number[]): number[] {
 
 interface ClipJson {
   name: string;
+  kind: "cycle" | "bridge";
+  gait: string;
+  /** body-facing vs movement-direction angle in degrees (cycles only) */
+  angle: number;
   duration: number; // seconds
   velocity: number; // m/s of the original root motion
   tracks: Record<string, { times: number[]; quats: number[] }>;
@@ -111,83 +115,233 @@ interface ClipJson {
 
 const FRAME_S = 0.01; // 10ms per frame (animation.cpp velocity = delta/frames*100)
 
-function buildLoopClip(name: string, tracks: AnimTracks): ClipJson {
-  const player = tracks.get("player")!;
-  const F = Math.max(...player.frames);
-  const dx = player.values[player.values.length - 1]![0]! - player.values[0]![0]!;
-  const dy = player.values[player.values.length - 1]![1]! - player.values[0]![1]!;
-  const velocity = Math.hypot(dx, dy) / (F * FRAME_S);
+const qdot = (a: number[], b: number[]): number =>
+  a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]! + a[3]! * b[3]!;
 
+/** Hemisphere-corrected normalized lerp; fine for the near-identical junction keys. */
+function qblend(a: number[], b: number[], t: number): number[] {
+  const sign = qdot(a, b) < 0 ? -1 : 1;
+  const out = a.map((v, i) => v * (1 - t) + b[i]! * sign * t);
+  const len = Math.hypot(out[0]!, out[1]!, out[2]!, out[3]!) || 1;
+  return out.map((v) => round(v / len));
+}
+
+/** Yaw about +Z (model up) of an x,y,z,w quaternion. */
+const quatYaw = (q: number[]): number =>
+  Math.atan2(2 * (q[3]! * q[2]! + q[0]! * q[1]!), 1 - 2 * (q[1]! * q[1]! + q[2]! * q[2]!));
+
+const normDeg = (d: number): number => (((d + 180) % 360) + 360) % 360 - 180;
+
+/**
+ * Original-style classification (animation.cpp GetIncoming/OutgoingVelocity):
+ * velocities from root-track deltas ×100; body-vs-movement angle from the body
+ * bone yaw against the displacement direction (forward = -Y); loopability from
+ * end pose vs (mirrored) start pose.
+ */
+interface AnimInfo {
+  file: string;
+  tracks: AnimTracks;
+  F: number;
+  vIn: number;
+  vOut: number;
+  v: number;
+  bodyDev: number; // degrees
+  mirrorScore: number;
+  rawScore: number;
+}
+
+function classify(file: string, tracks: AnimTracks): AnimInfo | null {
+  const player = tracks.get("player");
+  const body = tracks.get("body");
+  if (!player || !body || player.frames.length < 2) return null;
+  const F = Math.max(...player.frames);
+  if (F < 4) return null;
+  const first = player.values[0]!;
+  const last = player.values[player.values.length - 1]!;
+  const seg = (i: number, j: number): number => {
+    const df = player.frames[j]! - player.frames[i]!;
+    if (df <= 0) return 0;
+    return (
+      Math.hypot(
+        player.values[j]![0]! - player.values[i]![0]!,
+        player.values[j]![1]! - player.values[i]![1]!,
+      ) /
+      (df * FRAME_S)
+    );
+  };
+  const vIn = seg(0, 1);
+  const vOut = seg(player.frames.length - 2, player.frames.length - 1);
+  const dx = last[0]! - first[0]!;
+  const dy = last[1]! - first[1]!;
+  const v = Math.hypot(dx, dy) / (F * FRAME_S);
+
+  // movement angle relative to facing: forward is -Y in model space
+  const moveAngle = (Math.atan2(dx, -dy) * 180) / Math.PI;
+  const bodyYaw =
+    ((quatYaw(body.values[0]!) + quatYaw(body.values[body.values.length - 1]!)) / 2) *
+    (180 / Math.PI);
+  const bodyDev = v > 0.5 ? normDeg(moveAngle - bodyYaw) : 0;
+
+  let mirrorScore = 0;
+  let rawScore = 0;
+  for (const [bone, track] of tracks) {
+    if (bone === "player") continue;
+    const end = track.values[track.values.length - 1]!;
+    const start = track.values[0]!;
+    const partner = tracks.get(MIRROR[bone] ?? bone) ?? track;
+    mirrorScore += 1 - Math.abs(qdot(end, mirrorQuat(partner.values[0]!)));
+    rawScore += 1 - Math.abs(qdot(end, start));
+  }
+  const zJump = Math.abs(last[2]! - first[2]!);
+  mirrorScore += zJump * 2;
+  rawScore += zJump * 2;
+  return { file, tracks, F, vIn, vOut, v, bodyDev, mirrorScore, rawScore };
+}
+
+/**
+ * Loopable cycle. method "mirror": append the L/R-mirrored copy (single-step
+ * cycles end in the mirrored start pose); junction key blended 50/50, wrap key
+ * forced to the start pose so loops have no per-stride hitch. method "raw":
+ * the file is already a full cycle; only the wrap key is forced.
+ */
+function buildCycleClip(
+  name: string,
+  gait: string,
+  angle: number,
+  info: AnimInfo,
+  method: "mirror" | "raw",
+): ClipJson {
+  const { tracks, F } = info;
   const out: ClipJson = {
     name,
-    duration: round(2 * F * FRAME_S),
-    velocity: round(velocity),
+    kind: "cycle",
+    gait,
+    angle,
+    duration: round((method === "mirror" ? 2 * F : F) * FRAME_S),
+    velocity: round(info.v),
     tracks: {},
     rootZ: { times: [], values: [] },
   };
 
   for (const [bone, track] of tracks) {
     if (bone === "player") continue;
-    const partner = tracks.get(MIRROR[bone] ?? bone) ?? track;
+    const times: number[] = [];
+    const quats: number[] = [];
+    const start = track.values[0]!;
+    if (method === "raw") {
+      for (let k = 0; k < track.frames.length; k++) {
+        const isLast = k === track.frames.length - 1;
+        times.push(round(track.frames[k]! * FRAME_S));
+        quats.push(...(isLast ? start.map((v) => round(v)) : track.values[k]!.map((v) => round(v))));
+      }
+    } else {
+      const partner = tracks.get(MIRROR[bone] ?? bone) ?? track;
+      const mirroredPartnerStart = mirrorQuat(partner.values[0]!);
+      for (let k = 0; k < track.frames.length; k++) {
+        const isLast = k === track.frames.length - 1;
+        times.push(round(track.frames[k]! * FRAME_S));
+        quats.push(
+          ...(isLast
+            ? qblend(track.values[k]!, mirroredPartnerStart, 0.5)
+            : track.values[k]!.map((v) => round(v))),
+        );
+      }
+      for (let k = 1; k < partner.frames.length; k++) {
+        const isLast = k === partner.frames.length - 1;
+        times.push(round((F + partner.frames[k]!) * FRAME_S));
+        quats.push(
+          ...(isLast ? start.map((v) => round(v)) : mirrorQuat(partner.values[k]!).map((v) => round(v))),
+        );
+      }
+    }
+    out.tracks[bone] = { times, quats };
+  }
+
+  const player = tracks.get("player")!;
+  const z0 = player.values[0]![2]!;
+  const pushZ = (frameOffset: number, forceStartAtEnd: boolean): void => {
+    for (let k = frameOffset === 0 ? 0 : 1; k < player.frames.length; k++) {
+      const isLast = k === player.frames.length - 1;
+      out.rootZ.times.push(round((frameOffset + player.frames[k]!) * FRAME_S));
+      out.rootZ.values.push(
+        round(isLast && forceStartAtEnd ? z0 : player.values[k]![2]!),
+      );
+    }
+  };
+  if (method === "raw") {
+    pushZ(0, true);
+  } else {
+    pushZ(0, false);
+    pushZ(F, true);
+  }
+  return out;
+}
+
+/** One-shot accel/decel bridge, played sequentially like humanoidbase.cpp:587-592. */
+function buildBridgeClip(name: string, gait: string, info: AnimInfo): ClipJson {
+  const out: ClipJson = {
+    name,
+    kind: "bridge",
+    gait,
+    angle: 0,
+    duration: round(info.F * FRAME_S),
+    velocity: round(Math.max(info.vIn, info.vOut)),
+    tracks: {},
+    rootZ: { times: [], values: [] },
+  };
+  for (const [bone, track] of info.tracks) {
+    if (bone === "player") continue;
     const times: number[] = [];
     const quats: number[] = [];
     for (let k = 0; k < track.frames.length; k++) {
       times.push(round(track.frames[k]! * FRAME_S));
       quats.push(...track.values[k]!.map((v) => round(v)));
     }
-    // second half: the L/R-mirrored partner, shifted by F frames
-    for (let k = 0; k < partner.frames.length; k++) {
-      if (partner.frames[k] === 0) continue; // junction key already present
-      times.push(round((F + partner.frames[k]!) * FRAME_S));
-      quats.push(...mirrorQuat(partner.values[k]!).map((v) => round(v)));
-    }
     out.tracks[bone] = { times, quats };
   }
-
-  // vertical bob only — x/y locomotion comes from the ECS, like noPos in animation.cpp:409
+  const player = info.tracks.get("player")!;
   for (let k = 0; k < player.frames.length; k++) {
     out.rootZ.times.push(round(player.frames[k]! * FRAME_S));
-    out.rootZ.values.push(round(player.values[k]![2]!));
-  }
-  for (let k = 0; k < player.frames.length; k++) {
-    if (player.frames[k] === 0) continue;
-    out.rootZ.times.push(round((F + player.frames[k]!) * FRAME_S));
     out.rootZ.values.push(round(player.values[k]![2]!));
   }
   return out;
 }
 
-/** Straightest cycle in a velocity band: most forward motion, least drift/turn. */
-async function findCycle(
-  dir: string,
-  vMin: number,
-  vMax: number,
-): Promise<string> {
-  const candidates: Array<{ file: string; score: number }> = [];
+/** Full-clip mirror: the ∓angle variant of an angled cycle. */
+function mirrorClip(clip: ClipJson, name: string): ClipJson {
+  const out: ClipJson = {
+    ...clip,
+    name,
+    angle: -clip.angle,
+    tracks: {},
+    rootZ: clip.rootZ,
+  };
+  for (const [bone, t] of Object.entries(clip.tracks)) {
+    const partner = MIRROR[bone] ?? bone;
+    const src = clip.tracks[partner] ?? t;
+    const quats: number[] = [];
+    for (let k = 0; k < src.quats.length; k += 4) {
+      quats.push(...mirrorQuat(src.quats.slice(k, k + 4)).map((v) => round(v)));
+    }
+    out.tracks[bone] = { times: src.times, quats };
+  }
+  return out;
+}
+
+async function scanAnims(dir: string): Promise<AnimInfo[]> {
+  const infos: AnimInfo[] = [];
   const walk = async (d: string): Promise<void> => {
     for (const entry of await readdir(d, { withFileTypes: true })) {
       const p = path.join(d, entry.name);
       if (entry.isDirectory()) await walk(p);
       else if (entry.name.endsWith(".anim")) {
-        const tracks = await parseAnim(p);
-        const player = tracks.get("player");
-        if (!player || player.frames.length < 2) continue;
-        const F = Math.max(...player.frames);
-        const last = player.values[player.values.length - 1]!;
-        const first = player.values[0]!;
-        const dx = last[0]! - first[0]!;
-        const dy = last[1]! - first[1]!;
-        const v = Math.hypot(dx, dy) / (F * FRAME_S);
-        if (v < vMin || v > vMax) continue;
-        const drift = Math.abs(dx) / (Math.abs(dy) + 0.001);
-        candidates.push({ file: p, score: drift });
+        const info = classify(p, await parseAnim(p));
+        if (info) infos.push(info);
       }
     }
   };
   await walk(dir);
-  candidates.sort((a, b) => a.score - b.score);
-  if (!candidates.length) throw new Error(`no cycle in ${dir} [${vMin},${vMax}]`);
-  return candidates[0]!.file;
+  return infos;
 }
 
 // ---------- ASE parsing ----------
@@ -397,22 +551,100 @@ await Bun.write(
   JSON.stringify({ skeleton, rest, mesh, hair }),
 );
 
-// locomotion cycles (velocity bands from gamedefines.hpp:18-27)
+// locomotion cycles + bridges, classified like animcollection.cpp's quadrant
+// system: steady-state (vIn ≈ vOut in the gait band), body-vs-movement angle
+// quantized to 0/±45/±90/±135, loopability scored against the (mirrored) start.
 const animDir = path.join(DATA, "animations");
-const cycles: Array<{ name: string; file: string }> = [
-  { name: "idle", file: path.join(animDir, "movement/idle/000_idlelevel1.anim") },
-  { name: "dribble", file: await findCycle(path.join(animDir, "movement/dribble"), 2.2, 4.2) },
-  { name: "walk", file: await findCycle(path.join(animDir, "movement/walk"), 4.2, 6.2) },
-  { name: "sprint", file: path.join(animDir, "movement/sprint/000_idlelevel1.anim") },
-];
+const all = await scanAnims(path.join(animDir, "movement"));
+console.log(`scanned ${all.length} movement anims`);
+
+const BANDS: Record<string, [number, number]> = {
+  idle: [0, 1.2],
+  dribble: [2.0, 4.6],
+  walk: [4.2, 6.2],
+  sprint: [6.2, 8.5],
+};
 const clips: ClipJson[] = [];
-for (const c of cycles) {
-  const clip = buildLoopClip(c.name, await parseAnim(c.file));
+
+function pickCycle(gait: string, targetAngle: number): void {
+  const [lo, hi] = BANDS[gait]!;
+  const mid = (lo + hi) / 2;
+  let best: { info: AnimInfo; method: "mirror" | "raw"; score: number } | null = null;
+  for (const info of all) {
+    const steady = Math.abs(info.vIn - info.vOut) <= 1.2;
+    const inBand =
+      gait === "idle"
+        ? info.v <= hi
+        : info.vIn >= lo && info.vIn <= hi + 0.3 && info.vOut >= lo && info.vOut <= hi + 0.3;
+    if (!steady || !inBand) continue;
+    const angleDist = Math.abs(normDeg(info.bodyDev - targetAngle));
+    if (angleDist > (targetAngle === 0 ? 25 : 22)) continue;
+    // angled cycles must self-loop: a mirrored second half would flip the angle
+    const method: "mirror" | "raw" =
+      targetAngle === 0
+        ? info.mirrorScore <= info.rawScore
+          ? "mirror"
+          : "raw"
+        : "raw";
+    const loopScore = method === "mirror" ? info.mirrorScore : info.rawScore;
+    if (targetAngle !== 0 && info.rawScore > 0.15) continue; // not cleanly loopable
+    const score =
+      loopScore * 2 +
+      angleDist / 45 +
+      Math.abs(info.vIn - info.vOut) / 3 +
+      (gait === "idle" ? 0 : Math.abs(info.v - mid) * 0.4);
+    if (!best || score < best.score) best = { info, method, score };
+  }
+  if (!best) {
+    console.log(`cycle ${gait}@${targetAngle}: none found`);
+    return;
+  }
+  const name = targetAngle === 0 ? gait : `${gait}_${targetAngle}`;
+  const clip = buildCycleClip(name, gait, targetAngle, best.info, best.method);
   clips.push(clip);
   console.log(
-    `clip ${c.name}: ${path.relative(animDir, c.file)} v=${clip.velocity} dur=${clip.duration}s`,
+    `cycle ${name}: ${path.relative(animDir, best.info.file)} v=${clip.velocity} ` +
+      `dev=${best.info.bodyDev.toFixed(0)} ${best.method} loop=${best.score.toFixed(3)}`,
+  );
+  if (targetAngle !== 0) clips.push(mirrorClip(clip, `${gait}_${-targetAngle}`));
+}
+
+function pickBridge(from: string, to: string): void {
+  const moving = from === "idle" ? to : from;
+  const [lo, hi] = BANDS[moving]!;
+  const startsIdle = from === "idle";
+  let best: { info: AnimInfo; score: number } | null = null;
+  for (const info of all) {
+    const vStart = startsIdle ? info.vIn : info.vOut;
+    const vEnd = startsIdle ? info.vOut : info.vIn;
+    if (vStart > 1.8) continue;
+    if (vEnd < lo - 0.8 || vEnd > hi + 1) continue;
+    if (Math.abs(info.bodyDev) > 30) continue;
+    const score = Math.abs(info.bodyDev) / 45 + Math.abs(vEnd - (lo + hi) / 2) / 5;
+    if (!best || score < best.score) best = { info, score };
+  }
+  if (!best) {
+    console.log(`bridge ${from}->${to}: none found`);
+    return;
+  }
+  const name = `${from}_to_${to}`;
+  clips.push(buildBridgeClip(name, to, best.info));
+  console.log(
+    `bridge ${name}: ${path.relative(animDir, best.info.file)} ` +
+      `vIn=${best.info.vIn.toFixed(1)} vOut=${best.info.vOut.toFixed(1)}`,
   );
 }
+
+pickCycle("idle", 0);
+for (const gait of ["dribble", "walk", "sprint"]) {
+  pickCycle(gait, 0);
+  for (const angle of [45, 90, 135]) pickCycle(gait, angle);
+}
+for (const gait of ["dribble", "walk", "sprint"]) {
+  pickBridge("idle", gait);
+  pickBridge(gait, "idle");
+}
+
 await Bun.write(path.join(OUT, "anims.json"), JSON.stringify({ clips }));
 
 // textures

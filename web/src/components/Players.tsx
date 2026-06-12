@@ -43,7 +43,8 @@ function PlayerView({ entity }: { entity: Entity }): React.ReactNode {
     if (h) {
       h.mixer = r.mixer;
       h.actions = r.actions;
-      h.gait = "idle";
+      h.bones = r.bones;
+      h.variant = "idle";
     }
     return r;
     // eslint-disable-next-line react-hooks/exhaustive-deps

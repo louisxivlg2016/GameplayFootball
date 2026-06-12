@@ -25,6 +25,9 @@ interface ModelData {
 interface AnimsData {
   clips: Array<{
     name: string;
+    kind: "cycle" | "bridge";
+    gait: string;
+    angle: number;
     duration: number;
     velocity: number;
     tracks: Record<string, { times: number[]; quats: number[] }>;
@@ -134,14 +137,29 @@ for (const [style, data] of Object.entries(modelData.hair)) {
 
 // ---------- animation clips ----------
 
-export const CLIP_VELOCITY: Record<string, number> = {};
+export interface ClipMeta {
+  velocity: number;
+  duration: number;
+  gait: string;
+  angle: number;
+  kind: "cycle" | "bridge";
+}
+
+export const CLIP_META: Record<string, ClipMeta> = {};
+/** available body-vs-movement angle variants per gait (quadrant system) */
+export const VARIANTS: Record<string, number[]> = {};
 
 const clips: THREE.AnimationClip[] = animData.clips.map((c) => {
-  CLIP_VELOCITY[c.name] = c.velocity;
+  CLIP_META[c.name] = {
+    velocity: c.velocity,
+    duration: c.duration,
+    gait: c.gait,
+    angle: c.angle,
+    kind: c.kind,
+  };
+  if (c.kind === "cycle") (VARIANTS[c.gait] ??= []).push(c.angle);
   const tracks: THREE.KeyframeTrack[] = [];
-  for (const [bone, t] of Object.entries(
-    c.tracks as Record<string, { times: number[]; quats: number[] }>,
-  )) {
+  for (const [bone, t] of Object.entries(c.tracks)) {
     tracks.push(new THREE.QuaternionKeyframeTrack(`${bone}.quaternion`, t.times, t.quats));
   }
   const posValues: number[] = [];
@@ -201,6 +219,8 @@ export interface PlayerRig {
   root: THREE.Group;
   mixer: THREE.AnimationMixer;
   actions: Record<string, THREE.AnimationAction>;
+  /** named bones for runtime SetOffset-style adaptation */
+  bones: Record<string, THREE.Bone>;
 }
 
 export function createPlayerRig(
@@ -248,8 +268,18 @@ export function createPlayerRig(
 
   const mixer = new THREE.AnimationMixer(skinned);
   const actions: Record<string, THREE.AnimationAction> = {};
-  for (const clip of clips) actions[clip.name] = mixer.clipAction(clip);
+  for (const clip of clips) {
+    const action = mixer.clipAction(clip);
+    if (CLIP_META[clip.name]!.kind === "bridge") {
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+    }
+    actions[clip.name] = action;
+  }
   actions.idle!.play();
 
-  return { root, mixer, actions };
+  const bones: Record<string, THREE.Bone> = { player: rootBone };
+  for (const b of skinBones) bones[b.name] = b;
+
+  return { root, mixer, actions, bones };
 }

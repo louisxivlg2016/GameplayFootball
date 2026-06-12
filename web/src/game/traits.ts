@@ -29,10 +29,15 @@ export const HomePos = trait(() => new THREE.Vector3());
 export const MeshRef = trait(() => ({
   value: null as THREE.Group | null,
   ring: null as THREE.Mesh | null,
-  /** skinned-mesh rig: mocap clips selected by gait */
+  /** skinned-mesh rig: mocap clips selected by gait + angle quadrant */
   mixer: null as THREE.AnimationMixer | null,
   actions: null as Record<string, THREE.AnimationAction> | null,
-  gait: "idle",
+  bones: null as Record<string, THREE.Bone> | null,
+  variant: "idle",
+  bridging: null as string | null,
+  pending: null as string | null,
+  prevSpeed: 0,
+  lean: 0,
 }));
 export const BallRef = trait(() => ({ value: null as RapierRigidBody | null }));
 

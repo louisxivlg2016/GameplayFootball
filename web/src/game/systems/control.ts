@@ -69,7 +69,7 @@ export function controlSystem(world: World, dt: number): void {
   const k = Math.min(1, dt * 8);
   vel.x += (dir.x * top - vel.x) * k;
   vel.z += (dir.z * top - vel.z) * k;
-  if (moving) sel.set(Heading, { angle: Math.atan2(dir.x, dir.z) });
+  // heading follows velocity with turn-rate lag in the movement system
 
   if (hasBall) {
     const h = sel.get(Heading)!.angle;
