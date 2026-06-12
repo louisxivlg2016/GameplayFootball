@@ -114,6 +114,13 @@ export function possessionSystem(world: World, dt: number): void {
   bs.touchTimer = 0; // first touch happens immediately in the ball system
   match.set(Match, { lastTouchTeam: best.get(Team)!.id });
 
+  // a set piece is in play from the taker's first touch: dribbling off the
+  // spot ends the ceremony and wakes the defence (penalties stay kick-only)
+  const cer = refState.ceremony;
+  if (cer && cer.ready && best === cer.taker && cer.type !== "penalty") {
+    refState.ceremony = null;
+  }
+
   // first-touch trap: error grows with incoming speed, shrinks with control
   const err = (1 - stats.ballcontrol) * 0.3 + Math.min(ballSpeed, 16) * 0.02;
   if (isKeeper && ballSpeed > 12) radio("save"); // a real stop, not a pickup

@@ -13,11 +13,10 @@ import {
   Velocity,
 } from "../traits";
 import { useStore } from "../store";
-import { placeKickoff } from "../levels";
 import { animateRig } from "./movement";
 import type { RigHolder } from "./movement";
 // circular with referee.ts is safe: bindings are only touched inside functions
-import { executeSendOff, startSetPiece } from "./referee";
+import { executeSendOff, startGoalRestart } from "./referee";
 
 /**
  * Broadcast cinematics: a rolling recorder of the last ~4s of play feeds
@@ -238,8 +237,7 @@ export function cinematicSystem(world: World, dt: number): void {
       store.setBanner("");
       if (rep.after === "kickoff") {
         const team = world.queryFirst(Match)?.get(Match)!.pendingKickoffTeam ?? 0;
-        placeKickoff(world, team);
-        startSetPiece(world, "kickoff", team, 0, 0);
+        startGoalRestart(world, team);
       } else {
         finishCardScene(world);
       }

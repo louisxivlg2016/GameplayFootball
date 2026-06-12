@@ -152,6 +152,20 @@ export function startSetPiece(
   else if (type === "throwin") radio("throwin", { team });
 }
 
+/**
+ * Post-goal restart, playground style: no walk back to the centre spot — the
+ * ball goes straight to the conceding keeper, who punts from his own box.
+ */
+export function startGoalRestart(world: World, team: number): void {
+  startSetPiece(
+    world,
+    "goalkick",
+    team,
+    -attackSign(team) * PITCH.halfLength * 0.92,
+    0,
+  );
+}
+
 /** Offside snapshot at the moment of every kick (AIfunctions.cpp:333-372). */
 export function refereeOnKick(world: World, kicker: Entity): void {
   const c = refState.ceremony;
@@ -456,10 +470,8 @@ export function refereeSystem(world: World, dt: number): void {
   if (store.mode === "goal") {
     const t = match.get(Match)!.resetTimer - dt;
     if (t <= 0) {
-      if (startGoalReplay()) return; // cinematic airs, then runs the kickoff
-      const team = match.get(Match)!.pendingKickoffTeam;
-      placeKickoff(world, team);
-      startSetPiece(world, "kickoff", team, 0, 0);
+      if (startGoalReplay()) return; // cinematic airs, then runs the restart
+      startGoalRestart(world, match.get(Match)!.pendingKickoffTeam);
       store.setMode("play");
     } else {
       match.set(Match, { resetTimer: t });
