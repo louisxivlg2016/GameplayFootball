@@ -5,6 +5,7 @@ import {
   Heading,
   IsBall,
   IsPlayer,
+  Match,
   PlayerInfo,
   Position,
   Role,
@@ -90,20 +91,41 @@ export function tackleSystem(world: World, dt: number): void {
           (0.09 + e.get(Stats)!.tackle * 0.16) *
           (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance : 1);
         if (Math.random() >= chance) continue;
-        // nick it ahead of the poker; the victim is blocked just long enough
-        // for the thief (or anyone closer) to claim it
-        bs.owner = null;
-        bs.lastKicker = null;
+        // every duel resolves differently: a clean steal he comes away
+        // with, a toe-poke that leaves the ball loose for anyone, or a
+        // mistimed stab where HE stumbles and the carrier escapes
         const h = e.get(Heading)!.angle;
-        rb.setLinvel(
-          {
-            x: Math.sin(h) * 4 + (Math.random() - 0.5) * 1.5,
-            y: 0.15,
-            z: Math.cos(h) * 4 + (Math.random() - 0.5) * 1.5,
-          },
-          true,
-        );
-        bs.recaptureBlocks.push({ player: carrier, t: 0.55 });
+        const roll = Math.random();
+        if (roll < 0.4) {
+          // hooks it off your feet and keeps it
+          bs.owner = e;
+          bs.lastKicker = null;
+          bs.touchTimer = 0;
+          rb.setLinvel({ x: Math.sin(h) * 2.2, y: 0.1, z: Math.cos(h) * 2.2 }, true);
+          bs.recaptureBlocks.push({ player: carrier, t: 0.6 });
+          world.queryFirst(Match)?.set(Match, { lastTouchTeam: e.get(Team)!.id });
+        } else if (roll < 0.78) {
+          // knocks it loose ahead of himself — anyone's ball
+          bs.owner = null;
+          bs.lastKicker = null;
+          rb.setLinvel(
+            {
+              x: Math.sin(h) * 4 + (Math.random() - 0.5) * 1.5,
+              y: 0.15,
+              z: Math.cos(h) * 4 + (Math.random() - 0.5) * 1.5,
+            },
+            true,
+          );
+          bs.recaptureBlocks.push({ player: carrier, t: 0.55 });
+        } else {
+          // stabs at nothing and loses his footing — the carrier rides on
+          if (!e.has(Tripped)) {
+            e.add(Tripped);
+            e.set(Tripped, { t: 0, yaw: h, fall: 0.5 });
+          }
+          cooldowns.set(e, 1.6);
+          break;
+        }
         if (carrier.isAlive() && !carrier.has(Tripped)) {
           carrier.add(Tripped);
           carrier.set(Tripped, { t: 0, yaw: carrier.get(Heading)!.angle, fall: 0.5 });
@@ -127,8 +149,10 @@ export function tackleSystem(world: World, dt: number): void {
           continue;
         const p = e.get(Position)!;
         const d = Math.hypot(cp.x - p.x, cp.z - p.z);
+        // slides are the exception now, not the default duel — pokes and
+        // contains carry most of the defending
         const chance =
-          (0.25 + e.get(Stats)!.tackle * 0.2) *
+          (0.12 + e.get(Stats)!.tackle * 0.14) *
           (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance : 1);
         if (d > 1.2 && d < 2.6 && Math.random() < chance) {
           startSlide(e);

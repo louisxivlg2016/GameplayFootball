@@ -449,7 +449,11 @@ function defendPosition(
       const fx = cp.x + cv.x * lead;
       const fz = cp.z + cv.z * lead;
       const gd = Math.hypot(ownGoalX - fx, fz) || 1;
-      seek(e, fx + ((ownGoalX - fx) / gd) * 0.8, fz + (-fz / gd) * 0.8, dt);
+      // vary the duel from spell to spell: dive right onto his boots for a
+      // while, then back off a step and a half and jockey for the poke
+      const spell = Math.sin(state.time * 0.7 + e.get(PlayerInfo)!.index * 2.6);
+      const off = spell > 0.2 ? 1.7 : 0.8;
+      seek(e, fx + ((ownGoalX - fx) / gd) * off, fz + (-fz / gd) * off, dt);
     } else {
       seek(e, bp.x + bv.x * 0.25, bp.z + bv.z * 0.25, dt);
     }
