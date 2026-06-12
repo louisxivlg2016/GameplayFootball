@@ -44,8 +44,11 @@ let piperState: "idle" | "loading" | "ready" | "failed" = "idle";
 let piperAudio: HTMLAudioElement | null = null;
 let piperBusy = false;
 let piperGen = 0;
+// the latest urgent line called while the model is still loading — spoken the
+// moment the voice is ready, so the radio joins with the good voice, not eSpeak
+let pendingText: string | null = null;
 
-/** Kick off the neural voice download (call after the first user gesture). */
+/** Load the neural voice. Runs at page load: downloading needs no user gesture. */
 export function warmupRadioVoice(): void {
   if (piperState !== "idle" || typeof window === "undefined") return;
   piperState = "loading";
@@ -53,11 +56,22 @@ export function warmupRadioVoice(): void {
     .then((session) => {
       piper = session;
       piperState = "ready";
+      if (pendingText && enabled) {
+        const text = pendingText;
+        pendingText = null;
+        void sayPiper(text, 2);
+      }
     })
     .catch(() => {
-      piperState = "failed"; // offline or unsupported: mespeak keeps the mic
+      piperState = "failed"; // offline or unsupported: mespeak takes the mic
+      if (pendingText && enabled) {
+        const text = pendingText;
+        pendingText = null;
+        say(text, 2);
+      }
     });
 }
+if (typeof window !== "undefined") warmupRadioVoice();
 
 async function sayPiper(text: string, priority: number): Promise<void> {
   if (!piper) return;
@@ -104,6 +118,7 @@ export function toggleRadio(): boolean {
     piperAudio?.pause();
     piperBusy = false;
     piperGen++;
+    pendingText = null;
   } else {
     say("La radio du match est de retour à l'antenne !", 2);
   }
@@ -134,8 +149,14 @@ function say(text: string, priority = 1): void {
     void sayPiper(text, priority);
     return;
   }
+  // still loading: hold the latest urgent line for the good voice instead of
+  // letting the robot speak the opening minutes; chatter is simply dropped
+  if (piperState === "loading") {
+    if (priority >= 2) pendingText = text;
+    return;
+  }
 
-  // bundled eSpeak fallback (instant, robotic) while Piper loads / offline
+  // bundled eSpeak fallback (instant, robotic) — only when Piper failed (offline)
   ensureFallback();
   const now = Date.now();
   if (priority >= 2) meSpeak.stop();
