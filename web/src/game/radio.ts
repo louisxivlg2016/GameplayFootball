@@ -52,12 +52,14 @@ let pendingText: string | null = null;
 export function warmupRadioVoice(): void {
   if (piperState !== "idle" || typeof window === "undefined") return;
   piperState = "loading";
-  // siwis-medium: the cleanest free French Piper voice (22kHz, great prosody)
-  TtsSession.create({ voiceId: "fr_FR-siwis-medium" })
+  // tom-medium: clean male French Piper voice (22kHz) — the match commentator
+  TtsSession.create({ voiceId: "fr_FR-tom-medium" })
     .then((session) => {
       piper = session;
       piperState = "ready";
-      void removeVoice("fr_FR-gilles-low").catch(() => {}); // purge the old rough model
+      // purge previously used models from the cache
+      void removeVoice("fr_FR-gilles-low").catch(() => {});
+      void removeVoice("fr_FR-siwis-medium").catch(() => {});
       if (pendingText && enabled) {
         const text = pendingText;
         pendingText = null;
