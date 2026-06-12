@@ -26,6 +26,11 @@ import { useStore } from "../store";
 import { crowdRoar, setTension, whistle } from "../audio";
 import { radio, radioScore } from "../radio";
 import { evaluateBestPass, executePass, pass, releaseBall, shoot } from "./kicks";
+import {
+  queueCardCinematic,
+  queueGoalCinematic,
+  startGoalReplay,
+} from "./cinematic";
 
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, v));
@@ -214,26 +219,6 @@ export function refereeFoul(
   const fp = fouler.get(Position)!;
   const foulType = severity <= 1.4 ? 1 : severity <= 2.0 ? 2 : 3;
 
-  // cards immediately (the original books at the next stoppage)
-  if (foulType >= 2) {
-    const info = fouler.get(PlayerInfo)!;
-    const second = foulType === 2 && info.yellows >= 1;
-    const foulerName = fouler.get(Name)?.short ?? "";
-    if (foulType === 3 || second) {
-      banner(
-        (second ? "SECOND YELLOW — RED CARD" : "RED CARD") +
-          (foulerName ? ` — ${foulerName}` : ""),
-        3,
-      );
-      radio("red", { player: foulerName });
-      sendOff(world, fouler);
-    } else {
-      banner("YELLOW CARD" + (foulerName ? ` — ${foulerName}` : ""), 3);
-      radio("yellow", { player: foulerName });
-      fouler.set(PlayerInfo, { yellows: info.yellows + 1 });
-    }
-  }
-
   const defGoalX = -attackSign(foulerTeam) * PITCH.halfLength;
   const penalty =
     Math.abs(fp.z) < 20.15 &&
@@ -253,7 +238,31 @@ export function refereeFoul(
     }
   };
 
-  if (foulType === 3 || penalty) {
+  // a booking always stops play: card close-up + tackle replay, no advantage.
+  // The red-carded man leaves only after the replay (so he appears in it).
+  if (foulType >= 2) {
+    const info = fouler.get(PlayerInfo)!;
+    const second = foulType === 2 && info.yellows >= 1;
+    const foulerName = fouler.get(Name)?.short ?? "";
+    const red = foulType === 3 || second;
+    if (red) {
+      banner(
+        (second ? "SECOND YELLOW — RED CARD" : "RED CARD") +
+          (foulerName ? ` — ${foulerName}` : ""),
+        3,
+      );
+      radio("red", { player: foulerName });
+    } else {
+      banner("YELLOW CARD" + (foulerName ? ` — ${foulerName}` : ""), 3);
+      radio("yellow", { player: foulerName });
+      fouler.set(PlayerInfo, { yellows: info.yellows + 1 });
+    }
+    award();
+    queueCardCinematic(red, red ? fouler : null);
+    return;
+  }
+
+  if (penalty) {
     award();
     return;
   }
@@ -267,6 +276,9 @@ export function refereeFoul(
     penalty: false,
   };
 }
+
+/** Aliased for the cinematic system, which defers reds until after the replay. */
+export { sendOff as executeSendOff };
 
 function sendOff(world: World, player: Entity): void {
   const b = ballOf(world);
@@ -437,10 +449,11 @@ export function refereeSystem(world: World, dt: number): void {
   }
   if (refState.ended) return;
 
-  // goal celebration countdown → kickoff ceremony
+  // goal celebration countdown → slow-mo replay (or straight to kickoff)
   if (store.mode === "goal") {
     const t = match.get(Match)!.resetTimer - dt;
     if (t <= 0) {
+      if (startGoalReplay()) return; // cinematic airs, then runs the kickoff
       const team = match.get(Match)!.pendingKickoffTeam;
       placeKickoff(world, team);
       startSetPiece(world, "kickoff", team, 0, 0);
@@ -539,7 +552,8 @@ export function refereeSystem(world: World, dt: number): void {
         player: ownGoal ? "" : kickerName,
       });
       b.bs.owner = null;
-      match.set(Match, { resetTimer: 2.8, pendingKickoffTeam: 1 - scorer });
+      queueGoalCinematic(kicker?.isAlive() ? kicker : null, scorer);
+      match.set(Match, { resetTimer: 3.2, pendingKickoffTeam: 1 - scorer });
       return;
     }
     if (Math.abs(bp.x) > PITCH.halfLength + 0.4) {

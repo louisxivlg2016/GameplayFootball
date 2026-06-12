@@ -6,6 +6,7 @@ import {
   IsBall,
   IsPlayer,
   IsReferee,
+  Match,
   MeshRef,
   Position,
   Team,
@@ -15,6 +16,8 @@ import { useStore } from "../store";
 import { placeKickoff } from "../levels";
 import { animateRig } from "./movement";
 import type { RigHolder } from "./movement";
+// circular with referee.ts is safe: bindings are only touched inside functions
+import { executeSendOff, startSetPiece } from "./referee";
 
 /**
  * Broadcast cinematics: a rolling recorder of the last ~4s of play feeds
@@ -36,7 +39,6 @@ interface Frame {
 
 const RING_FRAMES = 250; // ~4s at 60fps
 const REPLAY_SPEED = 0.5; // slow motion
-const CELEBRATION_SECONDS = 3.2;
 const CARD_SECONDS = 2.6;
 
 export const cineState = {
@@ -106,9 +108,9 @@ export function startGoalReplay(): boolean {
   return true;
 }
 
-const cardProps = new WeakMap<RigHolder, THREE.Mesh>();
+const cardProps = new WeakMap<object, THREE.Mesh>();
 
-function cardMesh(h: RigHolder & { bones: Record<string, THREE.Bone> }): THREE.Mesh {
+function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
   let mesh = cardProps.get(h);
   if (!mesh) {
     mesh = new THREE.Mesh(
@@ -116,7 +118,7 @@ function cardMesh(h: RigHolder & { bones: Record<string, THREE.Bone> }): THREE.M
       new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
     );
     mesh.position.set(0, 0.32, 0.02); // in the hand, past the forearm
-    h.bones.right_elbow?.add(mesh);
+    bones.right_elbow?.add(mesh);
     cardProps.set(h, mesh);
   }
   return mesh;
@@ -151,8 +153,7 @@ export function cinematicSystem(world: World, dt: number): void {
     const h = cel.scorer.get(MeshRef)!;
     if (h.value && h.bones) {
       faceCamera(h.value, dt);
-      const hop = Math.abs(Math.sin(cel.t * 5.5)) * 0.12;
-      h.value.position.y = hop;
+      h.value.position.y = Math.abs(Math.sin(cel.t * 5.5)) * 0.12; // little hops
       animateRig(h, 0.3, 0, dt);
       const up = Math.min(cel.t / 0.3, 1) * 2.5; // arms overhead
       const clap = 0.35 + Math.sin(cel.t * 9) * 0.3; // hands meet and part
@@ -175,7 +176,7 @@ export function cinematicSystem(world: World, dt: number): void {
       animateRig(h, 0.3, 0, dt);
       const up = Math.min(card.t / 0.25, 1) * 2.9; // arm straight up
       h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -up));
-      const mesh = cardMesh(h as RigHolder & { bones: Record<string, THREE.Bone> });
+      const mesh = cardMesh(h, h.bones);
       (mesh.material as THREE.MeshBasicMaterial).color.set(card.red ? 0xe53935 : 0xffd60a);
       mesh.visible = true;
     }
@@ -220,12 +221,9 @@ export function cinematicSystem(world: World, dt: number): void {
       cineState.replay = null;
       store.setBanner("");
       if (rep.after === "kickoff") {
-        const match = world.queryFirst(IsBall) ? world : world; // placate flow
-        void match;
-        const team = pendingKickoff(world);
+        const team = world.queryFirst(Match)?.get(Match)!.pendingKickoffTeam ?? 0;
         placeKickoff(world, team);
-        // deferred import avoids a hard referee<->cinematic cycle at eval time
-        void import("./referee").then((m) => m.startSetPiece(world, "kickoff", team, 0, 0));
+        startSetPiece(world, "kickoff", team, 0, 0);
       } else {
         finishCardScene(world);
       }
@@ -235,16 +233,8 @@ export function cinematicSystem(world: World, dt: number): void {
   }
 }
 
-function pendingKickoff(world: World): number {
-  // Match trait import kept local to avoid widening the module surface
-  const { Match } = require("../traits") as typeof import("../traits");
-  return world.queryFirst(Match)?.get(Match)!.pendingKickoffTeam ?? 0;
-}
-
 function finishCardScene(world: World): void {
   const off = cineState.sendOffAfter;
   cineState.sendOffAfter = null;
-  if (off && off.isAlive()) {
-    void import("./referee").then((m) => m.executeSendOff(world, off));
-  }
+  if (off && off.isAlive()) executeSendOff(world, off);
 }

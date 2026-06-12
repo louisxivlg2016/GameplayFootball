@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type Mode = "menu" | "play" | "goal" | "pause";
+export type Mode = "menu" | "play" | "goal" | "pause" | "replay" | "cardScene";
 
 export const TEAMS = [
   { name: "RED", color: "#d8342c", shorts: "#7a130e" },

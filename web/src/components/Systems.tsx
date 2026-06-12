@@ -11,6 +11,7 @@ import { ballSystem } from "../game/systems/ball";
 import { refereeSystem } from "../game/systems/referee";
 import { officialsSystem } from "../game/systems/officials";
 import { commentarySystem } from "../game/systems/commentary";
+import { cinematicSystem, recordFrame } from "../game/systems/cinematic";
 import { cameraSystem } from "../game/systems/camera";
 import { radarSystem } from "../game/systems/radar";
 
@@ -28,12 +29,17 @@ export function Systems(): null {
       refereeSystem(world, dt);
       officialsSystem(world, dt);
       commentarySystem(world, dt);
+      recordFrame(world); // rolling buffer feeding the slow-mo replays
       radarSystem(world, dt);
     } else if (mode === "goal") {
-      // celebration: ball keeps rolling in the net, countdown to kickoff
+      // celebration: scorer applauds in close-up, countdown to the replay
       ballSystem(world, dt);
       refereeSystem(world, dt);
       officialsSystem(world, dt);
+      cinematicSystem(world, dt);
+      radarSystem(world, dt);
+    } else if (mode === "replay" || mode === "cardScene") {
+      cinematicSystem(world, dt);
       radarSystem(world, dt);
     }
     cameraSystem(world, dt, state.camera);

@@ -146,6 +146,8 @@ interface AnimInfo {
   vOut: number;
   v: number;
   bodyDev: number; // degrees
+  /** how much the body yaw rotates across the clip — a true cycle holds it */
+  yawDelta: number;
   mirrorScore: number;
   rawScore: number;
 }
@@ -177,9 +179,12 @@ function classify(file: string, tracks: AnimTracks): AnimInfo | null {
 
   // movement angle relative to facing: forward is -Y in model space
   const moveAngle = (Math.atan2(dx, -dy) * 180) / Math.PI;
-  const bodyYaw =
-    ((quatYaw(body.values[0]!) + quatYaw(body.values[body.values.length - 1]!)) / 2) *
-    (180 / Math.PI);
+  const yawStart = (quatYaw(body.values[0]!) * 180) / Math.PI;
+  const yawEnd = (quatYaw(body.values[body.values.length - 1]!) * 180) / Math.PI;
+  const yawDelta = Math.abs(normDeg(yawEnd - yawStart));
+  // NOTE: averaging start/end yaw is fooled by turning clips (+135 → -135
+  // averages to 0); yawDelta below is what rejects those
+  const bodyYaw = (yawStart + yawEnd) / 2;
   const bodyDev = v > 0.5 ? normDeg(moveAngle - bodyYaw) : 0;
 
   let mirrorScore = 0;
@@ -195,7 +200,7 @@ function classify(file: string, tracks: AnimTracks): AnimInfo | null {
   const zJump = Math.abs(last[2]! - first[2]!);
   mirrorScore += zJump * 2;
   rawScore += zJump * 2;
-  return { file, tracks, F, vIn, vOut, v, bodyDev, mirrorScore, rawScore };
+  return { file, tracks, F, vIn, vOut, v, bodyDev, yawDelta, mirrorScore, rawScore };
 }
 
 /**
@@ -577,6 +582,9 @@ function pickCycle(gait: string, targetAngle: number): void {
         ? info.v <= hi
         : info.vIn >= lo && info.vIn <= hi + 0.3 && info.vOut >= lo && info.vOut <= hi + 0.3;
     if (!steady || !inBand) continue;
+    // turning transitions (body pivoting through the clip) are not cycles —
+    // looping them makes players visibly run sideways/backwards
+    if (info.yawDelta > 15) continue;
     const angleDist = Math.abs(normDeg(info.bodyDev - targetAngle));
     if (angleDist > (targetAngle === 0 ? 25 : 22)) continue;
     // angled cycles must self-loop: a mirrored second half would flip the angle
@@ -640,6 +648,18 @@ for (const gait of ["dribble", "walk", "sprint"]) {
   pickCycle(gait, 0);
   for (const angle of [45, 90, 135]) pickCycle(gait, angle);
 }
+
+// the data has no TRUE straight cycles at walk/dribble pace (only turning
+// transitions, which loop as visible moonwalking) — reuse the sprint cycle;
+// keeping its source velocity means timeScale recadences the feet correctly
+function aliasCycle(from: string, to: string): void {
+  const src = clips.find((c) => c.name === from && c.kind === "cycle");
+  if (!src || clips.some((c) => c.name === to)) return;
+  clips.push({ ...src, name: to, gait: to });
+  console.log(`cycle ${to}: aliased from ${from} (feet matched via timeScale)`);
+}
+aliasCycle("sprint", "walk");
+aliasCycle("sprint", "dribble");
 for (const gait of ["dribble", "walk", "sprint"]) {
   pickBridge("idle", gait);
   pickBridge(gait, "idle");

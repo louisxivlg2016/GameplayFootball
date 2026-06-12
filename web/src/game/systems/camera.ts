@@ -1,8 +1,10 @@
 import * as THREE from "three";
 import type { World } from "koota";
-import { BallRef, IsBall, Position, Selected } from "../traits";
+import { BallRef, IsBall, IsReferee, Position, Selected } from "../traits";
 import { PITCH } from "../levels";
 import { refState } from "./referee";
+import { cineState } from "./cinematic";
+import { useStore } from "../store";
 
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, v));
@@ -36,7 +38,28 @@ export function cameraSystem(
     (refState.shootout !== null && (c !== null || refState.shootout.awaiting > 0));
   let desiredFov: number;
 
-  if (penalty) {
+  const mode = useStore.getState().mode;
+  const celeb = mode === "goal" ? cineState.celebration : null;
+  const refp =
+    mode === "cardScene" ? world.queryFirst(IsReferee)?.get(Position) : undefined;
+
+  if (celeb && celeb.scorer.isAlive()) {
+    // close-up: the scorer applauds straight into the lens
+    const p = celeb.scorer.get(Position)!;
+    desiredPos.set(p.x, 1.7, p.z + 5.2);
+    desiredLook.set(p.x, 1.25, p.z);
+    desiredFov = 30;
+  } else if (refp) {
+    // close-up: the referee raises the card to the camera
+    desiredPos.set(refp.x, 1.7, refp.z + 5.0);
+    desiredLook.set(refp.x, 1.35, refp.z);
+    desiredFov = 30;
+  } else if (mode === "replay") {
+    // slow-mo replay: tight chase on the recorded ball
+    desiredPos.set(bp.x, 4.5, bp.z + 9);
+    desiredLook.set(bp.x, 0.6, bp.z);
+    desiredFov = 35;
+  } else if (penalty) {
     const spotX = c ? c.x : 44;
     const s = Math.sign(spotX || 1);
     // behind and slightly beside the taker, low — ball ahead, goal + keeper framed
