@@ -205,6 +205,8 @@ export function warmupRadioVoice(): void {
 }
 if (typeof window !== "undefined") warmupRadioVoice();
 
+let predictFails = 0;
+
 function piperPredict(text: string): Promise<Blob | null> {
   return new Promise((resolve) => {
     if (!piperWorker) {
@@ -212,7 +214,31 @@ function piperPredict(text: string): Promise<Blob | null> {
       return;
     }
     const id = ++sayId;
-    sayWaiters.set(id, resolve);
+    let settled = false;
+    const finish = (wav: Blob | null): void => {
+      if (settled) return;
+      settled = true;
+      sayWaiters.delete(id);
+      if (wav) {
+        predictFails = 0;
+      } else if (++predictFails >= 3) {
+        // worker likely died (e.g. server bounce mid-fetch): respawn it
+        predictFails = 0;
+        console.info("[radio] worker unresponsive — restarting voice engine");
+        try {
+          piperWorker?.terminate();
+        } catch {
+          /* already gone */
+        }
+        piperWorker = null;
+        piperState = "idle";
+        warmupPiper();
+      }
+      resolve(wav);
+    };
+    sayWaiters.set(id, finish);
+    // a dead worker must never lock the mic forever
+    setTimeout(() => finish(null), 12000);
     piperWorker.postMessage({ type: "say", id, text });
   });
 }
