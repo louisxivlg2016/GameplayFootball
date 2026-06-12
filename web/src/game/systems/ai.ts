@@ -302,7 +302,7 @@ function updateRuns(
 
   let active = 0;
   for (const [e] of state.runs) if (e.get(Team)!.id === carrierTeam) active++;
-  if (active >= 2) return;
+  if (active >= 3) return;
   for (const e of players) {
     if (
       e === carrier ||
@@ -324,16 +324,17 @@ function updateRuns(
       const op = o.get(Position)!;
       if (Math.hypot(op.x - p.x, op.z - p.z) < 15) oppsNear++;
     }
-    // distanceRating - 0.3 per nearby opponent, needs >= 0.5 (teamAIcontroller.cpp:203-242)
+    // distanceRating - 0.3 per nearby opponent, needs >= 0.45 (slightly more
+    // eager than teamAIcontroller.cpp:203-242 so runs beyond the ball happen)
     const rating = Math.pow(1 - clamp(d / 40, 0, 1), 0.5) - 0.3 * oppsNear;
-    if (rating >= 0.5) {
+    if (rating >= 0.45) {
       state.runs.set(e, {
-        until: state.time + 2.5,
+        until: state.time + 3,
         tx: clamp(cp.x + s * 14, -52, 52),
         tz: clamp(p.z * 0.4 + cp.z * 0.4 + (p.z > cp.z ? 8 : -8), -33, 33),
       });
       active++;
-      if (active >= 2) break;
+      if (active >= 3) break;
     }
   }
 }
@@ -359,12 +360,27 @@ function attackPosition(
   let tx = state.avgBX * 0.5 + a.x * depth + s * (bias - 0.5) * 10;
   let tz = state.avgBZ * 0.22 + a.z * width;
 
-  if (ts.support === e) tx += s * (0.3 + 0.7 * MINDSET[info.role]!) * 12;
+  if (ts.support === e && carrier && carrier !== e) {
+    // the support man runs WITH the carrier: flat beside him, half a step
+    // ahead, on his own natural side — a permanent give-and-go option
+    const cpos = carrier.get(Position)!;
+    tx = cpos.x + s * 3;
+    tz = cpos.z + (a.z >= cpos.z ? 8 : -8);
+  } else if (ts.support === e) {
+    tx += s * (0.3 + 0.7 * MINDSET[info.role]!) * 12;
+  }
 
   const run = state.runs.get(e);
   if (run) {
     tx = run.tx;
     tz = run.tz;
+  }
+
+  // strikers stretch the field: level with or beyond the ball, an outlet
+  // AHEAD of the carrier (the offside clamp below keeps it legal)
+  if (!run && info.role === Role.ATT && carrier && carrier !== e) {
+    const cpos = carrier.get(Position)!;
+    if (tx * s < cpos.x * s + 5) tx = (cpos.x * s + 5) * s;
   }
 
   // opponent repulsion clears passing lanes (role-weighted, scale 5)
