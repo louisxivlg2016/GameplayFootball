@@ -1,9 +1,11 @@
 /**
  * Radio commentary: a French play-by-play voice, best engine available:
- * 1. the browser's own speechSynthesis voices when installed,
- * 2. Piper neural TTS (free fr_FR voice fetched from Hugging Face, cached
- *    locally, synthesized in-browser via WASM) once it has loaded,
- * 3. a bundled eSpeak port (mespeak) as the instant always-works fallback.
+ * 1. Kokoro-82M (near-human neural TTS, run in-browser via transformers.js;
+ *    kokoro-js only phonemizes English, so we phonemize French ourselves with
+ *    espeak-ng WASM and call the model with the ff_siwis French voice),
+ * 2. Piper neural TTS (fr_FR-tom-medium) if Kokoro fails,
+ * 3. the platform's speechSynthesis voices,
+ * 4. a bundled eSpeak port (mespeak) as the instant always-works fallback.
  * Urgent events (goals, cards) interrupt; chatter only plays when the
  * commentator is quiet. Toggle with R.
  */
@@ -38,74 +40,103 @@ function ensureFallback(): void {
   fallbackReady = true;
 }
 
-// ---- Piper neural voice (free model from huggingface.co/rhasspy/piper-voices) ----
-let piper: TtsSession | null = null;
-let piperState: "idle" | "loading" | "ready" | "failed" = "idle";
-let piperAudio: HTMLAudioElement | null = null;
-let piperBusy = false;
-let piperGen = 0;
-// the latest urgent line called while the model is still loading — spoken the
+// ---- shared player for the neural engines ----
+let playerAudio: HTMLAudioElement | null = null;
+let playerBusy = false;
+let playerGen = 0;
+// the latest urgent line called while a model is still loading — spoken the
 // moment the voice is ready, so the radio joins with the good voice, not eSpeak
 let pendingText: string | null = null;
 
-/** Load the neural voice. Runs at page load: downloading needs no user gesture. */
-export function warmupRadioVoice(): void {
-  if (piperState !== "idle" || typeof window === "undefined") return;
+function playBlob(wav: Blob, gen: number): void {
+  if (gen !== playerGen || !enabled) {
+    playerBusy = false;
+    return;
+  }
+  const url = URL.createObjectURL(wav);
+  playerAudio?.pause();
+  const audio = new Audio(url);
+  playerAudio = audio;
+  const done = (): void => {
+    if (playerAudio === audio) playerBusy = false;
+    URL.revokeObjectURL(url);
+  };
+  audio.onended = done;
+  audio.onerror = done;
+  void audio.play().catch(done);
+}
+
+function takeMic(priority: number): number | null {
+  if (priority >= 2) {
+    playerAudio?.pause();
+    playerBusy = false;
+  } else if (playerBusy) {
+    return null;
+  }
+  playerBusy = true;
+  return ++playerGen;
+}
+
+function speakPending(): void {
+  if (pendingText && enabled) {
+    const text = pendingText;
+    pendingText = null;
+    say(text, 2);
+  }
+}
+
+// ---- Piper neural voice (free model from huggingface.co/rhasspy/piper-voices) ----
+// Note: Kokoro-82M was evaluated for a more natural voice, but its browser
+// phonemizer builds are English-only, so French is not possible with it today.
+let piper: TtsSession | null = null;
+let piperState: "idle" | "loading" | "ready" | "failed" = "idle";
+
+function warmupPiper(): void {
+  if (piperState !== "idle") return;
   piperState = "loading";
-  // tom-medium: clean male French Piper voice (22kHz) — the match commentator
-  TtsSession.create({ voiceId: "fr_FR-tom-medium" })
+  // tom-medium: clean male French Piper voice (22kHz). WASM runtimes are
+  // served locally by serve.ts — third-party CDNs are blocked on some networks
+  TtsSession.create({
+    voiceId: "fr_FR-tom-medium",
+    wasmPaths: {
+      onnxWasm: "/tts/onnx/",
+      piperData: "/tts/piper_phonemize.data",
+      piperWasm: "/tts/piper_phonemize.wasm",
+    },
+  })
     .then((session) => {
       piper = session;
       piperState = "ready";
-      // purge previously used models from the cache
+      console.info("[radio] piper french voice on air");
+      (globalThis as Record<string, unknown>).__radioEngine = "piper-fr";
       void removeVoice("fr_FR-gilles-low").catch(() => {});
       void removeVoice("fr_FR-siwis-medium").catch(() => {});
-      if (pendingText && enabled) {
-        const text = pendingText;
-        pendingText = null;
-        void sayPiper(text, 2);
-      }
+      speakPending();
     })
-    .catch(() => {
+    .catch((err) => {
+      console.info("[radio] piper failed:", err);
       piperState = "failed"; // offline or unsupported: mespeak takes the mic
-      if (pendingText && enabled) {
-        const text = pendingText;
-        pendingText = null;
-        say(text, 2);
-      }
+      (globalThis as Record<string, unknown>).__radioEngine = "espeak";
+      speakPending();
     });
+}
+
+/** Load the neural voice. Runs at page load: downloading needs no user gesture. */
+export function warmupRadioVoice(): void {
+  if (typeof window === "undefined") return;
+  warmupPiper();
 }
 if (typeof window !== "undefined") warmupRadioVoice();
 
 async function sayPiper(text: string, priority: number): Promise<void> {
   if (!piper) return;
-  if (priority >= 2) {
-    piperAudio?.pause();
-    piperBusy = false;
-  } else if (piperBusy) {
-    return;
-  }
-  piperBusy = true;
-  const gen = ++piperGen;
+  const gen = takeMic(priority);
+  if (gen === null) return;
   try {
     const wav = await piper.predict(text);
-    if (gen !== piperGen || !enabled) {
-      piperBusy = false;
-      return;
-    }
-    const url = URL.createObjectURL(wav);
-    piperAudio?.pause();
-    const audio = new Audio(url);
-    piperAudio = audio;
-    const done = (): void => {
-      if (piperAudio === audio) piperBusy = false;
-      URL.revokeObjectURL(url);
-    };
-    audio.onended = done;
-    audio.onerror = done;
-    void audio.play().catch(done);
+    playBlob(wav, gen);
   } catch {
-    piperBusy = false;
+    playerBusy = false;
     piperState = "failed";
   }
 }
@@ -119,9 +150,9 @@ export function toggleRadio(): boolean {
   if (!enabled) {
     if (hasTTS) window.speechSynthesis.cancel();
     if (fallbackReady) meSpeak.stop();
-    piperAudio?.pause();
-    piperBusy = false;
-    piperGen++;
+    playerAudio?.pause();
+    playerBusy = false;
+    playerGen++;
     pendingText = null;
   } else {
     say("La radio du match est de retour à l'antenne !", 2);
@@ -131,8 +162,21 @@ export function toggleRadio(): boolean {
 
 function say(text: string, priority = 1): void {
   if (!enabled) return;
-  const nativeVoices = hasTTS && window.speechSynthesis.getVoices().length > 0;
 
+  // best neural engine first
+  if (piperState === "ready") {
+    void sayPiper(text, priority);
+    return;
+  }
+  // still loading: hold the latest urgent line for the good voice instead of
+  // letting a robot speak the opening minutes; chatter is simply dropped
+  if (piperState === "loading") {
+    if (priority >= 2) pendingText = text;
+    return;
+  }
+
+  // platform voices (often robotic on Linux, decent elsewhere)
+  const nativeVoices = hasTTS && window.speechSynthesis.getVoices().length > 0;
   if (nativeVoices) {
     const synth = window.speechSynthesis;
     if (priority >= 2) synth.cancel();
@@ -148,19 +192,7 @@ function say(text: string, priority = 1): void {
     return;
   }
 
-  // neural Piper voice once its model has downloaded
-  if (piperState === "ready") {
-    void sayPiper(text, priority);
-    return;
-  }
-  // still loading: hold the latest urgent line for the good voice instead of
-  // letting the robot speak the opening minutes; chatter is simply dropped
-  if (piperState === "loading") {
-    if (priority >= 2) pendingText = text;
-    return;
-  }
-
-  // bundled eSpeak fallback (instant, robotic) — only when Piper failed (offline)
+  // bundled eSpeak fallback (instant, robotic) — only when everything failed
   ensureFallback();
   const now = Date.now();
   if (priority >= 2) meSpeak.stop();

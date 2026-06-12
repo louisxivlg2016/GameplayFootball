@@ -5,6 +5,7 @@
     "": {
       "name": "gameplay-football-web",
       "dependencies": {
+        "@diffusionstudio/piper-wasm": "^1.0.0",
         "@mintplex-labs/piper-tts-web": "^1.0.4",
         "@react-three/drei": "^10.7.7",
         "@react-three/fiber": "^9.6.1",
@@ -27,6 +28,8 @@
   },
   "packages": {
     "@babel/runtime": ["@babel/runtime@7.29.7", "", {}, "sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw=="],
+
+    "@diffusionstudio/piper-wasm": ["@diffusionstudio/piper-wasm@1.0.0", "", {}, "sha512-4Hgh7wJ1PuGEVgVi1CpducESnyXwjFRJN4zXjYRpxgquM+Zh6Eqq8ZaiGpCKm4yXvT1Y2SPQXbv0dEckFD9NaQ=="],
 
     "@dimforge/rapier3d-compat": ["@dimforge/rapier3d-compat@0.12.0", "", {}, "sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow=="],
 

@@ -204,9 +204,10 @@ export function placeKickoff(world: World, kickingTeam: number): void {
 export function setSelected(world: World, entity: Entity | null): void {
   for (const e of [...world.query(Selected)]) e.remove(Selected);
   entity?.add(Selected);
-  useStore
-    .getState()
-    .setSelectedName(entity ? (entity.get(Name)?.short ?? "") : "");
+  const name = entity ? (entity.get(Name)?.short ?? "") : "";
+  // deferred: loadMatch runs inside a render (useMemo) and React warns on
+  // store updates issued while rendering another component
+  queueMicrotask(() => useStore.getState().setSelectedName(name));
 }
 
 /** Nearest outfield player of the human team (0) to a point. */
