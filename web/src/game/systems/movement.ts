@@ -128,12 +128,23 @@ export function movementSystem(world: World, dt: number): void {
     const selected = e.has(Selected);
     if (h.ring) h.ring.visible = selected;
     if (h.tag) h.tag.visible = selected;
-    animateRig(h, dive ? 0.3 : speed, angleDiff, dt);
+    animateRig(h, dive || slide ? 0.3 : speed, angleDiff, dt);
     if (dive && h.bones) {
       // arms stretched out toward the ball, like the reference dive
       const reach = Math.min(dive.t / 0.22, 1) * (dive.t < 0.7 ? 1 : Math.max(0, 1 - (dive.t - 0.7) / 0.45)) * 2.3;
       h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -reach));
       h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -reach));
+    }
+    if (slide && h.bones) {
+      // lead leg shoots out along the lunge, trailing leg tucks under
+      const amt =
+        Math.min(slide.t / 0.1, 1) *
+        (slide.t < 0.5 ? 1 : Math.max(0, 1 - (slide.t - 0.5) / 0.5));
+      h.bones.right_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -1.3 * amt));
+      h.bones.left_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.35 * amt));
+      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 1.4 * amt));
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.6 * amt));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.6 * amt));
     }
   }
 }
