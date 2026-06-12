@@ -12,6 +12,7 @@ import {
   Selected2,
   SlideTackle,
   Stats,
+  Tripped,
   Velocity,
 } from "../traits";
 import { CLIP_META, VARIANTS } from "../../render/playerRig";
@@ -64,7 +65,20 @@ export function movementSystem(world: World, dt: number): void {
     p.z = clamp(p.z + v.z * dt, -39, 39);
 
     const speed = Math.hypot(v.x, v.z);
-    const dive = e.get(KeeperDive);
+
+    // keeper-dive timer: flight, landing, then back to the feet — ticked here
+    // (not in the AI) so it still expires when a human controls the keeper
+    let dive = e.get(KeeperDive);
+    if (dive) {
+      const t = dive.t + dt;
+      if (t > 1.15) {
+        e.remove(KeeperDive);
+        dive = undefined;
+      } else {
+        e.set(KeeperDive, { t });
+        dive = { ...dive, t };
+      }
+    }
 
     // slide-tackle pose timer: 0.5s on the turf, then 0.5s getting back up
     let slide = e.get(SlideTackle);
@@ -79,10 +93,31 @@ export function movementSystem(world: World, dt: number): void {
       }
     }
 
+    // tackled-and-down timer: face-plant + floor time on a foul (fall 1),
+    // a quick clipped-legs stumble on a clean poke (fall 0.5)
+    let trip = e.get(Tripped);
+    if (trip) {
+      const t = trip.t + dt;
+      const total = trip.fall > 0.75 ? 1.5 : 0.6;
+      if (t > total) {
+        e.remove(Tripped);
+        trip = undefined;
+      } else {
+        e.set(Tripped, { t });
+        trip = { ...trip, t };
+        if (trip.fall > 0.75 && t < 0.9) {
+          // flat on the grass: nobody runs from down there
+          const f = Math.pow(0.02, dt);
+          v.x *= f;
+          v.z *= f;
+        }
+      }
+    }
+
     // heading lags velocity — the original turns through animation, not snapping
     let heading = e.get(Heading)!.angle;
     let angleDiff = 0;
-    if (!dive && !slide && Math.hypot(intentX, intentZ) > 0.6) {
+    if (!dive && !slide && !trip && Math.hypot(intentX, intentZ) > 0.6) {
       const desired = Math.atan2(intentX, intentZ);
       const diff = normAngle(desired - heading);
       // the human's heading comes straight from input (control.ts) — deriving
@@ -121,6 +156,18 @@ export function movementSystem(world: World, dt: number): void {
         const amt = inK * upK;
         h.value.position.set(p.x, -0.25 * amt, p.z);
         h.value.rotation.set(-1.05 * amt, slide.yaw, 0.18 * amt, "YZX");
+      } else if (trip) {
+        // tripped: pitch forward over the clipped legs along the run line,
+        // hit the grass, then climb back up (stumbles only dip partway)
+        const full = trip.fall > 0.75;
+        const inK = Math.min(trip.t / (full ? 0.22 : 0.14), 1);
+        const upStart = full ? 0.9 : 0.25;
+        const upLen = full ? 0.6 : 0.35;
+        const upK =
+          trip.t < upStart ? 1 : Math.max(0, 1 - (trip.t - upStart) / upLen);
+        const amt = inK * upK * trip.fall;
+        h.value.position.set(p.x, -0.18 * amt, p.z);
+        h.value.rotation.set(1.5 * amt, trip.yaw, 0.1 * amt, "YZX");
       } else {
         h.value.position.set(p.x, 0, p.z);
         h.value.rotation.set(0, heading, 0, "YZX");
@@ -138,7 +185,15 @@ export function movementSystem(world: World, dt: number): void {
       }
     }
     if (h.tag) h.tag.visible = selected;
-    animateRig(h, dive || slide ? 0.3 : speed, angleDiff, dt);
+    animateRig(h, dive || slide || trip ? 0.3 : speed, angleDiff, dt);
+    if (trip && trip.fall > 0.75 && h.bones) {
+      // arms shoot forward to brace the fall
+      const amt =
+        Math.min(trip.t / 0.22, 1) *
+        (trip.t < 0.9 ? 1 : Math.max(0, 1 - (trip.t - 0.9) / 0.6));
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -1.6 * amt));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -1.6 * amt));
+    }
     if (dive && h.bones) {
       // arms stretched out toward the ball, like the reference dive
       const reach = Math.min(dive.t / 0.22, 1) * (dive.t < 0.7 ? 1 : Math.max(0, 1 - (dive.t - 0.7) / 0.45)) * 2.3;

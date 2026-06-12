@@ -13,6 +13,7 @@ import {
   SlideTackle,
   Stats,
   Team,
+  Tripped,
   Velocity,
 } from "../traits";
 import { consumePress, padFor } from "../input";
@@ -116,7 +117,14 @@ export function tackleSystem(world: World, dt: number): void {
       });
       // at high fps the poke moves cm before the next possession pass — block
       // the dispossessed owner briefly or they instantly recapture
-      if (owner) bs.recaptureBlocks.push({ player: owner, t: 0.12 });
+      if (owner) {
+        bs.recaptureBlocks.push({ player: owner, t: 0.12 });
+        // clean tackle still clips the legs: the dispossessed man stumbles
+        if (owner.isAlive() && !owner.has(Tripped)) {
+          owner.add(Tripped);
+          owner.set(Tripped, { t: 0, yaw: owner.get(Heading)!.angle, fall: 0.5 });
+        }
+      }
       slides.delete(e);
       cooldowns.set(e, 1.2);
       continue;
@@ -137,10 +145,16 @@ export function tackleSystem(world: World, dt: number): void {
         const lateness = Math.min(dBall / 2, 1) * 0.5;
         const clumsiness = (1 - e.get(Stats)!.tackle) * 0.3;
         const severity = 1 + fromBehind * 0.5 + lateness + clumsiness + Math.random() * 0.2;
-        // the victim goes down: kill momentum
+        // the victim goes down: kill momentum and send him to the turf
         const vv = victim.get(Velocity)!;
+        const fallYaw =
+          Math.hypot(vv.x, vv.z) > 1
+            ? Math.atan2(vv.x, vv.z)
+            : victim.get(Heading)!.angle;
         vv.x *= 0.1;
         vv.z *= 0.1;
+        if (!victim.has(Tripped)) victim.add(Tripped);
+        victim.set(Tripped, { t: 0, yaw: fallYaw, fall: 1 });
         slides.delete(e);
         cooldowns.set(e, 2);
         refereeFoul(world, e, victim, severity);

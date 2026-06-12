@@ -45,6 +45,8 @@ export const Heading = trait({ angle: 0 });
 export const KeeperDive = trait({ t: 0, side: 1 });
 /** A player mid slide-tackle: low reclined pose along the locked yaw. */
 export const SlideTackle = trait({ t: 0, yaw: 0 });
+/** A tackled player going down: fall=1 full knockdown (foul), 0.5 stumble. */
+export const Tripped = trait({ t: 0, yaw: 0, fall: 1 });
 /** Formation anchor at a neutral ball position (x/z only). */
 export const HomePos = trait(() => new THREE.Vector3());
 

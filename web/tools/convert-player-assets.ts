@@ -360,6 +360,8 @@ interface AseObject {
   tfaces: number[][];
   cverts: number[][]; // 0-255 rounded, like gamedefines.cpp:90
   cfaces: number[][];
+  /** NODE_TM rows 0-2; mirrored objects (negative determinant) pre-flip winding */
+  tm: number[][];
 }
 
 async function parseAse(
@@ -384,6 +386,7 @@ async function parseAse(
         tfaces: [],
         cverts: [],
         cfaces: [],
+        tm: [],
       };
       objects.push(cur);
     } else if (!cur) {
@@ -407,8 +410,36 @@ async function parseAse(
       ]);
     } else if (key === "*MESH_CFACE") {
       cur.cfaces.push([+tok[2]!, +tok[4]!, +tok[3]!]);
+    } else if (
+      key === "*TM_ROW0" ||
+      key === "*TM_ROW1" ||
+      key === "*TM_ROW2"
+    ) {
+      if (cur.tm.length < 3) cur.tm.push([+tok[1]!, +tok[2]!, +tok[3]!]);
     } else if (key === "*MATERIAL_REF") {
       cur.materialRef = +tok[1]!;
+    }
+  }
+
+  // Mirrored objects (3ds Max mirror tool → negative-determinant node TM,
+  // e.g. knee_left/arm_right in fullbody.ase) come with their winding already
+  // flipped in the file. The blanket ASE→three swap above turns THOSE
+  // inside-out — normals point inward and the part renders as a black blob
+  // (the "ball" at the knee). Swap them back to their original order.
+  for (const obj of objects) {
+    const [a, b, c] = obj.tm;
+    if (!a || !b || !c) continue;
+    const det =
+      a[0]! * (b[1]! * c[2]! - b[2]! * c[1]!) -
+      a[1]! * (b[0]! * c[2]! - b[2]! * c[0]!) +
+      a[2]! * (b[0]! * c[1]! - b[1]! * c[0]!);
+    if (det >= 0) continue;
+    for (const list of [obj.faces, obj.tfaces, obj.cfaces]) {
+      for (const f of list) {
+        const t = f[1]!;
+        f[1] = f[2]!;
+        f[2] = t;
+      }
     }
   }
   return { materials, objects };
@@ -445,6 +476,23 @@ interface MeshJson {
 }
 
 function buildMesh(materials: string[], objects: AseObject[]): MeshJson {
+  // gamedefines.cpp:14-90 (GetVertexColors): the file's per-object face→color
+  // pairing is unreliable (the engine's own equality assert is commented out —
+  // mirrored objects pair some corners with the wrong color). The original
+  // resolves this with a global position→color map, first occurrence wins,
+  // and skins every vertex from that map. Do exactly the same.
+  const colorByPos = new Map<string, number[]>();
+  for (const obj of objects) {
+    for (let f = 0; f < obj.faces.length; f++) {
+      for (let c = 0; c < 3; c++) {
+        const v = obj.verts[obj.faces[f]![c]!]!;
+        const key = `${v[0]},${v[1]},${v[2]}`;
+        const color = obj.cverts[obj.cfaces[f]?.[c] ?? -1];
+        if (color && !colorByPos.has(key)) colorByPos.set(key, color);
+      }
+    }
+  }
+
   const byGroup = new Map<
     string,
     { positions: number[]; uvs: number[]; si: number[]; sw: number[] }
@@ -464,7 +512,10 @@ function buildMesh(materials: string[], objects: AseObject[]): MeshJson {
         g.positions.push(round(v[0]!), round(v[1]!), round(v[2]!));
         const t = obj.tverts[obj.tfaces[f]?.[c] ?? 0] ?? [0, 0];
         g.uvs.push(round(t[0]!), round(t[1]!));
-        const weights = decodeWeights(obj.cverts[obj.cfaces[f]![c]!]!);
+        const color =
+          colorByPos.get(`${v[0]},${v[1]},${v[2]}`) ??
+          obj.cverts[obj.cfaces[f]![c]!]!;
+        const weights = decodeWeights(color);
         for (let i = 0; i < 4; i++) {
           g.si.push(weights[i]?.joint ?? 0);
           g.sw.push(round(weights[i]?.weight ?? 0));

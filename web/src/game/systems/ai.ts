@@ -597,22 +597,18 @@ function keeper(
   const s = attackSign(teamId);
   const gx = -s * PITCH.halfLength;
 
-  // mid-dive: he is committed — fly, scrub along the turf, then get back up
+  // mid-dive: he is committed — fly, scrub along the turf, then get back up.
+  // The timer itself lives in movementSystem (it must keep running even when
+  // a human takes control of the keeper, or he walks around lying down).
   const dive = e.get(KeeperDive);
   if (dive) {
-    const t = dive.t + dt;
-    if (t > 1.15) {
-      e.remove(KeeperDive);
-    } else {
-      e.set(KeeperDive, { t });
-      if (t > 0.45) {
-        const f = Math.pow(0.02, dt); // landed: the turf eats the slide
-        const v = e.get(Velocity)!;
-        v.x *= f;
-        v.z *= f;
-      }
-      return;
+    if (dive.t > 0.45) {
+      const f = Math.pow(0.02, dt); // landed: the turf eats the slide
+      const v = e.get(Velocity)!;
+      v.x *= f;
+      v.z *= f;
     }
+    return;
   }
 
   // distribution: keeper holds briefly, then plays out
