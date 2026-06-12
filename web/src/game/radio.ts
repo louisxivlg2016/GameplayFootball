@@ -314,6 +314,7 @@ export type RadioEvent =
   | "extratime"
   | "fulltime"
   | "shootout"
+  | "penTaker"
   | "penGoal"
   | "penMiss";
 
@@ -451,6 +452,16 @@ export function radio(
       break;
     case "shootout":
       say("Tout va se jouer aux tirs au but, accrochez-vous !", 2);
+      break;
+    case "penTaker":
+      say(
+        pick([
+          `C'est ${player} qui s'avance... Le stade retient son souffle.`,
+          `${player} face au gardien... Silence dans les tribunes.`,
+          `Tout repose sur les épaules de ${player}...`,
+        ]),
+        2,
+      );
       break;
     case "penGoal":
       say(pick(["TRANSFORMÉ ! C'EST AU FOND !", "LE TIR AU BUT EST AU FOND ! QUELLE PRESSION !"]), 2, SHOUT);

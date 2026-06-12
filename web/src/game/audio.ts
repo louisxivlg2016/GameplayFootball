@@ -72,6 +72,43 @@ export function whistle(blasts: 1 | 2 | 3): void {
   }
 }
 
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+function thump(volume = 1): void {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.frequency.setValueAtTime(58, t);
+  osc.frequency.exponentialRampToValueAtTime(36, t + 0.12);
+  gain.gain.setValueAtTime(0.22 * volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.22);
+}
+
+/** Shoot-out tension: the crowd hushes and a heartbeat sets in. */
+export function setTension(on: boolean): void {
+  if (ctx && crowdGain) {
+    const t = ctx.currentTime;
+    crowdGain.gain.cancelScheduledValues(t);
+    crowdGain.gain.setValueAtTime(crowdGain.gain.value, t);
+    crowdGain.gain.linearRampToValueAtTime(on ? 0.01 : 0.035, t + 0.8);
+  }
+  if (on && heartbeatTimer === null) {
+    const beat = (): void => {
+      thump();
+      setTimeout(() => thump(0.6), 300);
+    };
+    beat();
+    heartbeatTimer = setInterval(beat, 1150);
+  } else if (!on && heartbeatTimer !== null) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
 export function crowdRoar(): void {
   if (!ctx || !crowdGain) return;
   const t = ctx.currentTime;

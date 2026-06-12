@@ -42,6 +42,7 @@ export function Hud(): React.ReactNode {
               </span>
             )}
           </div>
+          <ShootoutBoard />
           <Radar />
         </>
       )}
@@ -75,6 +76,68 @@ export function Hud(): React.ReactNode {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** The classic shoot-out tracker: a row of ticks/crosses per team. */
+function ShootoutBoard(): React.ReactNode {
+  const detail = useStore((s) => s.pensDetail);
+  if (!detail) return null;
+  const rounds = Math.max(5, detail[0].length, detail[1].length);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 70,
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: "rgba(8, 12, 24, 0.85)",
+        borderRadius: 8,
+        padding: "10px 14px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 7,
+        boxShadow: "0 2px 10px rgba(0,0,0,0.5)",
+      }}
+    >
+      {([0, 1] as const).map((t) => (
+        <div key={t} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <span
+            style={{
+              width: 11,
+              height: 11,
+              background: TEAMS[t].color,
+              borderRadius: 2,
+              marginRight: 4,
+            }}
+          />
+          {Array.from({ length: rounds }, (_, i) => {
+            const o = detail[t][i];
+            return (
+              <span
+                key={i}
+                style={{
+                  width: 17,
+                  height: 17,
+                  borderRadius: "50%",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 11,
+                  fontWeight: 800,
+                  color: "#fff",
+                  background:
+                    o === "g" ? "#2eb84a" : o === "m" ? "#d8342c" : "transparent",
+                  border: o ? "none" : "2px solid rgba(255,255,255,0.35)",
+                }}
+              >
+                {o === "g" ? "✓" : o === "m" ? "✕" : ""}
+              </span>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }

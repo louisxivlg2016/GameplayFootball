@@ -22,6 +22,8 @@ interface Store {
   /** referee banner: OFFSIDE / FOUL / cards / HALF TIME ... */
   banner: string;
   pens: number[] | null;
+  /** per-kick shoot-out outcomes ("g" goal / "m" miss) for the HUD board */
+  pensDetail: [string[], string[]] | null;
   /** short name of the player under human control */
   selectedName: string;
   /** [x0,z0, x1,z1, ...] for 22 players then the ball; normalized to [-1,1] */
@@ -35,6 +37,7 @@ interface Store {
   setPhaseLabel: (phaseLabel: string) => void;
   setBanner: (banner: string) => void;
   setPens: (pens: number[] | null) => void;
+  setPensDetail: (pensDetail: [string[], string[]] | null) => void;
   setSelectedName: (selectedName: string) => void;
   setRadar: (radar: number[]) => void;
 }
@@ -49,6 +52,7 @@ export const useStore = create<Store>((set) => ({
   phaseLabel: "1ST",
   banner: "",
   pens: null,
+  pensDetail: null,
   selectedName: "",
   radar: [],
   setMode: (mode) => set({ mode }),
@@ -63,6 +67,7 @@ export const useStore = create<Store>((set) => ({
       phaseLabel: "1ST",
       banner: "",
       pens: null,
+      pensDetail: null,
     })),
   addGoal: (team) =>
     set((s) => {
@@ -74,6 +79,7 @@ export const useStore = create<Store>((set) => ({
   setPhaseLabel: (phaseLabel) => set({ phaseLabel }),
   setBanner: (banner) => set({ banner }),
   setPens: (pens) => set({ pens }),
+  setPensDetail: (pensDetail) => set({ pensDetail }),
   setSelectedName: (selectedName) =>
     set((s) => (s.selectedName === selectedName ? s : { selectedName })),
   setRadar: (radar) => set({ radar }),

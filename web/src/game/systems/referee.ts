@@ -22,7 +22,7 @@ import {
   swapSides,
 } from "../levels";
 import { useStore } from "../store";
-import { crowdRoar, whistle } from "../audio";
+import { crowdRoar, setTension, whistle } from "../audio";
 import { radio, radioScore } from "../radio";
 import { evaluateBestPass, executePass, pass, releaseBall, shoot } from "./kicks";
 
@@ -79,6 +79,7 @@ export const refState = {
   shootout: null as {
     scores: [number, number];
     taken: [number, number];
+    outcomes: [string[], string[]]; // "g" / "m" per kick, for the HUD board
     turn: number;
     awaiting: number; // >0: outcome timer after a kick
   } | null,
@@ -148,7 +149,10 @@ export function refereeOnKick(world: World, kicker: Entity): void {
   if (c) {
     if (!c.ready) return; // dead ball — shouldn't happen, possession is gated
     refState.ceremony = null; // taken: play on
-    if (refState.shootout) refState.shootout.awaiting = 3.5;
+    if (refState.shootout) {
+      refState.shootout.awaiting = 3.5;
+      setTension(false); // the kick releases the held breath
+    }
   }
   const team = kicker.get(Team)!.id;
   const s = attackSign(team);
@@ -416,6 +420,7 @@ export function refereeSystem(world: World, dt: number): void {
     refState.ended = false;
     refState.shootout = null;
     refState.nextChatter = 500;
+    setTension(false);
     refState.firstKickoff = match.get(Match)!.lastTouchTeam;
     store.setPhaseLabel(PHASE_LABEL[0]!);
     radio("kickoff", { team: refState.firstKickoff }); // opening whistle call
@@ -591,7 +596,14 @@ function endPhase(world: World, score: [number, number]): void {
     radio("shootout");
     refState.phase = 4;
     store.setPhaseLabel(PHASE_LABEL[4]!);
-    refState.shootout = { scores: [0, 0], taken: [0, 0], turn: 0, awaiting: 0 };
+    refState.shootout = {
+      scores: [0, 0],
+      taken: [0, 0],
+      outcomes: [[], []],
+      turn: 0,
+      awaiting: 0,
+    };
+    store.setPensDetail([[], []]);
     startShootoutKick(world);
     return;
   }
@@ -612,6 +624,7 @@ function finishMatch(
     6,
   );
   radio("fulltime", { score: pens ?? score });
+  setTension(false);
   refState.ended = true;
   setTimeout(() => useStore.getState().setMode("menu"), 5000);
 }
@@ -631,7 +644,9 @@ function startShootoutKick(world: World): void {
   if (refState.ceremony && taker) {
     refState.ceremony.taker = taker;
     if (team === 0) setSelected(world, taker);
+    radio("penTaker", { player: taker.get(Name)?.short ?? "" });
   }
+  setTension(true); // hush the crowd, heartbeat in
 }
 
 function shootoutSystem(
@@ -664,7 +679,9 @@ function shootoutSystem(
     radio("penMiss");
   }
   so.taken[so.turn] += 1;
+  so.outcomes[so.turn]!.push(goal ? "g" : "m");
   store.setPens([...so.scores]);
+  store.setPensDetail([[...so.outcomes[0]!], [...so.outcomes[1]!]]);
 
   // decided? best of 5, then sudden death
   const [s0, s1] = so.scores;
