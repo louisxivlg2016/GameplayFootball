@@ -455,38 +455,51 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
     nearestOpp = Math.min(nearestOpp, Math.hypot(op.x - p.x, op.z - p.z));
   }
 
+  const goalX = s * PITCH.halfLength;
+  const distGoal = Math.hypot(goalX - p.x, p.z);
+
+  // clean through? nobody in a 5m corridor to goal but the keeper
+  let cleanThrough = false;
+  let keeperDist = Infinity;
+  let keeperZ = 0;
+  if (distGoal < 36) {
+    let blockers = 0;
+    const corridorLen = distGoal || 1;
+    const cx = (goalX - p.x) / corridorLen;
+    const cz = (0 - p.z) / corridorLen;
+    for (const o of world.query(IsPlayer)) {
+      if (o.get(Team)!.id === teamId) continue;
+      const op = o.get(Position)!;
+      if (o.get(PlayerInfo)!.role === Role.GK) {
+        keeperDist = Math.hypot(op.x - p.x, op.z - p.z);
+        keeperZ = op.z;
+        continue;
+      }
+      const along = (op.x - p.x) * cx + (op.z - p.z) * cz;
+      if (along < 0.5 || along > corridorLen) continue;
+      const offX = op.x - (p.x + cx * along);
+      const offZ = op.z - (p.z + cz * along);
+      if (Math.hypot(offX, offZ) < 5) blockers++;
+    }
+    cleanThrough = blockers === 0;
+  }
+
   const aiTimer = info.aiTimer - dt;
   if (aiTimer <= 0) {
     e.set(PlayerInfo, { aiTimer: 0.28 });
-    const goalX = s * PITCH.halfLength;
-    const distGoal = Math.hypot(goalX - p.x, p.z);
 
-    // clean through: nobody between him and the goal but the keeper — SHOOT
-    if (distGoal < 30) {
-      let blockers = 0;
-      const corridorLen = Math.hypot(goalX - p.x, -p.z) || 1;
-      const cx = (goalX - p.x) / corridorLen;
-      const cz = (0 - p.z) / corridorLen;
-      for (const o of world.query(IsPlayer)) {
-        if (o.get(Team)!.id === teamId || o.get(PlayerInfo)!.role === Role.GK)
-          continue;
-        const op = o.get(Position)!;
-        const along = (op.x - p.x) * cx + (op.z - p.z) * cz;
-        if (along < 0.5 || along > corridorLen) continue;
-        const offX = op.x - (p.x + cx * along);
-        const offZ = op.z - (p.z + cz * along);
-        if (Math.hypot(offX, offZ) < 5) blockers++;
-      }
-      if (blockers === 0) {
-        const oneOnOne = shotOdds(world, e);
-        shoot(world, e, oneOnOne.aimZ + (Math.random() - 0.5) * 0.8);
-        return;
-      }
+    // one-on-one: carry the ball right up to the keeper, then slot it in
+    // the corner he is not covering
+    if (cleanThrough && (distGoal < 14 || keeperDist < 6)) {
+      const aim = (keeperZ >= 0 ? -1 : 1) * 2.9;
+      shoot(world, e, aim + (Math.random() - 0.5) * 0.6);
+      return;
     }
 
     const shot = shotOdds(world, e);
     const eagerness = teamId === AI_TEAM ? difficulty().shootBoost : 0;
     if (
+      !cleanThrough && // when clean through he carries closer instead
       distGoal < 32 &&
       shot.idealFactor > 0.1 &&
       Math.pow(shot.odds, 0.5) + Math.random() * 0.5 > 0.55 - eagerness
@@ -548,7 +561,12 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
   fz += ((gz - p.z) / gd) * offense * 2;
 
   const fl = Math.hypot(fx, fz) || 1;
-  const speed = nearestOpp < 4 ? SPEEDS.sprint * 0.85 : SPEEDS.walk;
+  // clean through on goal: full sprint at the keeper before finishing
+  const speed = cleanThrough
+    ? SPEEDS.sprint
+    : nearestOpp < 4
+      ? SPEEDS.sprint * 0.85
+      : SPEEDS.walk;
   const v = e.get(Velocity)!;
   const k = Math.min(1, dt * 6);
   v.x += ((fx / fl) * speed - v.x) * k;
