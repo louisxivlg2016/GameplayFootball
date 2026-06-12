@@ -180,7 +180,7 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
   // technique noise from technical_shortpass, scaled by difficulty for the AI
   const diffErr = kicker.get(Team)!.id === AI_TEAM ? difficulty().aiErr : 1;
   const err =
-    (1 - kicker.get(Stats)!.shortpass) * 0.07 * diffErr * (Math.random() - 0.5) * 2;
+    (1 - kicker.get(Stats)!.shortpass) * 0.04 * diffErr * (Math.random() - 0.5) * 2;
   const cos = Math.cos(err);
   const sin = Math.sin(err);
   const rawX = choice.tx - bp.x;

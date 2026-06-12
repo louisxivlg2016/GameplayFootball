@@ -96,10 +96,13 @@ function controlSlot(
   // physical_velocity + stamina multipliers (playerbase.cpp:136-139)
   const stats = sel.get(Stats)!;
   const statMul = (0.9 + 0.1 * stats.velocity) * (0.75 + 0.25 * stats.energy);
+  // the controlled man gets a hair of extra pace over an equal-stat AI —
+  // the AI must never win a flat footrace against the human
   const top =
     (isSprintingFor(pad) ? SPEEDS.sprint : SPEEDS.walk) *
     (hasBall ? 0.82 : 1) *
-    statMul;
+    statMul *
+    1.04;
   const vel = sel.get(Velocity)!;
   const k = Math.min(1, dt * 8);
   vel.x += (dir.x * top - vel.x) * k;

@@ -20,7 +20,8 @@ export interface DifficultyPreset {
 export const DIFFICULTIES: DifficultyPreset[] = [
   { name: "FACILE", aiSpeed: 0.85, aiErr: 1.8, shootBoost: -0.08, tackleChance: 0.5, keeperSave: 0.7 },
   { name: "NORMAL", aiSpeed: 1.0, aiErr: 1.0, shootBoost: 0, tackleChance: 1.0, keeperSave: 1.0 },
-  { name: "DIFFICILE", aiSpeed: 1.08, aiErr: 0.6, shootBoost: 0.06, tackleChance: 1.6, keeperSave: 1.35 },
+  // aiSpeed never exceeds 1: hard mode plays smarter, not faster than you
+  { name: "DIFFICILE", aiSpeed: 1.0, aiErr: 0.6, shootBoost: 0.06, tackleChance: 1.7, keeperSave: 1.35 },
 ];
 
 export const difficulty = (): DifficultyPreset => {

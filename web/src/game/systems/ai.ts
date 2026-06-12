@@ -618,12 +618,22 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
   fz += ((gz - p.z) / gd) * offense * 2;
 
   const fl = Math.hypot(fx, fz) || 1;
-  // clean through on goal: full sprint at the keeper before finishing
-  const speed = cleanThrough
-    ? SPEEDS.sprint
-    : nearestOpp < 4
-      ? SPEEDS.sprint * 0.85
-      : SPEEDS.walk;
+  // clean through on goal: full sprint at the keeper before finishing.
+  // The AI carrier obeys the SAME physics as the human: carrying costs
+  // 0.82 of top speed and his velocity/stamina ratings apply — he can
+  // never outrun an equal chaser with the ball at his feet.
+  const cStats = e.get(Stats)!;
+  const cMul =
+    0.82 *
+    (0.9 + 0.1 * cStats.velocity) *
+    (0.75 + 0.25 * cStats.energy) *
+    (teamId === AI_TEAM ? difficulty().aiSpeed : 1);
+  const speed =
+    (cleanThrough
+      ? SPEEDS.sprint
+      : nearestOpp < 4
+        ? SPEEDS.sprint * 0.85
+        : SPEEDS.walk) * cMul;
   const v = e.get(Velocity)!;
   const k = Math.min(1, dt * 6);
   v.x += ((fx / fl) * speed - v.x) * k;
@@ -684,7 +694,7 @@ function keeper(
         if (!read || state.time > read.until) {
           const shotSpeed = Math.hypot(bv.x, bv.z);
           const spread =
-            (0.25 + shotSpeed * 0.02) * (1.15 - 0.5 * e.get(Stats)!.ballcontrol);
+            (0.16 + shotSpeed * 0.015) * (1.1 - 0.5 * e.get(Stats)!.ballcontrol);
           read = {
             until: state.time + tCross + 0.2,
             off: (Math.random() - 0.5) * 2 * spread,
@@ -697,9 +707,9 @@ function keeper(
         // the ball is beating his feet to the corner: launch a full dive at
         // the read point — body airborne, arms first, like a real keeper
         if (
-          tCross < 0.5 &&
-          Math.abs(lateral) > 0.9 &&
-          Math.hypot(bv.x, bv.z) > 10
+          tCross < 0.6 &&
+          Math.abs(lateral) > 0.8 &&
+          Math.hypot(bv.x, bv.z) > 9
         ) {
           e.add(KeeperDive);
           e.set(KeeperDive, { t: 0, side: Math.sign(lateral) || 1 });

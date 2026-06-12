@@ -154,7 +154,7 @@ export function movementSystem(world: World, dt: number): void {
         const inK = Math.min(slide.t / 0.1, 1);
         const upK = slide.t < 0.5 ? 1 : Math.max(0, 1 - (slide.t - 0.5) / 0.5);
         const amt = inK * upK;
-        h.value.position.set(p.x, -0.25 * amt, p.z);
+        h.value.position.set(p.x, -0.08 * amt, p.z);
         h.value.rotation.set(-1.05 * amt, slide.yaw, 0.18 * amt, "YZX");
       } else if (trip) {
         // tripped: pitch forward over the clipped legs along the run line,
@@ -166,7 +166,7 @@ export function movementSystem(world: World, dt: number): void {
         const upK =
           trip.t < upStart ? 1 : Math.max(0, 1 - (trip.t - upStart) / upLen);
         const amt = inK * upK * trip.fall;
-        h.value.position.set(p.x, -0.18 * amt, p.z);
+        h.value.position.set(p.x, -0.04 * amt, p.z);
         h.value.rotation.set(1.5 * amt, trip.yaw, 0.1 * amt, "YZX");
       } else {
         h.value.position.set(p.x, 0, p.z);
@@ -174,8 +174,11 @@ export function movementSystem(world: World, dt: number): void {
       }
     }
     const selected = e.has(Selected) || e.has(Selected2);
+    // the ring/tag are children of the posed group: hide them while a body is
+    // on the turf or they pitch up into a giant hoop beside the player
+    const posed = !!(dive || slide || trip);
     if (h.ring) {
-      h.ring.visible = selected;
+      h.ring.visible = selected && !posed;
       if (selected) {
         // P1 keeps the yellow ring; P2's man gets a cyan one so the couch
         // can tell at a glance who steers whom
@@ -184,8 +187,8 @@ export function movementSystem(world: World, dt: number): void {
         );
       }
     }
-    if (h.tag) h.tag.visible = selected;
-    animateRig(h, dive || slide || trip ? 0.3 : speed, angleDiff, dt);
+    if (h.tag) h.tag.visible = selected && !posed;
+    animateRig(h, posed ? 0.3 : speed, angleDiff, dt);
     if (trip && trip.fall > 0.75 && h.bones) {
       // arms shoot forward to brace the fall
       const amt =

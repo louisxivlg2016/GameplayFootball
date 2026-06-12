@@ -122,9 +122,9 @@ export function possessionSystem(world: World, dt: number): void {
     const pace = clamp((ballSpeed - TRAP_SPEED) / 12, 0, 1);
     const reach = CAPTURE_RADIUS * (0.85 + 0.3 * stats.ballcontrol);
     const stretch = Math.min(bestD / reach, 1);
-    let hardness = pace * (0.15 + 0.85 * stretch);
+    let hardness = pace * (0.08 + 0.72 * stretch);
     if (best.get(Team)!.id === AI_TEAM) hardness /= difficulty().keeperSave;
-    if (Math.random() < clamp(hardness, 0, 0.95)) {
+    if (Math.random() < clamp(hardness, 0, 0.88)) {
       // beaten: the ball flies past — block him briefly so it isn't re-caught
       bs.recaptureBlocks.push({ player: best, t: 0.4 });
       return;
@@ -144,14 +144,14 @@ export function possessionSystem(world: World, dt: number): void {
   }
 
   // first-touch trap: error grows with incoming speed, shrinks with control
-  const err = (1 - stats.ballcontrol) * 0.3 + Math.min(ballSpeed, 16) * 0.02;
+  const err = (1 - stats.ballcontrol) * 0.2 + Math.min(ballSpeed, 16) * 0.015;
   if (isKeeper && ballSpeed > 12) radio("save"); // a real stop, not a pickup
   const damp = isKeeper ? 0 : Math.min(0.25 + err * 0.3, 0.5);
   rb.setLinvel(
     {
-      x: v.x * damp + (Math.random() - 0.5) * err * 4,
+      x: v.x * damp + (Math.random() - 0.5) * err * 2.5,
       y: Math.min(v.y, 0.5),
-      z: v.z * damp + (Math.random() - 0.5) * err * 4,
+      z: v.z * damp + (Math.random() - 0.5) * err * 2.5,
     },
     true,
   );
