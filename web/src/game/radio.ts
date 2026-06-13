@@ -236,6 +236,11 @@ export function warmupRadioVoice(): void {
 if (typeof window !== "undefined") warmupRadioVoice();
 
 let predictFails = 0;
+// once the worker has produced even one clip it is proven alive — after that a
+// slow synthesis is just slow (single-threaded WASM has no crossOriginIsolated
+// here), never a reason to terminate it. Killing a live-but-slow worker was an
+// infinite restart loop: cold-start, time out, respawn, cold-start again...
+let workerEverSpoke = false;
 
 function piperPredict(text: string): Promise<Blob | null> {
   return new Promise((resolve) => {
@@ -251,10 +256,12 @@ function piperPredict(text: string): Promise<Blob | null> {
       sayWaiters.delete(id);
       if (wav) {
         predictFails = 0;
-      } else if (++predictFails >= 3) {
-        // worker likely died (e.g. server bounce mid-fetch): respawn it
+        workerEverSpoke = true;
+      } else if (!workerEverSpoke && ++predictFails >= 3) {
+        // it has never once spoken AND keeps timing out: genuinely broken
+        // (e.g. server bounce mid-fetch). A proven worker is never killed.
         predictFails = 0;
-        console.info("[radio] worker unresponsive — restarting voice engine");
+        console.info("[radio] worker never responded — restarting voice engine");
         try {
           piperWorker?.terminate();
         } catch {
@@ -267,8 +274,9 @@ function piperPredict(text: string): Promise<Blob | null> {
       resolve(wav);
     };
     sayWaiters.set(id, finish);
-    // a dead worker must never lock the mic forever
-    setTimeout(() => finish(null), 12000);
+    // a dead worker must never lock the mic forever — but single-threaded
+    // cold-start synthesis can take ~15s, so the watchdog is generous
+    setTimeout(() => finish(null), 30000);
     piperWorker.postMessage({ type: "say", id, text });
   });
 }
