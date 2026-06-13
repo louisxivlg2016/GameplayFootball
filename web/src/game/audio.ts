@@ -9,22 +9,54 @@ interface SharedAudio {
   ctx: AudioContext;
   crowdGain: GainNode;
 }
-const g = globalThis as { __gpfAudio?: SharedAudio | null };
+const g = globalThis as {
+  __gpfAudio?: SharedAudio | null;
+  __gpfAudioDebug?: {
+    state: string;
+    lastResumeAt: number;
+    lastError: string;
+  };
+};
 
 let ctx: AudioContext | null = g.__gpfAudio?.ctx ?? null;
 let crowdGain: GainNode | null = g.__gpfAudio?.crowdGain ?? null;
+const audioDebug = (g.__gpfAudioDebug ??= {
+  state: ctx?.state ?? "none",
+  lastResumeAt: 0,
+  lastError: "",
+});
 
 /** One page-wide AudioContext, shared with the radio. */
 export function sharedAudioContext(): AudioContext | null {
   initAudio();
+  resumeAudio();
   return ctx;
 }
 
+export function resumeAudio(): void {
+  if (!ctx) return;
+  audioDebug.state = ctx.state;
+  if (ctx.state === "running") return;
+  void ctx
+    .resume()
+    .then(() => {
+      audioDebug.state = ctx?.state ?? "none";
+      audioDebug.lastResumeAt = Date.now();
+    })
+    .catch((err: unknown) => {
+      audioDebug.lastError = String(err);
+    });
+}
+
 export function initAudio(): void {
-  if (ctx) return;
+  if (ctx) {
+    resumeAudio();
+    return;
+  }
   if (g.__gpfAudio) {
     ctx = g.__gpfAudio.ctx;
     crowdGain = g.__gpfAudio.crowdGain;
+    resumeAudio();
     return;
   }
   try {
@@ -53,9 +85,13 @@ export function initAudio(): void {
   src.connect(filter).connect(crowdGain).connect(ctx.destination);
   src.start();
   g.__gpfAudio = { ctx, crowdGain };
+  audioDebug.state = ctx.state;
+  resumeAudio();
 }
 
 export function kickSound(power = 1): void {
+  initAudio();
+  resumeAudio();
   if (!ctx) return;
   const t = ctx.currentTime;
   const osc = ctx.createOscillator();
@@ -71,6 +107,8 @@ export function kickSound(power = 1): void {
 
 /** 1 = short (restart), 2 = double (foul), 3 = long triple (period end). */
 export function whistle(blasts: 1 | 2 | 3): void {
+  initAudio();
+  resumeAudio();
   if (!ctx) return;
   const t0 = ctx.currentTime;
   for (let i = 0; i < blasts; i++) {
@@ -102,6 +140,8 @@ let heartbeatTimer: ReturnType<typeof setInterval> | null =
   gHeart.__gpfHeartbeat ?? null;
 
 function thump(volume = 1): void {
+  initAudio();
+  resumeAudio();
   if (!ctx) return;
   const t = ctx.currentTime;
   const osc = ctx.createOscillator();
@@ -117,6 +157,8 @@ function thump(volume = 1): void {
 
 /** Shoot-out tension: the crowd hushes and a heartbeat sets in. */
 export function setTension(on: boolean): void {
+  initAudio();
+  resumeAudio();
   if (ctx && crowdGain) {
     const t = ctx.currentTime;
     crowdGain.gain.cancelScheduledValues(t);
@@ -139,6 +181,8 @@ export function setTension(on: boolean): void {
 }
 
 export function crowdRoar(): void {
+  initAudio();
+  resumeAudio();
   if (!ctx || !crowdGain) return;
   const t = ctx.currentTime;
   crowdGain.gain.cancelScheduledValues(t);

@@ -1,5 +1,5 @@
 import { useStore } from "./store";
-import { initAudio } from "./audio";
+import { initAudio, resumeAudio } from "./audio";
 import { resumeRadio, toggleRadio, warmupRadioVoice } from "./radio";
 
 const held = new Set<string>();
@@ -16,13 +16,22 @@ const MOVE_KEYS = new Set([
   "KeyD",
 ]);
 
+function unlockAudio(): void {
+  initAudio();
+  resumeAudio();
+  warmupRadioVoice();
+  resumeRadio();
+}
+
 export function initInput(): void {
+  const opts: AddEventListenerOptions = { passive: true };
+  window.addEventListener("pointerdown", unlockAudio, opts);
+  window.addEventListener("touchstart", unlockAudio, opts);
+  window.addEventListener("mousedown", unlockAudio, opts);
   window.addEventListener("keydown", (e) => {
     if (MOVE_KEYS.has(e.code) || e.code === "Space") e.preventDefault();
     if (e.repeat) return;
-    initAudio(); // browsers unlock audio on the first user gesture
-    warmupRadioVoice(); // start the neural voice download in the background
-    resumeRadio(); // and wake the playback context if the browser suspended it
+    unlockAudio(); // browsers unlock audio on the first user gesture
     held.add(e.code);
     pressed.add(e.code);
 
