@@ -352,6 +352,7 @@ function say(text: string, priority = 1, fx?: VoiceFx): void {
 /** The commentator on his feet: louder, barely faster — same man, same voice.
  *  (Bigger rate shifts pitch the voice up enough to sound like a second person.) */
 const SHOUT: VoiceFx = { rate: 1.04, volume: 1.3 };
+const GOAL_SHOUT: VoiceFx = { rate: 1.06, volume: 3.2 };
 /** Rising excitement, not quite full scream. */
 const EXCITED: VoiceFx = { rate: 1.02, volume: 1.15 };
 
@@ -410,16 +411,16 @@ export function radio(
       say(
         (player
           ? pick([
-              `BUUUUUUUT ! QUEL BUT DE ${player} POUR ${team} !`,
-              `AU FOND DES FILETS ! ${player} ! LE STADE EXPLOSE !`,
-              `C'EST DEDANS ! ÉNORME, ${player} ! INCROYABLE !`,
+              `BUT ! BUT ! BUT ! Quel but de ${player} pour ${team} !`,
+              `BUT ! BUT ! Au fond des filets ! ${player} ! Le stade explose !`,
+              `BUT ! BUT ! C'est dedans ! Énorme, ${player} ! Quel but !`,
             ])
           : pick([
-              `BUUUUUUUT ! QUEL BUT POUR ${team} !`,
-              `AU FOND DES FILETS ! ${team} FONT TREMBLER LE STADE !`,
+              `BUT ! BUT ! BUT ! Quel but pour ${team} !`,
+              `BUT ! BUT ! Au fond des filets ! ${team} font trembler le stade !`,
             ])) + (score ? ` ${score[0]} à ${score[1]} !` : ""),
-        2,
-        SHOUT,
+        3,
+        GOAL_SHOUT,
       );
       break;
     case "foul":
@@ -473,8 +474,8 @@ export function radio(
       // the rising moment: interrupt the chatter, voice climbs
       say(
         player
-          ? pick([`LA FRAPPE DE ${player} !`, `${player} ARME... ÇA PART !`, `ATTENTION, ${player} TENTE SA CHANCE !`])
-          : pick(["LA FRAPPE !", "ÇA PART AU BUT !"]),
+          ? pick([`La frappe de ${player} !`, `${player} arme... ça part !`, `Attention, ${player} tente sa chance !`])
+          : pick(["La frappe !", "Ça part au but !"]),
         2,
         EXCITED,
       );
@@ -482,9 +483,9 @@ export function radio(
     case "miss":
       say(
         pick([
-          "OH ! À CÔTÉ ! IL S'EN FAUT DE RIEN !",
-          "AU-DESSUS ! ON A CRU AU BUT !",
-          "OH LÀ LÀ, ÇA PASSE TOUT PRÈS DU POTEAU !",
+          "Oh ! À côté ! Il s'en faut de rien !",
+          "Au-dessus ! On a cru au but !",
+          "Oh là là, ça passe tout près du poteau !",
         ]),
         2,
         SHOUT,
@@ -493,9 +494,9 @@ export function radio(
     case "save":
       say(
         pick([
-          "QUEL ARRÊT DU GARDIEN ! INCROYABLE !",
-          "LE PORTIER DIT NON ! QUELLE PARADE !",
-          "ARRÊT ÉNORME ! ON A CRU AU BUT !",
+          "Quel arrêt du gardien ! Incroyable !",
+          "Le portier dit non ! Quelle parade !",
+          "Arrêt énorme ! On a cru au but !",
         ]),
         2,
         SHOUT,
@@ -530,11 +531,11 @@ export function radio(
       );
       break;
     case "penGoal":
-      say(pick(["TRANSFORMÉ ! C'EST AU FOND !", "LE TIR AU BUT EST AU FOND ! QUELLE PRESSION !"]), 2, SHOUT);
+      say(pick(["Transformé ! C'est au fond !", "Le tir au but est au fond ! Quelle pression !"]), 2, SHOUT);
       break;
     case "penMiss":
       say(
-        pick(["RATÉ ! IL PASSE À CÔTÉ !", "ARRÊTÉ ! LE GARDIEN S'ENVOLE !"]),
+        pick(["Raté ! Il passe à côté !", "Arrêté ! Le gardien s'envole !"]),
         2,
         SHOUT,
       );
@@ -544,11 +545,14 @@ export function radio(
 
 /** Occasional score reminder between actions. */
 export function radioScore(score: [number, number], gameMinute: number): void {
+  // no ordinal ("Xe minute") — Piper mangles it; a round-minute phrase reads clean
   const lead =
     score[0] === score[1]
-      ? `toujours ${score[0]} partout`
+      ? score[0] === 0
+        ? "toujours zéro à zéro"
+        : `toujours ${score[0]} partout`
       : score[0] > score[1]
         ? `${teamName(0)} mènent ${score[0]} à ${score[1]}`
         : `${teamName(1)} mènent ${score[1]} à ${score[0]}`;
-  say(`${Math.floor(gameMinute)}e minute de jeu, ${lead}.`);
+  say(`Après ${Math.max(1, Math.floor(gameMinute))} minutes de jeu, ${lead}.`);
 }

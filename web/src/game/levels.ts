@@ -87,17 +87,20 @@ const LAST_NAMES = [
   "Delgado", "Marin", "Verdier",
 ];
 
-function makeName(seed: number, taken: Set<string>): { full: string; short: string } {
+function makeName(
+  seed: number,
+  taken: Set<string>,
+): { full: string; short: string; spoken: string } {
   for (let attempt = 0; attempt < 8; attempt++) {
     const first = FIRST_NAMES[Math.floor(statRand(seed * 13 + attempt * 7 + 1) * FIRST_NAMES.length)]!;
     const last = LAST_NAMES[Math.floor(statRand(seed * 17 + attempt * 11 + 2) * LAST_NAMES.length)]!;
     if (!taken.has(last)) {
       taken.add(last);
-      return { full: `${first} ${last}`, short: `${first[0]}. ${last}` };
+      return { full: `${first} ${last}`, short: `${first[0]}. ${last}`, spoken: last };
     }
   }
   const last = LAST_NAMES[seed % LAST_NAMES.length]!;
-  return { full: `Rémi ${last}`, short: `R. ${last}` };
+  return { full: `Rémi ${last}`, short: `R. ${last}`, spoken: last };
 }
 
 export function loadMatch(world: World): void {
@@ -182,7 +185,11 @@ export function placeKickoff(world: World, kickingTeam: number): void {
   const bs = ball.get(BallState)!;
   bs.owner = kicker ?? null;
   bs.lastKicker = null;
+  bs.passTarget = null;
+  bs.passHomingT = 0;
+  bs.passProtected = false;
   bs.kickCooldown = 0;
+  bs.recaptureBlocks = [];
   const rb = ball.get(BallRef)!.value;
   if (rb) {
     rb.setTranslation({ x: 0, y: PITCH.ballRadius, z: 0 }, true);

@@ -17,6 +17,7 @@ import {
 } from "../traits";
 import { PITCH, SPEEDS, attackSign } from "../levels";
 import { useStore } from "../store";
+import { hasMoveInputFor } from "../input";
 import {
   MINDSET,
   evaluateBestPass,
@@ -117,7 +118,8 @@ export function aiSystem(world: World, dt: number): void {
   const bp = rb.translation();
   const bv = rb.linvel();
 
-  const gen = useStore.getState().gen;
+  const store = useStore.getState();
+  const gen = store.gen;
   if (gen !== state.gen) {
     state.gen = gen;
     state.time = 0;
@@ -155,9 +157,15 @@ export function aiSystem(world: World, dt: number): void {
   updateRuns(world, players, carrier, carrierTeam);
 
   for (const e of players) {
-    if (e.has(Selected) || e.has(Selected2)) continue; // a human steers this one
     const teamId = e.get(Team)!.id;
     const info = e.get(PlayerInfo)!;
+    const selectedSlot = e.has(Selected) ? 0 : e.has(Selected2) ? 1 : -1;
+    if (
+      selectedSlot >= 0 &&
+      (info.role !== Role.GK || hasMoveInputFor(selectedSlot, store.players))
+    ) {
+      continue; // a human is actively steering this one
+    }
 
     // restart ceremony: everyone moves to their staged spot
     if (refState.ceremony) {

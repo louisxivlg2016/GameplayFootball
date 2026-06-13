@@ -40,8 +40,9 @@ export function cameraSystem(
 
   const mode = useStore.getState().mode;
   const celeb = mode === "goal" ? cineState.celebration : null;
+  const sendOff = mode === "cardScene" ? cineState.sendOffScene : null;
   const refp =
-    mode === "cardScene" ? world.queryFirst(IsReferee)?.get(Position) : undefined;
+    mode === "cardScene" && !sendOff ? world.queryFirst(IsReferee)?.get(Position) : undefined;
 
   if (celeb && celeb.scorer.isAlive()) {
     // close-up: the scorer applauds straight into the lens
@@ -49,6 +50,13 @@ export function cameraSystem(
     desiredPos.set(p.x, 1.7, p.z + 5.2);
     desiredLook.set(p.x, 1.25, p.z);
     desiredFov = 30;
+  } else if (sendOff && sendOff.player.isAlive()) {
+    // tighter touchline shot: the sent-off player walks out of the match
+    const p = sendOff.player.get(Position)!;
+    const side = Math.sign(sendOff.exitZ) || 1;
+    desiredPos.set(p.x + 2.1, 1.55, p.z - side * 3.1);
+    desiredLook.set(p.x, 1.05, p.z + side * 0.9);
+    desiredFov = 42;
   } else if (refp) {
     // close-up: the referee raises the card to the camera
     desiredPos.set(refp.x, 1.7, refp.z + 5.0);

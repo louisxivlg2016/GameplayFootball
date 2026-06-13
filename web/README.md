@@ -9,7 +9,7 @@ sources in `../src`.
 
 ```sh
 bun install
-bun ./index.html        # dev server with HMR on :3000
+bun run dev             # dev server with HMR + local TTS routes on :3000
 ```
 
 Production bundle: `bun build ./index.html --outdir ./dist --minify`

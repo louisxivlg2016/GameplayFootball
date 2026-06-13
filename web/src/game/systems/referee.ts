@@ -123,7 +123,11 @@ export function startSetPiece(
   b.rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
   b.bs.owner = null;
   b.bs.lastKicker = null;
+  b.bs.passTarget = null;
+  b.bs.passHomingT = 0;
+  b.bs.passProtected = false;
   b.bs.kickCooldown = 0;
+  b.bs.recaptureBlocks = [];
 
   // taker: nearest outfielder, except goal kicks (the keeper takes those)
   let taker: Entity | null = null;
@@ -141,6 +145,13 @@ export function startSetPiece(
   }
   const slot = humanSlotFor(team);
   if (slot !== null && taker) setSelected(world, taker, slot);
+
+  if (taker) {
+    const s = attackSign(team);
+    taker.get(Position)!.set(x - s * 0.8, 0, z);
+    taker.get(Velocity)!.set(0, 0, 0);
+    taker.set(Heading, { angle: Math.atan2(s, 0) });
+  }
 
   refState.ceremony = { type, team, x, z, t: 2, ready: false, kickDelay: 0.8, taker };
   world.queryFirst(Match)?.set(Match, { lastTouchTeam: team });
@@ -260,7 +271,9 @@ export function refereeFoul(
   if (foulType >= 2) {
     const info = fouler.get(PlayerInfo)!;
     const second = foulType === 2 && info.yellows >= 1;
-    const foulerName = fouler.get(Name)?.short ?? "";
+    const nm = fouler.get(Name);
+    const foulerName = nm?.short ?? ""; // banner (visual): initial + surname
+    const foulerSpoken = nm?.spoken ?? ""; // radio (TTS): surname only
     const red = foulType === 3 || second;
     if (red) {
       banner(
@@ -268,10 +281,10 @@ export function refereeFoul(
           (foulerName ? ` — ${foulerName}` : ""),
         3,
       );
-      radio("red", { player: foulerName });
+      radio("red", { player: foulerSpoken });
     } else {
       banner("YELLOW CARD" + (foulerName ? ` — ${foulerName}` : ""), 3);
-      radio("yellow", { player: foulerName });
+      radio("yellow", { player: foulerSpoken });
       fouler.set(PlayerInfo, { yellows: info.yellows + 1 });
     }
     award();
@@ -548,7 +561,8 @@ export function refereeSystem(world: World, dt: number): void {
 
   // ---- goals ----
   const R = PITCH.ballRadius;
-  if (Math.abs(bp.x) > PITCH.halfLength + R) {
+  const crossedGoalLine = Math.abs(bp.x) > PITCH.halfLength - R * 0.35;
+  if (crossedGoalLine) {
     const side = Math.sign(bp.x);
     if (Math.abs(bp.z) < PITCH.goalHalfWidth && bp.y < PITCH.goalHeight) {
       const scorer = attackSign(0) * side > 0 ? 0 : 1;
@@ -558,14 +572,15 @@ export function refereeSystem(world: World, dt: number): void {
       newScore[scorer] += 1;
       // credit the last kicker — opposite team means an own goal
       const kicker = b.bs.lastKicker;
-      const kickerName = kicker?.isAlive() ? (kicker.get(Name)?.short ?? "") : "";
+      const kNm = kicker?.isAlive() ? kicker.get(Name) : undefined;
+      const kickerName = kNm?.short ?? ""; // banner (visual)
       const ownGoal = kicker?.isAlive() && kicker.get(Team)!.id !== scorer;
       const scorerName = ownGoal ? `${kickerName} (c.s.c.)` : kickerName;
       store.setBanner(scorerName ? `GOAL — ${scorerName}` : "");
       radio("goal", {
         team: scorer,
         score: newScore,
-        player: ownGoal ? "" : kickerName,
+        player: ownGoal ? "" : (kNm?.spoken ?? ""), // radio (TTS): surname
       });
       b.bs.owner = null;
       queueGoalCinematic(kicker?.isAlive() ? kicker : null, scorer);
@@ -687,7 +702,7 @@ function startShootoutKick(world: World): void {
     refState.ceremony.taker = taker;
     const slot = humanSlotFor(team);
     if (slot !== null) setSelected(world, taker, slot);
-    radio("penTaker", { player: taker.get(Name)?.short ?? "" });
+    radio("penTaker", { player: taker.get(Name)?.spoken ?? "" });
   }
 
   // stage the scene: ceremonies are too short to run across the pitch, so

@@ -39,6 +39,7 @@ const cooldowns = new Map<Entity, number>();
 let aiTimer = 0;
 
 export function tackleSystem(world: World, dt: number): void {
+  const store = useStore.getState();
   const ball = world.queryFirst(IsBall);
   if (!ball) return;
   const bs = ball.get(BallState)!;
@@ -52,7 +53,7 @@ export function tackleSystem(world: World, dt: number): void {
   }
 
   // human slides (one pad per control slot in two-player mode)
-  const players = useStore.getState().players;
+  const players = store.players;
   for (let slot = 0; slot < players; slot++) {
     if (consumePress(padFor(slot, players).tackle) && !refState.ceremony) {
       const sel = world.queryFirst(slot === 1 ? Selected2 : Selected);
@@ -99,13 +100,11 @@ export function tackleSystem(world: World, dt: number): void {
           ((p.x - cp.x) * Math.sin(ch) + (p.z - cp.z) * Math.cos(ch)) /
           (d || 1);
         if (behind < -0.35) {
-          if (Math.random() < chance * 0.35) {
-            if (carrier.isAlive() && !carrier.has(Tripped)) {
-              carrier.add(Tripped);
-              carrier.set(Tripped, { t: 0, yaw: ch, fall: 0.5 });
-            }
+          // Never steal through the carrier's back. From behind this can only
+          // be a foul or a failed stab; the carrier keeps the ball otherwise.
+          if (Math.random() < chance * 0.18) {
             cooldowns.set(e, 2.5);
-            refereeFoul(world, e, carrier, 1.05 + Math.random() * 0.5);
+            refereeFoul(world, e, carrier, 1.45 + Math.random() * 0.25);
             break;
           }
           continue;
@@ -196,6 +195,21 @@ export function tackleSystem(world: World, dt: number): void {
 
     const p = e.get(Position)!;
     const dBall = Math.hypot(bp.x - p.x, bp.z - p.z);
+    const ownerBeforePoke = bs.owner;
+    if (ownerBeforePoke && ownerBeforePoke.get(Team)!.id !== e.get(Team)!.id) {
+      const op = ownerBeforePoke.get(Position)!;
+      const oh = ownerBeforePoke.get(Heading)!.angle;
+      const od = Math.hypot(p.x - op.x, p.z - op.z) || 1;
+      const behindOwner =
+        ((p.x - op.x) * Math.sin(oh) + (p.z - op.z) * Math.cos(oh)) / od;
+      if (behindOwner < -0.25 && dBall < 0.8 && bp.y < 0.8) {
+        // A slide through the carrier's back cannot poke the ball loose.
+        slides.delete(e);
+        cooldowns.set(e, 3.5);
+        refereeFoul(world, e, ownerBeforePoke, 1.45 + Math.random() * 0.3);
+        continue;
+      }
+    }
     if (dBall < 0.8 && bp.y < 0.8) {
       // won the ball: poke it clear
       const owner = bs.owner;

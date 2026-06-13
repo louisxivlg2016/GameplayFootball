@@ -46,10 +46,10 @@ export function ballSystem(world: World, dt: number): void {
     return; // never let the free-ball drag below overwrite the carry
   }
 
-  // pass assist: a played pass homes onto its receiver like a guided ball,
-  // bending in flight toward where he is going — it arrives at his feet
-  // instead of where he stood when it was struck. It never boomerangs:
-  // once the receiver is behind the ball's path the assist lets go.
+  // pass assist: a played pass homes onto its receiver like a guided ball.
+  // It converges on the player's feet, not a lead point beside him.
+  // It never boomerangs: once the receiver is behind the ball's path the
+  // assist lets go.
   if (bs.passTarget && bs.passHomingT > 0) {
     bs.passHomingT -= dt;
     const mate = bs.passTarget;
@@ -59,11 +59,8 @@ export function ballSystem(world: World, dt: number): void {
       bs.passTarget = null;
     } else {
       const mv = mate.get(Velocity)!;
-      // lead his run when far, but converge on the MAN himself up close so
-      // the ball finishes on his boots, not half a meter beside them
-      const lead = Math.min(0.22, Math.hypot(mp.x - bp.x, mp.z - bp.z) * 0.025);
-      const dx = mp.x + mv.x * lead - bp.x;
-      const dz = mp.z + mv.z * lead - bp.z;
+      const dx = mp.x - bp.x;
+      const dz = mp.z - bp.z;
       const dist = Math.hypot(dx, dz) || 1;
       const dot = (v.x * dx + v.z * dz) / (speed2d * dist);
       if (dist < 0.4 || dot < 0) {

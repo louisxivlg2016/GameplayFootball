@@ -117,6 +117,16 @@ export function padFor(slot: number, players: number): Pad {
 
 const anyHeld = (codes: string[]): boolean => codes.some((c) => held.has(c));
 
+export function hasMoveInputFor(slot: number, players: number): boolean {
+  const pad = padFor(slot, players);
+  return (
+    anyHeld(pad.up) ||
+    anyHeld(pad.down) ||
+    anyHeld(pad.left) ||
+    anyHeld(pad.right)
+  );
+}
+
 /** World-space move direction (+x = toward the right/BLU goal, +z = toward camera). */
 export function moveDirFor(pad: Pad): { x: number; z: number } {
   let x = 0;

@@ -2,6 +2,7 @@ import type { Entity, World } from "koota";
 import {
   BallRef,
   BallState,
+  Heading,
   IsBall,
   IsPlayer,
   KeeperDive,
@@ -15,6 +16,7 @@ import {
 import { refState, refereeOffside } from "./referee";
 import { radio } from "../radio";
 import { AI_TEAM, difficulty } from "../difficulty";
+import { PITCH } from "../levels";
 
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, v));
@@ -60,6 +62,16 @@ export function possessionSystem(world: World, dt: number): void {
   const v = rb.linvel();
   const ballSpeed = Math.hypot(v.x, v.y, v.z);
 
+  // Once the ball has crossed the goal plane inside the frame, no keeper
+  // possession check should erase the goal before refereeSystem sees it.
+  if (
+    Math.abs(bp.x) > PITCH.halfLength - PITCH.ballRadius * 0.35 &&
+    Math.abs(bp.z) < PITCH.goalHalfWidth &&
+    bp.y < PITCH.goalHeight
+  ) {
+    return;
+  }
+
   // exact swept segment for fast-ball checks: last frame's true position
   // (v·dt under-sweeps whenever the render frame outlasts the clamped dt,
   // and a 20+ m/s ball then tunnels straight through the keeper)
@@ -98,10 +110,31 @@ export function possessionSystem(world: World, dt: number): void {
     if (bs.recaptureBlocks.some((block) => block.player === e)) continue;
     if (bs.owner && e.get(Team)!.id === ownerTeam) continue; // no stealing from teammates
     const p = e.get(Position)!;
+    if (
+      bs.passProtected &&
+      bs.passTarget &&
+      bs.passTarget.isAlive() &&
+      e.get(Team)!.id !== bs.passTarget.get(Team)!.id
+    ) {
+      continue;
+    }
     let d = Math.hypot(p.x - bp.x, p.z - bp.z);
+    if (bs.owner && e.get(Team)!.id !== ownerTeam) {
+      const op = bs.owner.get(Position)!;
+      const oh = bs.owner.get(Heading)!.angle;
+      const od = Math.hypot(p.x - op.x, p.z - op.z) || 1;
+      const behind =
+        ((p.x - op.x) * Math.sin(oh) + (p.z - op.z) * Math.cos(oh)) / od;
+      if (behind < -0.25) continue;
+    }
     // a 26 m/s strike covers over a meter per frame: test the keeper against
     // the ball's swept path this frame so shots can't tunnel through him
     if (isKeeper && ballSpeed > TRAP_SPEED) {
+      d = Math.min(d, segDist(p.x, p.z, segX, segZ, bp.x, bp.z));
+    }
+    // fast passes should be caught when the ball path crosses the receiver's
+    // feet, not because a wide capture bubble grabbed it beside him.
+    if (intended && ballSpeed > TRAP_SPEED) {
       d = Math.min(d, segDist(p.x, p.z, segX, segZ, bp.x, bp.z));
     }
     // reach scales with ball control (technical_ballcontrol bonus, humanoidbase.cpp:2108);
@@ -109,8 +142,9 @@ export function possessionSystem(world: World, dt: number): void {
     const radius =
       (bs.owner ? STEAL_RADIUS : CAPTURE_RADIUS) *
       (0.85 + 0.3 * e.get(Stats)!.ballcontrol) *
+      (isKeeper ? 1.45 : 1) *
       (e.has(KeeperDive) ? 1.45 : 1) *
-      (intended ? 1.35 : 1); // the man the pass is for reaches for it
+      (intended ? 0.85 : 1); // the intended receiver traps it at his feet
     if (d < radius && d < bestD) {
       bestD = d;
       best = e;
@@ -141,7 +175,8 @@ export function possessionSystem(world: World, dt: number): void {
     const reach = CAPTURE_RADIUS * (0.85 + 0.3 * stats.ballcontrol);
     const stretch = Math.min(bestD / reach, 1);
     let hardness = pace * (0.08 + 0.72 * stretch);
-    if (best.get(Team)!.id === AI_TEAM) hardness /= difficulty().keeperSave;
+    if (best.get(Team)!.id === AI_TEAM) hardness *= 0.75 / difficulty().keeperSave;
+    else hardness *= 0.25;
     if (Math.random() < clamp(hardness, 0, 0.88)) {
       // beaten: the ball flies past — but he still hurls himself at it
       // (a despairing reflex dive) instead of watching it go by
@@ -158,6 +193,7 @@ export function possessionSystem(world: World, dt: number): void {
   bs.owner = best;
   bs.lastKicker = null;
   bs.passTarget = null; // the pass has arrived (or been cut out)
+  bs.passProtected = false;
   bs.touchTimer = 0; // first touch happens immediately in the ball system
   match.set(Match, { lastTouchTeam: best.get(Team)!.id });
 

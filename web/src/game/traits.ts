@@ -35,8 +35,9 @@ export const Stats = trait({
   energy: 1,
 });
 
-/** Generated player identity (fictional names). */
-export const Name = trait(() => ({ full: "", short: "" }));
+/** Generated player identity (fictional names). `spoken` is the bare surname
+ *  the commentator says — TTS stumbles on initials like "K. Morel". */
+export const Name = trait(() => ({ full: "", short: "", spoken: "" }));
 
 export const Position = trait(() => new THREE.Vector3());
 export const Velocity = trait(() => new THREE.Vector3());
@@ -79,6 +80,8 @@ export const BallState = trait(() => ({
   /** pass assist: the receiver a played pass homes onto while in flight */
   passTarget: null as Entity | null,
   passHomingT: 0,
+  /** human-commanded pass: do not let opponents become the accidental target */
+  passProtected: false,
 }));
 
 /** Match-flow singleton. */

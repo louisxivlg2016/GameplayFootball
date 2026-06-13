@@ -38,6 +38,7 @@ export function releaseBall(
   const bs = ball.get(BallState)!;
   bs.owner = null;
   bs.passTarget = null; // generic kicks don't home; executePass re-arms it
+  bs.passProtected = false;
   bs.lastKicker = kicker;
   bs.kickCooldown = 0.45;
   bs.recaptureBlocks = [{ player: kicker, t: 0.45 }];
@@ -108,12 +109,13 @@ export function tacticalRating(
 
 export interface PassChoice {
   mate: Entity;
-  /** lead target — through-ball point the mate is running onto */
+  /** kick target used to start the pass; homing finishes on the receiver's feet */
   tx: number;
   tz: number;
   high: boolean;
   odds: number;
   total: number;
+  protected?: boolean;
 }
 
 /**
@@ -178,10 +180,16 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
   const rb = ball?.get(BallRef)!.value;
   if (!ball || !rb) return;
   const bp = rb.translation();
-  // technique noise from technical_shortpass, scaled by difficulty for the AI
-  const diffErr = kicker.get(Team)!.id === AI_TEAM ? difficulty().aiErr : 1;
+  // Human passes should go to the selected teammate's feet. Keep technical
+  // scatter only for the AI, scaled by difficulty.
   const err =
-    (1 - kicker.get(Stats)!.shortpass) * 0.015 * diffErr * (Math.random() - 0.5) * 2;
+    kicker.get(Team)!.id === AI_TEAM
+      ? (1 - kicker.get(Stats)!.shortpass) *
+        0.015 *
+        difficulty().aiErr *
+        (Math.random() - 0.5) *
+        2
+      : 0;
   const cos = Math.cos(err);
   const sin = Math.sin(err);
   const rawX = choice.tx - bp.x;
@@ -198,9 +206,10 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
   const bsAfter = ball.get(BallState)!;
   bsAfter.passTarget = choice.mate;
   bsAfter.passHomingT = 4;
+  bsAfter.passProtected = choice.protected ?? false;
   radio("pass", {
-    player: kicker.get(Name)?.short ?? "",
-    target: choice.mate.get(Name)?.short ?? "",
+    player: kicker.get(Name)?.spoken ?? "",
+    target: choice.mate.get(Name)?.spoken ?? "",
   });
 }
 
@@ -220,7 +229,9 @@ export function pass(
   const teamId = kicker.get(Team)!.id;
   const kp = kicker.get(Position)!;
   let mate: Entity | null = null;
+  let fallbackMate: Entity | null = null;
   let bestScore = -Infinity;
+  let fallbackScore = -Infinity;
   for (const e of world.query(IsPlayer)) {
     if (e === kicker || e.get(Team)!.id !== teamId) continue;
     const p = e.get(Position)!;
@@ -229,26 +240,29 @@ export function pass(
     const d = Math.hypot(dx, dz);
     if (d < 1.5 || d > 48) continue;
     const align = (dx * dirX + dz * dirZ) / (d || 1);
-    if (align < 0.35) continue; // ~70° half-cone around the input
     // alignment dominates; among similar angles prefer the closer man
     const score = align * 2 - d * 0.015;
+    if (score > fallbackScore) {
+      fallbackScore = score;
+      fallbackMate = e;
+    }
+    if (align < 0.35) continue; // ~70° half-cone around the input
     if (score > bestScore) {
       bestScore = score;
       mate = e;
     }
   }
+  mate ??= fallbackMate;
   if (mate) {
     const mp = mate.get(Position)!;
-    const mv = mate.get(Velocity)!;
-    const d = Math.hypot(mp.x - kp.x, mp.z - kp.z);
-    const lead = clamp(0.1 + d * 0.02, 0.1, 0.5);
     executePass(world, kicker, {
       mate,
-      tx: mp.x + mv.x * lead,
-      tz: mp.z + mv.z * lead,
+      tx: mp.x,
+      tz: mp.z,
       high: lofted,
       odds: 1,
       total: 1,
+      protected: true,
     });
     return;
   }
@@ -307,7 +321,7 @@ export function shoot(world: World, kicker: Entity, aimZ: number): void {
     y: lift,
     z: (dz / dist) * speed,
   });
-  if (dist < 32) radio("shot", { player: kicker.get(Name)?.short ?? "" });
+  if (dist < 32) radio("shot", { player: kicker.get(Name)?.spoken ?? "" });
 }
 
 /** Panic clear for low-mindset players near goal (elizacontroller.cpp:924-939). */

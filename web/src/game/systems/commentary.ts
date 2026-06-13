@@ -31,8 +31,9 @@ export function commentarySystem(world: World, dt: number): void {
 
   gap -= dt;
   if (gap > 0) return;
-  // radioFlow pre-synthesizes while the mic is busy, chaining without dead air
-  gap = 1.6 + Math.random() * 1.8;
+  // radioFlow pre-synthesizes while the mic is busy, chaining without dead air.
+  // a short breath keeps the commentator nearly constant without overlapping
+  gap = 0.8 + Math.random() * 1.2;
 
   const ball = world.queryFirst(IsBall);
   const rb = ball?.get(BallRef)?.value;
@@ -40,16 +41,18 @@ export function commentarySystem(world: World, dt: number): void {
   if (!ball || !rb || !bs) return;
   const bp = rb.translation();
 
-  // occasionally step back for the score
+  // occasionally step back for the score (no ordinals — Piper mangles "2e")
   if (Math.random() < 0.12) {
-    const { score, clock } = useStore.getState();
+    const { score } = useStore.getState();
     const lead =
       score[0] === score[1]
-        ? `${score[0]} partout`
+        ? score[0] === 0
+          ? "Toujours zéro à zéro dans cette rencontre."
+          : `${score[0]} partout dans ce match.`
         : score[0] > score[1]
-          ? `${teamName(0)} devant ${score[0]} à ${score[1]}`
-          : `${teamName(1)} devant ${score[1]} à ${score[0]}`;
-    radioFlow(`${Math.max(1, Math.floor(clock / 60))}e minute, ${lead}.`);
+          ? `${teamName(0)} mènent ${score[0]} à ${score[1]}.`
+          : `${teamName(1)} mènent ${score[1]} à ${score[0]}.`;
+    radioFlow(lead);
     lastKind = "score";
     return;
   }
@@ -69,7 +72,7 @@ export function commentarySystem(world: World, dt: number): void {
     return;
   }
 
-  const name = owner.get(Name)?.short ?? "";
+  const name = owner.get(Name)?.spoken ?? "";
   const teamId = owner.get(Team)!.id;
   const team = teamName(teamId);
   if (!name) return;
@@ -100,7 +103,7 @@ export function commentarySystem(world: World, dt: number): void {
     const d = Math.hypot(op.x - p.x, op.z - p.z);
     if (d < oppDist) {
       oppDist = d;
-      oppName = e.get(Name)?.short ?? "";
+      oppName = e.get(Name)?.spoken ?? "";
     }
   }
 

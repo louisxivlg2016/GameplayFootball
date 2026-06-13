@@ -13,6 +13,7 @@ import {
   Velocity,
 } from "../traits";
 import { useStore } from "../store";
+import { PITCH } from "../levels";
 import { animateRig } from "./movement";
 import type { RigHolder } from "./movement";
 // circular with referee.ts is safe: bindings are only touched inside functions
@@ -50,6 +51,11 @@ export const cineState = {
   card: null as { red: boolean; t: number } | null,
   replay: null as { frames: Frame[]; i: number; after: "kickoff" | "resume" } | null,
   queued: null as Frame[] | null,
+  sendOffScene: null as {
+    player: Entity;
+    t: number;
+    exitZ: number;
+  } | null,
   /** red-carded player whose send-off waits until the replay has aired */
   sendOffAfter: null as Entity | null,
   gen: -1,
@@ -66,6 +72,7 @@ function resetCine(gen: number): void {
   cineState.card = null;
   cineState.replay = null;
   cineState.queued = null;
+  cineState.sendOffScene = null;
   cineState.sendOffAfter = null;
 }
 
@@ -155,6 +162,44 @@ function faceCamera(group: THREE.Group, dt: number): void {
 export function cinematicSystem(world: World, dt: number): void {
   const store = useStore.getState();
   if (store.gen !== cineState.gen) resetCine(store.gen);
+
+  // ---- red card send-off: show the player leaving the pitch ----
+  const sendOff = cineState.sendOffScene;
+  if (store.mode === "cardScene" && sendOff) {
+    if (!sendOff.player.isAlive()) {
+      cineState.sendOffScene = null;
+      store.setMode("play");
+      return;
+    }
+    sendOff.t += dt;
+    const p = sendOff.player.get(Position)!;
+    const v = sendOff.player.get(Velocity)!;
+    const tx = p.x;
+    const tz = sendOff.exitZ;
+    const dx = tx - p.x;
+    const dz = tz - p.z;
+    const dist = Math.hypot(dx, dz) || 1;
+    const step = Math.min(dist, 4.4 * dt);
+    p.x += (dx / dist) * step;
+    p.z += (dz / dist) * step;
+    v.set((dx / dist) * 4.4, 0, (dz / dist) * 4.4);
+    sendOff.player.set(Heading, { angle: Math.atan2(dx, dz) });
+
+    const h = sendOff.player.get(MeshRef);
+    if (h?.value) {
+      h.value.position.set(p.x, 0, p.z);
+      h.value.rotation.set(0, sendOff.player.get(Heading)!.angle, 0);
+      animateRig(h, 4.2, 0, dt);
+    }
+
+    if (dist < 0.2 || sendOff.t > 5.5) {
+      executeSendOff(world, sendOff.player);
+      cineState.sendOffScene = null;
+      store.setBanner("");
+      store.setMode("play");
+    }
+    return;
+  }
 
   // ---- goal celebration: the scorer applauds into the close-up ----
   const cel = cineState.celebration;
@@ -250,5 +295,15 @@ export function cinematicSystem(world: World, dt: number): void {
 function finishCardScene(world: World): void {
   const off = cineState.sendOffAfter;
   cineState.sendOffAfter = null;
-  if (off && off.isAlive()) executeSendOff(world, off);
+  if (off && off.isAlive()) {
+    const p = off.get(Position)!;
+    const exitZ = (p.z >= 0 ? 1 : -1) * (PITCH.halfWidth + 6);
+    cineState.sendOffScene = {
+      player: off,
+      t: 0,
+      exitZ,
+    };
+    useStore.getState().setBanner("RED CARD — OFF");
+    useStore.getState().setMode("cardScene");
+  }
 }

@@ -140,12 +140,15 @@ export function movementSystem(world: World, dt: number): void {
     if (h.value) {
       if (dive) {
         // procedural dive: roll horizontal toward the ball side, arms-first,
-        // a short airborne arc, then recover upright (no clip exists for it)
+        // launch UP into an airborne arc, then settle (no clip exists for it).
         const inK = Math.min(dive.t / 0.22, 1); // launch ramp
         const upK = dive.t < 0.55 ? 1 : Math.max(0, 1 - (dive.t - 0.55) / 0.55);
         const amt = inK * upK;
-        const air =
-          dive.t < 0.5 ? Math.sin(Math.min(dive.t / 0.5, 1) * Math.PI) * 0.45 : 0;
+        // the rig pivots around its feet, so a body rolled flat would sink half
+        // into the pitch — lift it by the roll amount so it always floats on the
+        // grass, then add a pronounced arc so he leaps UP like a real keeper
+        const leap = Math.sin(Math.min(dive.t / 0.7, 1) * Math.PI) * 0.5;
+        const air = amt * 0.5 + leap;
         h.value.position.set(p.x, air, p.z);
         h.value.rotation.set(0.3 * amt, heading, -dive.side * 1.4 * amt, "YZX");
       } else if (slide) {
