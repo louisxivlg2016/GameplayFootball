@@ -7,6 +7,7 @@
  * commentator is quiet. Toggle with R.
  */
 import { remove as removeVoice } from "@mintplex-labs/piper-tts-web";
+import goalButButUrl from "../assets/audio/goal-but-but.mp3";
 import { sharedAudioContext } from "./audio";
 
 let enabled = true;
@@ -65,6 +66,8 @@ let pendingText: string | null = null;
 // next play-by-play line, pre-synthesized while the current one plays so the
 // commentary chains without dead air
 let queuedFlow: { blob: Blob; at: number } | null = null;
+let goalClipBytes: Promise<ArrayBuffer | null> | null = null;
+let goalClipBuffer: Promise<AudioBuffer | null> | null = null;
 
 /** Excitement: louder + faster with pitch riding up = the commentator shouts. */
 interface VoiceFx {
@@ -142,6 +145,55 @@ function playQueuedFlow(): void {
   if (!fresh) return;
   const gen = takeMic(1);
   if (gen !== null) playBlob(blob, gen);
+}
+
+function fetchGoalClipBytes(): Promise<ArrayBuffer | null> {
+  goalClipBytes ??= fetch(goalButButUrl)
+    .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    .catch((err: unknown) => {
+      radioDebug.lastError = String(err);
+      return null;
+    });
+  return goalClipBytes;
+}
+
+async function loadGoalClip(ctx: AudioContext): Promise<AudioBuffer | null> {
+  goalClipBuffer ??= fetchGoalClipBytes().then((buf) => (buf ? ctx.decodeAudioData(buf.slice(0)) : null));
+  return goalClipBuffer;
+}
+
+async function playGoalClip(): Promise<void> {
+  const gen = takeMic(3);
+  if (gen === null) return;
+  try {
+    const ctx = ensureRadioCtx();
+    const pcm = await loadGoalClip(ctx);
+    if (!pcm || gen !== playerGen || !enabled) {
+      playerBusy = false;
+      return;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = pcm;
+    const gain = ctx.createGain();
+    gain.gain.value = 3.2;
+    src.connect(gain).connect(radioOut!);
+    currentSource = src;
+    src.onended = (): void => {
+      if (currentSource === src) {
+        playerBusy = false;
+        currentSource = null;
+        playQueuedFlow();
+      }
+    };
+    src.start();
+    radioDebug.lastSay = "goal-but-but sample";
+    radioDebug.lastSayAt = Date.now();
+    radioDebug.lastPlayAt = Date.now();
+    radioDebug.ctxState = ctx.state;
+  } catch (err) {
+    radioDebug.lastError = String(err);
+    if (gen === playerGen) playerBusy = false;
+  }
 }
 
 function takeMic(priority: number): number | null {
@@ -234,6 +286,7 @@ export function warmupRadioVoice(): void {
   warmupPiper();
 }
 if (typeof window !== "undefined") warmupRadioVoice();
+if (typeof window !== "undefined") void fetchGoalClipBytes();
 
 let predictFails = 0;
 // once the worker has produced even one clip it is proven alive — after that a
@@ -352,7 +405,6 @@ function say(text: string, priority = 1, fx?: VoiceFx): void {
 /** The commentator on his feet: louder, barely faster — same man, same voice.
  *  (Bigger rate shifts pitch the voice up enough to sound like a second person.) */
 const SHOUT: VoiceFx = { rate: 1.04, volume: 1.3 };
-const GOAL_SHOUT: VoiceFx = { rate: 1.06, volume: 3.2 };
 /** Rising excitement, not quite full scream. */
 const EXCITED: VoiceFx = { rate: 1.02, volume: 1.15 };
 
@@ -408,20 +460,7 @@ export function radio(
       );
       break;
     case "goal":
-      say(
-        (player
-          ? pick([
-              `BUT ! BUT ! BUT ! Quel but de ${player} pour ${team} !`,
-              `BUT ! BUT ! Au fond des filets ! ${player} ! Le stade explose !`,
-              `BUT ! BUT ! C'est dedans ! Énorme, ${player} ! Quel but !`,
-            ])
-          : pick([
-              `BUT ! BUT ! BUT ! Quel but pour ${team} !`,
-              `BUT ! BUT ! Au fond des filets ! ${team} font trembler le stade !`,
-            ])) + (score ? ` ${score[0]} à ${score[1]} !` : ""),
-        3,
-        GOAL_SHOUT,
-      );
+      void playGoalClip();
       break;
     case "foul":
       say(pick(["Faute sifflée !", "L'arbitre arrête le jeu, faute !", "Oh la semelle ! Coup franc."]), 2);
