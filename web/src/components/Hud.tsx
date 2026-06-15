@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
 import { TEAMS, useStore } from "../game/store";
+import { TouchControls } from "./TouchControls";
+
+const act = () => useStore.getState();
 
 export function Hud(): React.ReactNode {
   const mode = useStore((s) => s.mode);
@@ -53,6 +56,30 @@ export function Hud(): React.ReactNode {
           <Radar />
         </>
       )}
+      {mode === "play" && players === 1 && <TouchControls />}
+      {mode === "play" && (
+        <button
+          onClick={() => act().setMode("pause")}
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 16,
+            pointerEvents: "auto",
+            cursor: "pointer",
+            width: 44,
+            height: 44,
+            borderRadius: 8,
+            border: "2px solid rgba(255,255,255,0.3)",
+            background: "rgba(8,12,24,0.6)",
+            color: "#fff",
+            fontSize: 16,
+            fontWeight: 800,
+          }}
+          aria-label="Pause"
+        >
+          ❚❚
+        </button>
+      )}
       {mode === "goal" && <div className="banner">GOAL!</div>}
       {banner && mode !== "goal" && (
         <div className="banner" style={{ fontSize: 40, letterSpacing: 3 }}>
@@ -61,8 +88,9 @@ export function Hud(): React.ReactNode {
       )}
       {mode === "pause" && (
         <div className="menu">
-          <h1>PAUSED</h1>
-          <div className="prompt">Press Esc to resume</div>
+          <h1>PAUSE</h1>
+          <BigButton label="REPRENDRE" onClick={() => act().setMode("play")} />
+          <div className="prompt">ou appuie sur Échap</div>
         </div>
       )}
       {mode === "menu" && (
@@ -70,7 +98,8 @@ export function Hud(): React.ReactNode {
           <h1>
             GAMEPLAY <span>FOOTBALL</span>
           </h1>
-          <div className="prompt">Press Enter to kick off</div>
+          <BigButton label="▶ JOUER" onClick={() => act().newMatch()} />
+          <div className="prompt">ou appuie sur Entrée</div>
           <PlayersToggle />
           {players === 1 && <DifficultyPicker />}
           <ImportantToggle />
@@ -101,6 +130,38 @@ export function Hud(): React.ReactNode {
         </div>
       )}
     </div>
+  );
+}
+
+/** A large tappable menu button (works with touch and mouse). */
+function BigButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}): React.ReactNode {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        pointerEvents: "auto",
+        cursor: "pointer",
+        margin: "10px 0",
+        padding: "14px 38px",
+        fontSize: 22,
+        fontWeight: 800,
+        letterSpacing: 1,
+        color: "#0b1a0b",
+        background: "#ffe94a",
+        border: "none",
+        borderRadius: 10,
+        boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+        fontFamily: "inherit",
+      }}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -169,7 +230,17 @@ function ShootoutBoard(): React.ReactNode {
 function PlayersToggle(): React.ReactNode {
   const players = useStore((s) => s.players);
   return (
-    <div style={{ textAlign: "center", fontSize: 16, color: "#e8e8e8" }}>
+    <div
+      onClick={() => act().togglePlayers()}
+      style={{
+        textAlign: "center",
+        fontSize: 16,
+        color: "#e8e8e8",
+        pointerEvents: "auto",
+        cursor: "pointer",
+        padding: "4px 0",
+      }}
+    >
       <span
         style={{
           background: "rgba(255,255,255,0.12)",
@@ -217,7 +288,17 @@ const DIFFICULTY_COLORS = ["#7ddb5a", "#ffe94a", "#ff6b4a"];
 function DifficultyPicker(): React.ReactNode {
   const difficulty = useStore((s) => s.difficulty);
   return (
-    <div style={{ textAlign: "center", fontSize: 16, color: "#e8e8e8" }}>
+    <div
+      onClick={() => act().cycleDifficulty()}
+      style={{
+        textAlign: "center",
+        fontSize: 16,
+        color: "#e8e8e8",
+        pointerEvents: "auto",
+        cursor: "pointer",
+        padding: "4px 0",
+      }}
+    >
       <span
         style={{
           background: "rgba(255,255,255,0.12)",
@@ -251,10 +332,14 @@ function ImportantToggle(): React.ReactNode {
   const important = useStore((s) => s.important);
   return (
     <div
+      onClick={() => act().toggleImportant()}
       style={{
         textAlign: "center",
         color: important ? "#ffe94a" : "#9fb89f",
         fontSize: 16,
+        pointerEvents: "auto",
+        cursor: "pointer",
+        padding: "4px 0",
       }}
     >
       <span

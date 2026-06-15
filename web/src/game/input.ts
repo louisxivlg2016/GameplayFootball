@@ -71,6 +71,8 @@ export interface Pad {
   pass: string;
   lob: string;
   tackle: string;
+  /** player 1 only: the on-screen joystick feeds movement to this pad */
+  solo?: boolean;
 }
 
 /** Solo: both halves of the keyboard drive player 1. */
@@ -84,7 +86,20 @@ const SOLO_PAD: Pad = {
   pass: "KeyX",
   lob: "KeyC",
   tackle: "KeyE",
+  solo: true,
 };
+
+// ---- on-screen (touch/mouse) controls ----
+// The virtual joystick writes an analog move vector here; action buttons and the
+// sprint pad reuse the keyboard `held`/`pressed` sets via the helpers below.
+export const touchMove = { x: 0, z: 0, active: false };
+
+/** Hold a virtual key down (sprint button). */
+export const holdKey = (code: string): void => void held.add(code);
+/** Release a virtual key (sprint button up / pointer cancel). */
+export const releaseKey = (code: string): void => void held.delete(code);
+/** Fire a one-shot virtual key press (action buttons). */
+export const tapKey = (code: string): void => void pressed.add(code);
 
 export const PADS: [Pad, Pad] = [
   {
@@ -119,6 +134,7 @@ const anyHeld = (codes: string[]): boolean => codes.some((c) => held.has(c));
 
 export function hasMoveInputFor(slot: number, players: number): boolean {
   const pad = padFor(slot, players);
+  if (pad.solo && touchMove.active) return true; // joystick steering player 1
   return (
     anyHeld(pad.up) ||
     anyHeld(pad.down) ||
@@ -129,6 +145,8 @@ export function hasMoveInputFor(slot: number, players: number): boolean {
 
 /** World-space move direction (+x = toward the right/BLU goal, +z = toward camera). */
 export function moveDirFor(pad: Pad): { x: number; z: number } {
+  // the on-screen joystick (player 1 only) overrides the keyboard when engaged
+  if (pad.solo && touchMove.active) return { x: touchMove.x, z: touchMove.z };
   let x = 0;
   let z = 0;
   if (anyHeld(pad.left)) x -= 1;
