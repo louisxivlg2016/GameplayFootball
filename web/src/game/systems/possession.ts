@@ -119,13 +119,17 @@ export function possessionSystem(world: World, dt: number): void {
       continue;
     }
     let d = Math.hypot(p.x - bp.x, p.z - bp.z);
-    if (bs.owner && e.get(Team)!.id !== ownerTeam) {
+    if (bs.owner && !isKeeper && e.get(Team)!.id !== ownerTeam) {
       const op = bs.owner.get(Position)!;
       const oh = bs.owner.get(Heading)!.angle;
       const od = Math.hypot(p.x - op.x, p.z - op.z) || 1;
-      const behind =
+      // facing factor: +1 dead in front of the carrier, 0 level (his side),
+      // -1 directly behind. Only a side-on or front challenge can win the ball;
+      // anything from behind the carrier's shoulders cannot take it (it's in
+      // front of him). A keeper smothering is exempt.
+      const facing =
         ((p.x - op.x) * Math.sin(oh) + (p.z - op.z) * Math.cos(oh)) / od;
-      if (behind < -0.25) continue;
+      if (facing < -0.05) continue;
     }
     // a 26 m/s strike covers over a meter per frame: test the keeper against
     // the ball's swept path this frame so shots can't tunnel through him
