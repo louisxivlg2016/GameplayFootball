@@ -741,6 +741,20 @@ function keeper(
   if (opp && opp.get(Team)!.id !== teamId) {
     const op = opp.get(Position)!;
     const oppGoalDist = Math.hypot(gx - op.x, op.z);
+    // point-blank: an opponent has the ball right on top of the goal. The
+    // angle-narrowing below would drift him toward a post while the striker
+    // is dead centre — instead charge straight at the ball to smother it.
+    if (oppGoalDist < 9) {
+      // sprint onto the ball, a touch goal-side, to block/smother it
+      seek(
+        e,
+        bp.x + Math.sign(gx - bp.x) * 0.3,
+        clamp(bp.z, -3.5, 3.5),
+        dt,
+        SPEEDS.sprint,
+      );
+      return;
+    }
     if (oppGoalDist < 20) {
       let mateCovers = false;
       for (const m of world.query(IsPlayer)) {
