@@ -10,6 +10,8 @@ import {
 import { PITCH } from "../levels";
 import { refState } from "./referee";
 
+const allFinite = (...ns: number[]): boolean => ns.every(Number.isFinite);
+
 /**
  * Free-ball aerodynamics ported from ball.cpp: quadratic air drag (0.015·v²),
  * rolling friction (0.04·v² + 1.6 linear), net absorption (0.95 per 10ms).
@@ -24,6 +26,16 @@ export function ballSystem(world: World, dt: number): void {
   const bp = rb.translation();
   const v = rb.linvel();
 
+  // Rapier's step traps with a hard "unreachable" WASM crash if a body ever
+  // holds a non-finite value. Scrub the ball before anything reads or feeds it.
+  if (!allFinite(bp.x, bp.y, bp.z, v.x, v.y, v.z)) {
+    rb.setTranslation({ x: 0, y: PITCH.ballRadius, z: 0 }, true);
+    rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    bs.owner = null;
+    return;
+  }
+
   // continuous carry (the phase-1 model): keep the ball just in front of the
   // owner's feet every frame. Contests still happen via the steal radius and
   // slide-tackle pokes, which clear the owner before this branch runs.
@@ -31,19 +43,23 @@ export function ballSystem(world: World, dt: number): void {
     const p = bs.owner.get(Position)!;
     const ang = bs.owner.get(Heading)!.angle;
     const ov = bs.owner.get(Velocity)!;
-    const speed = Math.hypot(ov.x, ov.z);
-    const tx = p.x + Math.sin(ang) * 0.55;
-    const tz = p.z + Math.cos(ang) * 0.55;
-    const maxCarry = speed + 5;
-    let cx = (tx - bp.x) * 9;
-    let cz = (tz - bp.z) * 9;
-    const cm = Math.hypot(cx, cz);
-    if (cm > maxCarry) {
-      cx *= maxCarry / cm;
-      cz *= maxCarry / cm;
+    if (!allFinite(p.x, p.z, ang)) {
+      bs.owner = null; // a corrupted carrier must never poison the ball
+    } else {
+      const speed = Math.hypot(ov.x, ov.z);
+      const tx = p.x + Math.sin(ang) * 0.55;
+      const tz = p.z + Math.cos(ang) * 0.55;
+      const maxCarry = speed + 5;
+      let cx = (tx - bp.x) * 9;
+      let cz = (tz - bp.z) * 9;
+      const cm = Math.hypot(cx, cz);
+      if (cm > maxCarry) {
+        cx *= maxCarry / cm;
+        cz *= maxCarry / cm;
+      }
+      rb.setLinvel({ x: cx, y: bp.y > 0.25 ? v.y : Math.min(v.y, 0), z: cz }, true);
+      return; // never let the free-ball drag below overwrite the carry
     }
-    rb.setLinvel({ x: cx, y: bp.y > 0.25 ? v.y : Math.min(v.y, 0), z: cz }, true);
-    return; // never let the free-ball drag below overwrite the carry
   }
 
   // pass assist: a played pass homes onto its receiver like a guided ball.
@@ -114,5 +130,8 @@ export function ballSystem(world: World, dt: number): void {
     vy *= f;
     vz *= f;
   }
-  rb.setLinvel({ x: vx, y: vy, z: vz }, true);
+  // belt and braces: never hand Rapier a non-finite or runaway value
+  const cap = (n: number): number =>
+    Number.isFinite(n) ? Math.max(-80, Math.min(80, n)) : 0;
+  rb.setLinvel({ x: cap(vx), y: cap(vy), z: cap(vz) }, true);
 }

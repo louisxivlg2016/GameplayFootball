@@ -44,6 +44,12 @@ export function movementSystem(world: World, dt: number): void {
     const p = e.get(Position)!;
     const v = e.get(Velocity)!;
 
+    // never let a corrupted velocity/position survive a frame: a NaN here flows
+    // into the ball carry and crashes Rapier's step. Scrub it back to sane.
+    if (!Number.isFinite(v.x) || !Number.isFinite(v.y) || !Number.isFinite(v.z))
+      v.set(0, 0, 0);
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) p.set(0, 0, 0);
+
     // the ball carrier never back-pedals: drop any velocity opposite his
     // facing so a reversal pivots through a stop instead of sliding backwards
     // with the ball glued to his feet. The heading below still turns from the
