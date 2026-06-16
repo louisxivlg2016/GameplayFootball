@@ -82,6 +82,8 @@ export const refState = {
   flaggedTeam: -1,
   bannerT: 0,
   ended: false,
+  /** last frame's free-ball x, to detect a genuine line crossing */
+  prevBallX: 0,
   /** game-clock time of the next radio score reminder */
   nextChatter: 500,
   shootout: null as {
@@ -559,9 +561,17 @@ export function refereeSystem(world: World, dt: number): void {
     if (adv.until <= 0) refState.advantage = null; // advantage played out
   }
 
-  // ---- goals ----
+  // ---- goals & out of play ----
+  // only a FREE ball that actually CROSSES the line counts. A ball glued to a
+  // carrier's feet (the dribble model keeps it ~0.55m ahead) must never score,
+  // and neither must a ball released while already sitting past the line — e.g.
+  // a keeper carrying it into his own net, or distributing from in there.
   const R = PITCH.ballRadius;
-  const crossedGoalLine = Math.abs(bp.x) > PITCH.halfLength - R * 0.35;
+  const lineX = PITCH.halfLength - R * 0.35;
+  const ballFree = b.bs.owner === null;
+  const wasInside = Math.abs(refState.prevBallX) <= lineX;
+  refState.prevBallX = bp.x; // track every frame, carried or free
+  const crossedGoalLine = ballFree && wasInside && Math.abs(bp.x) > lineX;
   if (crossedGoalLine) {
     const side = Math.sign(bp.x);
     if (Math.abs(bp.z) < PITCH.goalHalfWidth && bp.y < PITCH.goalHeight) {
@@ -603,7 +613,7 @@ export function refereeSystem(world: World, dt: number): void {
       return;
     }
   }
-  if (Math.abs(bp.z) > PITCH.halfWidth + R) {
+  if (ballFree && Math.abs(bp.z) > PITCH.halfWidth + R) {
     const lastTouch = match.get(Match)!.lastTouchTeam;
     startSetPiece(
       world,
