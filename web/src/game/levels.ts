@@ -176,6 +176,29 @@ export function placeKickoff(world: World, kickingTeam: number): void {
   if (kicker) {
     kicker.get(Position)!.set(-attackSign(kickingTeam) * 1.0, 0, 0);
     kicker.set(Heading, { angle: Math.atan2(attackSign(kickingTeam), 0) });
+
+    // a partner stands at the centre circle, just behind and to the side in the
+    // kicking team's own half — like a real kickoff, so the taker always has a
+    // simple tap-back option (you can also lay it back to the keeper).
+    const partner =
+      players.find(
+        (e) =>
+          e !== kicker &&
+          e.get(Team)!.id === kickingTeam &&
+          e.get(PlayerInfo)!.role === Role.ATT,
+      ) ??
+      players.find(
+        (e) =>
+          e !== kicker &&
+          e.get(Team)!.id === kickingTeam &&
+          e.get(PlayerInfo)!.role === Role.MID,
+      );
+    if (partner) {
+      const s = attackSign(kickingTeam);
+      partner.get(Position)!.set(-s * 2.5, 0, 3.5);
+      partner.get(Velocity)!.set(0, 0, 0);
+      partner.set(Heading, { angle: Math.atan2(s, 0) });
+    }
   }
 
   const referee = world.queryFirst(IsReferee);

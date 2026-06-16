@@ -238,7 +238,7 @@ export function pass(
     const dx = p.x - kp.x;
     const dz = p.z - kp.z;
     const d = Math.hypot(dx, dz);
-    if (d < 1.5 || d > 48) continue;
+    if (d < 1.5 || d > 62) continue; // 62m reaches a back-pass to the keeper
     const align = (dx * dirX + dz * dirZ) / (d || 1);
     // alignment dominates; among similar angles prefer the closer man
     const score = align * 2 - d * 0.015;
