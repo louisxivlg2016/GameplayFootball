@@ -142,8 +142,8 @@ export function possessionSystem(world: World, dt: number): void {
     const radius =
       (bs.owner ? STEAL_RADIUS : CAPTURE_RADIUS) *
       (0.85 + 0.3 * e.get(Stats)!.ballcontrol) *
-      (isKeeper ? 1.45 : 1) *
-      (e.has(KeeperDive) ? 1.45 : 1) *
+      (isKeeper ? 1.7 : 1) * // a keeper covers far more ground than an outfielder
+      (e.has(KeeperDive) ? 1.9 : 1) * // arms fully outstretched mid-dive
       (intended ? 0.85 : 1); // the intended receiver traps it at his feet
     if (d < radius && d < bestD) {
       bestD = d;
@@ -171,13 +171,16 @@ export function possessionSystem(world: World, dt: number): void {
     bs.lastKicker.isAlive() &&
     bs.lastKicker.get(Team)!.id !== best.get(Team)!.id
   ) {
-    const pace = clamp((ballSpeed - TRAP_SPEED) / 12, 0, 1);
-    const reach = CAPTURE_RADIUS * (0.85 + 0.3 * stats.ballcontrol);
+    // a much sharper keeper: only a hard shot he has to fully stretch for can
+    // beat him, and even then he often gets a hand to it. Pace ramps slowly,
+    // stretch matters less, and the ceiling is far below a sure thing.
+    const pace = clamp((ballSpeed - TRAP_SPEED) / 17, 0, 1);
+    const reach = CAPTURE_RADIUS * (0.85 + 0.3 * stats.ballcontrol) * 1.7;
     const stretch = Math.min(bestD / reach, 1);
-    let hardness = pace * (0.08 + 0.72 * stretch);
-    if (best.get(Team)!.id === AI_TEAM) hardness *= 0.75 / difficulty().keeperSave;
-    else hardness *= 0.25;
-    if (Math.random() < clamp(hardness, 0, 0.88)) {
+    let hardness = pace * (0.03 + 0.4 * stretch);
+    if (best.get(Team)!.id === AI_TEAM) hardness *= 0.7 / difficulty().keeperSave;
+    else hardness *= 0.18;
+    if (Math.random() < clamp(hardness, 0, 0.6)) {
       // beaten: the ball flies past — but he still hurls himself at it
       // (a despairing reflex dive) instead of watching it go by
       if (!best.has(KeeperDive)) {

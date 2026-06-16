@@ -689,44 +689,46 @@ function keeper(
     return;
   }
 
-  // goal-bound ball: sprint to the predicted crossing point (the low gate
-  // keeps him active even on soft rollers heading for his net)
-  if (!bs.owner && bv.x * -s > 3) {
+  // goal-bound ball: sprint to the predicted crossing point and dive. Reacts
+  // to even slow rollers, reads the shot early, and commits a full stretching
+  // dive that reaches into the corners.
+  if (!bs.owner && bv.x * -s > 2) {
     const tCross = (gx - bp.x) / bv.x;
-    if (tCross > 0 && tCross < 1.3) {
+    if (tCross > 0 && tCross < 1.8) {
       const zAtGoal = bp.z + bv.z * tCross;
-      if (Math.abs(zAtGoal) < 4.4) {
-        // one imperfect read per shot: the dive commits to a guessed crossing
-        // point (worse on fast strikes), so a clean hit can beat him outright
+      if (Math.abs(zAtGoal) < 4.6) {
+        // one read per shot, now much sharper — a good keeper barely misjudges
+        // the crossing point; only the very fastest strikes carry any spread
         let read = state.reads.get(e);
         if (!read || state.time > read.until) {
           const shotSpeed = Math.hypot(bv.x, bv.z);
           const spread =
-            (0.16 + shotSpeed * 0.015) * (1.1 - 0.5 * e.get(Stats)!.ballcontrol);
+            (0.06 + shotSpeed * 0.008) * (1.05 - 0.55 * e.get(Stats)!.ballcontrol);
           read = {
             until: state.time + tCross + 0.2,
             off: (Math.random() - 0.5) * 2 * spread,
           };
           state.reads.set(e, read);
         }
-        const tz = clamp(zAtGoal + read.off, -3.5, 3.5);
+        const tz = clamp(zAtGoal + read.off, -3.6, 3.6);
         const kp = e.get(Position)!;
         const lateral = tz - kp.z;
-        // anything past half a body width beats his feet: launch the dive at
-        // the read point — body airborne, arms first, like a real keeper
+        // anything past a boot's reach launches the dive — airborne, arms first,
+        // and fast enough to fling himself to the top/bottom corners
         if (
-          tCross < 0.6 &&
-          Math.abs(lateral) > 0.45 &&
-          Math.hypot(bv.x, bv.z) > 7
+          tCross < 0.8 &&
+          Math.abs(lateral) > 0.35 &&
+          Math.hypot(bv.x, bv.z) > 6
         ) {
           e.add(KeeperDive);
           e.set(KeeperDive, { t: 0, side: Math.sign(lateral) || 1 });
           const v = e.get(Velocity)!;
-          const tFly = Math.max(tCross, 0.18);
-          v.z = clamp(lateral / tFly, -10.5, 10.5);
-          v.x = clamp((gx + s * 0.4 - kp.x) / tFly, -6, 6);
+          const tFly = Math.max(tCross, 0.16);
+          v.z = clamp(lateral / tFly, -16, 16);
+          v.x = clamp((gx + s * 0.4 - kp.x) / tFly, -9, 9);
           return;
         }
+        // not diving yet: shuffle onto the predicted line, staying set
         seek(e, gx + s * 0.4, tz, dt);
         return;
       }

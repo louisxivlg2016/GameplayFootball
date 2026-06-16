@@ -127,8 +127,11 @@ export function loadMatch(world: World): void {
         Team({ id: team }),
         PlayerInfo({ index: i, role, aiTimer: Math.random() * 0.3, yellows: 0 }),
         Stats({
-          velocity: r(1) + (role === Role.ATT ? 0.1 : 0),
-          ballcontrol: r(2) + (role === Role.ATT ? 0.1 : 0),
+          // keepers get strong reflexes: high ballcontrol drives save reach,
+          // velocity gets them set / off the line quickly
+          velocity: r(1) + (role === Role.ATT ? 0.1 : role === Role.GK ? 0.2 : 0),
+          ballcontrol:
+            role === Role.GK ? 0.85 + statRand(seed * 7 + 2) * 0.15 : r(2) + (role === Role.ATT ? 0.1 : 0),
           shortpass: r(3) + (role === Role.MID ? 0.15 : 0),
           shot: r(4) + (role === Role.ATT ? 0.15 : 0),
           tackle: r(5) + (role === Role.DEF ? 0.15 : 0),
