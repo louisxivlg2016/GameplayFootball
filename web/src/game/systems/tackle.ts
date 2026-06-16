@@ -100,13 +100,15 @@ export function tackleSystem(world: World, dt: number): void {
           ((p.x - cp.x) * Math.sin(ch) + (p.z - cp.z) * Math.cos(ch)) /
           (d || 1);
         if (behind < -0.35) {
-          // Never steal through the carrier's back. From behind this can only
-          // be a foul or a failed stab; the carrier keeps the ball otherwise.
-          if (Math.random() < chance * 0.18) {
-            cooldowns.set(e, 2.5);
+          // Never steal through the carrier's back. From behind he mostly just
+          // contains; only occasionally does he stick a leg in and foul. A
+          // cooldown stops him hacking away every tick while sitting in your back.
+          if (Math.random() < chance * 0.07) {
+            cooldowns.set(e, 3);
             refereeFoul(world, e, carrier, 1.45 + Math.random() * 0.25);
             break;
           }
+          cooldowns.set(e, 0.6); // brief pause before he can challenge again
           continue;
         }
         if (Math.random() >= chance) continue;
@@ -168,6 +170,13 @@ export function tackleSystem(world: World, dt: number): void {
           continue;
         const p = e.get(Position)!;
         const d = Math.hypot(cp.x - p.x, cp.z - p.z);
+        // never slide from directly behind the carrier — the ball is in front
+        // of him, so a back-side lunge can only be a foul. Defenders chasing
+        // from behind contain and jockey instead of hacking away.
+        const ch = bs.owner.get(Heading)!.angle;
+        const ahead =
+          ((p.x - cp.x) * Math.sin(ch) + (p.z - cp.z) * Math.cos(ch)) / (d || 1);
+        if (ahead < -0.25) continue;
         // slides are a rare, committed choice — pokes and contains carry
         // almost all of the defending
         const chance =
