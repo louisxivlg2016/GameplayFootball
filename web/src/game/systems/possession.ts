@@ -180,7 +180,9 @@ export function possessionSystem(world: World, dt: number): void {
     let hardness = pace * (0.03 + 0.4 * stretch);
     if (best.get(Team)!.id === AI_TEAM) hardness *= 0.7 / difficulty().keeperSave;
     else hardness *= 0.18;
-    if (Math.random() < clamp(hardness, 0, 0.6)) {
+    hardness = clamp(hardness, 0, 0.6);
+    const roll = Math.random();
+    if (roll < hardness) {
       // beaten: the ball flies past — but he still hurls himself at it
       // (a despairing reflex dive) instead of watching it go by
       if (!best.has(KeeperDive)) {
@@ -189,6 +191,30 @@ export function possessionSystem(world: World, dt: number): void {
         best.set(KeeperDive, { t: 0, side: Math.sign(bp.z - kp.z) || 1 });
       }
       bs.recaptureBlocks.push({ player: best, t: 0.4 });
+      return;
+    }
+    // a hard shot he reaches isn't always HELD: often he can only parry it
+    // away, spilling a rebound rather than catching cleanly. Tame shots are
+    // still gathered; only pace + stretch produce spills.
+    const parry = clamp(pace * (0.2 + 0.55 * stretch), 0, 0.6);
+    if (roll < hardness + parry) {
+      const kp = best.get(Position)!;
+      if (!best.has(KeeperDive)) {
+        best.add(KeeperDive);
+        best.set(KeeperDive, { t: 0, side: Math.sign(bp.z - kp.z) || 1 });
+      }
+      // shove it clear of the goal: out toward the field, to a flank, with lift
+      rb.setLinvel(
+        {
+          x: -Math.sign(kp.x || 1) * (4 + Math.random() * 5),
+          y: 1 + Math.random() * 2,
+          z: (bp.z >= 0 ? 1 : -1) * (3 + Math.random() * 5),
+        },
+        true,
+      );
+      bs.owner = null; // loose ball — a rebound for whoever follows up
+      bs.recaptureBlocks.push({ player: best, t: 0.5 });
+      radio("save");
       return;
     }
   }
