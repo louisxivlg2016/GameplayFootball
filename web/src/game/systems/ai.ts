@@ -467,11 +467,15 @@ function defendPosition(
       const gd = Math.hypot(ownGoalX - fx, fz) || 1;
       const gdx = (ownGoalX - fx) / gd; // toward our goal = goal-side of him
       const gdz = -fz / gd;
-      // vary the duel: dive onto his boots for a spell, then back off and jockey
-      const spell = Math.sin(state.time * 0.7 + e.get(PlayerInfo)!.index * 2.6);
-      const off = spell > 0.2 ? 1.7 : 0.9;
-      // don't sit dead behind him — slide to one shoulder (alternating) so he
-      // is shown to a side, approaching across rather than tailing the wake
+      // don't hound him relentlessly: only press tight when he's actually
+      // dangerous (near our goal) or during a pressing spell. The rest of the
+      // time, CONTAIN — sit a few metres off, goal-side, and shepherd him.
+      const carrierGoalDist = Math.hypot(ownGoalX - cp.x, cp.z);
+      const danger = clamp(1 - carrierGoalDist / 42, 0, 1);
+      const spell = Math.sin(state.time * 0.5 + e.get(PlayerInfo)!.index * 2.6);
+      const pressTight = danger > 0.55 || spell > 0.4;
+      const off = pressTight ? 0.9 : 3.6; // engage vs stand off and contain
+      // approach across a shoulder (alternating) rather than tailing his wake
       const side = Math.sin(state.time * 0.35 + e.get(PlayerInfo)!.index * 1.9);
       const lateral = side * 1.4;
       seek(e, fx + gdx * off - gdz * lateral, fz + gdz * off + gdx * lateral, dt);
