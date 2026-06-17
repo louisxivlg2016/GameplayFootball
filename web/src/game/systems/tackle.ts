@@ -39,11 +39,12 @@ const cooldowns = new Map<Entity, number>();
 let aiTimer = 0;
 
 /**
- * How far into the carrier's FRONT arc a challenger must be to win the ball.
- * Level with or behind his shoulders is a shove in the back, never a clean
- * take — from there a defender may only contain or foul, never dispossess.
+ * AI defenders challenge far less eagerly than the human can. The human still
+ * pokes and slides at full rate (it's a fair, two-way move), but the bots only
+ * go for the ball a fraction as often — so the carrier isn't constantly harried
+ * and dispossessed by the opposition.
  */
-const FRONT_TAKE = 0.15;
+const AI_TACKLE_RARITY = 0.4;
 
 export function tackleSystem(world: World, dt: number): void {
   const store = useStore.getState();
@@ -97,7 +98,7 @@ export function tackleSystem(world: World, dt: number): void {
         if (d > 1.05) continue;
         const chance =
           (0.09 + e.get(Stats)!.tackle * 0.16) *
-          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance : 1);
+          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance * AI_TACKLE_RARITY : 1);
         // the ball sits in FRONT of the carrier: a man straight behind him
         // can't play it without going through the player. Shoving through
         // the back is never a steal — it's a whistled foul (referee.cpp
@@ -106,11 +107,11 @@ export function tackleSystem(world: World, dt: number): void {
         const behind =
           ((p.x - cp.x) * Math.sin(ch) + (p.z - cp.z) * Math.cos(ch)) /
           (d || 1);
-        if (behind < FRONT_TAKE) {
-          // The ball sits in front of the carrier: a challenge from level with
-          // or behind his shoulders can NEVER take it — that's a push in the
-          // back. He just contains; only rarely does he stick a leg in and
-          // foul. A cooldown stops him hacking away every tick at your back.
+        if (behind < -0.05) {
+          // The ball is in front of the carrier: a challenge from behind his
+          // shoulders can NEVER take it. He mostly just contains; only rarely
+          // does he stick a leg in and foul. A cooldown stops him hacking away
+          // every tick while sitting in your back.
           if (Math.random() < chance * 0.07) {
             cooldowns.set(e, 3);
             refereeFoul(world, e, carrier, 1.45 + Math.random() * 0.25);
@@ -184,12 +185,12 @@ export function tackleSystem(world: World, dt: number): void {
         const ch = bs.owner.get(Heading)!.angle;
         const ahead =
           ((p.x - cp.x) * Math.sin(ch) + (p.z - cp.z) * Math.cos(ch)) / (d || 1);
-        if (ahead < FRONT_TAKE) continue; // only slide from the front or front-side
+        if (ahead < -0.05) continue; // only slide from beside or in front
         // slides are a rare, committed choice — pokes and contains carry
         // almost all of the defending
         const chance =
           (0.05 + e.get(Stats)!.tackle * 0.06) *
-          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance : 1);
+          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance * AI_TACKLE_RARITY : 1);
         if (d > 1.2 && d < 2.6 && Math.random() < chance) {
           startSlide(e);
           break; // one new slide per tick
@@ -219,9 +220,8 @@ export function tackleSystem(world: World, dt: number): void {
       const od = Math.hypot(p.x - op.x, p.z - op.z) || 1;
       const behindOwner =
         ((p.x - op.x) * Math.sin(oh) + (p.z - op.z) * Math.cos(oh)) / od;
-      if (behindOwner < FRONT_TAKE && dBall < 0.8 && bp.y < 0.8) {
-        // A slide that reaches the ball from level with or behind the carrier
-        // cannot poke it loose — it's a trip from behind, so it's a foul.
+      if (behindOwner < -0.05 && dBall < 0.8 && bp.y < 0.8) {
+        // A slide through the carrier's back cannot poke the ball loose.
         slides.delete(e);
         cooldowns.set(e, 3.5);
         refereeFoul(world, e, ownerBeforePoke, 1.45 + Math.random() * 0.3);
