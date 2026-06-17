@@ -736,16 +736,21 @@ function keeper(
     if (tCross > 0 && tCross < 1.8) {
       const zAtGoal = bp.z + bv.z * tCross;
       if (Math.abs(zAtGoal) < 4.6) {
-        // one read per shot, now much sharper — a good keeper barely misjudges
-        // the crossing point; only the very fastest strikes carry any spread
+        // one read per shot — and he is NOT a mind-reader. A placed strike
+        // misjudges the corner; a hard one can wrong-foot him entirely, sending
+        // him the wrong way. The faster the shot, the easier he is to beat.
         let read = state.reads.get(e);
         if (!read || state.time > read.until) {
           const shotSpeed = Math.hypot(bv.x, bv.z);
           const spread =
-            (0.06 + shotSpeed * 0.008) * (1.05 - 0.55 * e.get(Stats)!.ballcontrol);
+            (0.18 + shotSpeed * 0.03) * (1.1 - 0.5 * e.get(Stats)!.ballcontrol);
+          const wrongChance = clamp((shotSpeed - 14) * 0.025, 0, 0.28);
           read = {
             until: state.time + tCross + 0.2,
-            off: (Math.random() - 0.5) * 2 * spread,
+            off:
+              Math.random() < wrongChance
+                ? -zAtGoal * (1.2 + Math.random()) // committed the wrong way
+                : (Math.random() - 0.5) * 2 * spread,
           };
           state.reads.set(e, read);
         }

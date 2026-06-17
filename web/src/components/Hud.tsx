@@ -114,6 +114,9 @@ export function Hud(): React.ReactNode {
               <b>Space</b> shoot&ensp;<b>X</b> pass&ensp;<b>C</b> lofted pass&ensp;
               <b>V</b> header&ensp;<b>E</b> slide tackle
               <br />
+              <b>Gardien</b> : tu le prends sur un tir/penalty —{" "}
+              <b>Espace/E</b> plonge du côté du joystick
+              <br />
               <b>R</b> radio commentary&ensp;<b>Esc</b> pause
             </div>
           ) : (

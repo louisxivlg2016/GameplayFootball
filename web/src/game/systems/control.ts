@@ -6,6 +6,7 @@ import {
   Heading,
   IsBall,
   IsPlayer,
+  KeeperDive,
   Match,
   PlayerInfo,
   Position,
@@ -16,7 +17,7 @@ import {
   Team,
   Velocity,
 } from "../traits";
-import { PITCH, SPEEDS, setSelected } from "../levels";
+import { PITCH, SPEEDS, attackSign, setSelected } from "../levels";
 import { useStore } from "../store";
 import { header, pass, shoot } from "./kicks";
 import { refState } from "./referee";
@@ -47,6 +48,7 @@ function controlSlot(
   const bs = ball.get(BallState)!;
   const rb = ball.get(BallRef)!.value;
   const bp = rb ? rb.translation() : { x: 0, y: 0, z: 0 };
+  const bv = rb ? rb.linvel() : { x: 0, y: 0, z: 0 };
 
   const team = slot; // slot 0 steers RED (team 0), slot 1 steers BLU (team 1)
   const SelTrait = slot === 1 ? Selected2 : Selected;
@@ -55,11 +57,39 @@ function controlSlot(
   let switchCooldown = Math.max(0, switchState.cd[slot]! - dt);
   let sel = world.queryFirst(SelTrait) ?? null;
 
+  // grab the gloves: when a shot is bearing down on your own goal, or the
+  // opponent is taking a penalty against you, control snaps to YOUR keeper so
+  // you choose where to dive (the AI no longer saves everything for you).
+  const ownGoalX = -attackSign(team) * PITCH.halfLength;
+  const tCross = bv.x !== 0 ? (ownGoalX - bp.x) / bv.x : -1;
+  const zAtGoal = bp.z + bv.z * tCross;
+  const incomingShot =
+    !bs.owner &&
+    Math.hypot(bv.x, bv.z) > 9 && // a real strike, not a slow roll / pass-back
+    tCross > 0 &&
+    tCross < 1.4 &&
+    Math.abs(zAtGoal) < 6.5;
+  const cer = refState.ceremony;
+  const defendingPenalty = cer?.type === "penalty" && cer.team !== team;
+
   // Mirrors team.cpp:360-394 — control snaps to the teammate in possession,
   // otherwise to the closest outfield teammate to the ball (with hysteresis).
   const humanOwner =
     bs.owner && bs.owner.get(Team)!.id === team ? bs.owner : null;
-  if (humanOwner && humanOwner !== sel) {
+  if (incomingShot || defendingPenalty) {
+    let gk: Entity | null = null;
+    for (const e of world.query(IsPlayer)) {
+      if (e.get(Team)!.id === team && e.get(PlayerInfo)!.role === Role.GK) {
+        gk = e;
+        break;
+      }
+    }
+    if (gk) {
+      if (gk !== sel) setSelected(world, gk, slot);
+      sel = gk;
+      switchCooldown = 0.3;
+    }
+  } else if (humanOwner && humanOwner !== sel) {
     setSelected(world, humanOwner, slot);
     sel = humanOwner;
     switchCooldown = 0.4;
@@ -118,6 +148,23 @@ function controlSlot(
     // input is authoritative for the human's facing: at high fps a reversal sits
     // multiple frames in the low-speed band where velocity-derived heading stalls
     if (moving) sel.set(Heading, { angle: Math.atan2(dir.x, dir.z) });
+  }
+
+  // human keeper: a full-stretch dive (shoot or tackle button) flings him the
+  // way the stick points, fast enough to reach the corners — your call, your save
+  const isKeeper = sel.get(PlayerInfo)!.role === Role.GK;
+  if (
+    isKeeper &&
+    !hasBall &&
+    !sel.has(KeeperDive) &&
+    moving &&
+    (consumePress(pad.shoot) || consumePress(pad.tackle))
+  ) {
+    sel.add(KeeperDive);
+    sel.set(KeeperDive, { t: 0, side: Math.sign(dir.z) || Math.sign(dir.x) || 1 });
+    vel.z = dir.z * 13;
+    vel.x = dir.x * 9;
+    return;
   }
 
   // during a restart only the taker may play the ball, and only after the whistle
