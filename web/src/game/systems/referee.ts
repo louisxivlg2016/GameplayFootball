@@ -87,6 +87,8 @@ export const refState = {
   ended: false,
   /** last frame's free-ball x, to detect a genuine line crossing */
   prevBallX: 0,
+  /** set-piece practice: seconds until the next attempt is re-staged */
+  practiceResetT: 0,
   /** game-clock time of the next radio score reminder */
   nextChatter: 500,
   shootout: null as {
@@ -474,8 +476,30 @@ export function refereeSystem(world: World, dt: number): void {
     refState.nextChatter = 500;
     setTension(false);
     refState.firstKickoff = match.get(Match)!.lastTouchTeam;
+    refState.practiceResetT = 0;
     store.setPhaseLabel(PHASE_LABEL[0]!);
-    radio("kickoff", { team: refState.firstKickoff }); // opening whistle call
+    if (store.practice === 1) {
+      // straight to a penalty shoot-out
+      refState.phase = 4;
+      store.setPhaseLabel("PENS");
+      refState.shootout = {
+        scores: [0, 0],
+        taken: [0, 0],
+        outcomes: [[], []],
+        turn: 0,
+        awaiting: 0,
+      };
+      store.setPensDetail([[], []]);
+      banner("TIRS AU BUT", 3);
+      radio("shootout");
+      startShootoutKick(world);
+    } else if (store.practice >= 2) {
+      // set-piece practice: free kick / corner / penalty, on a loop
+      store.setPhaseLabel("ENTR.");
+      placePractice(world);
+    } else {
+      radio("kickoff", { team: refState.firstKickoff }); // opening whistle call
+    }
   }
 
   if (refState.bannerT > 0) {
@@ -541,6 +565,12 @@ export function refereeSystem(world: World, dt: number): void {
   // ---- shootout outcome tracking ----
   if (refState.shootout) {
     shootoutSystem(world, dt, bp);
+    return;
+  }
+
+  // ---- set-piece practice loop (free kick / corner / penalty) ----
+  if (useStore.getState().practice >= 2) {
+    practiceSystem(world, dt, bp);
     return;
   }
 
@@ -806,4 +836,67 @@ function shootoutSystem(
   so.turn = 1 - so.turn;
   so.awaiting = 0;
   startShootoutKick(world);
+}
+
+/** Stage the chosen set-piece practice scenario for the human team (team 0). */
+function placePractice(world: World): void {
+  const practice = useStore.getState().practice;
+  const s = attackSign(0); // the human team attacks +x
+  if (practice === 2) {
+    // a free kick around 22m out, central-ish (z varies)
+    startSetPiece(world, "freekick", 0, s * (PITCH.halfLength - 22), (Math.random() - 0.5) * 16);
+  } else if (practice === 3) {
+    // a corner, alternating flags
+    startSetPiece(world, "corner", 0, s * 53.5, (Math.random() < 0.5 ? 1 : -1) * 34);
+  } else {
+    // a penalty
+    startSetPiece(world, "penalty", 0, s * 44, 0);
+  }
+}
+
+/** Set-piece practice loop: take an attempt, then re-stage it. */
+function practiceSystem(
+  world: World,
+  dt: number,
+  bp: { x: number; y: number; z: number },
+): void {
+  const store = useStore.getState();
+  if (refState.practiceResetT > 0) {
+    refState.practiceResetT -= dt;
+    if (refState.practiceResetT <= 0) {
+      store.setBanner("");
+      placePractice(world);
+    }
+    return;
+  }
+  const b = ballOf(world);
+  if (!b) return;
+  const free = b.bs.owner === null;
+  const bv = b.rb.linvel();
+  const speed = Math.hypot(bv.x, bv.y, bv.z);
+  const lineX = PITCH.halfLength - PITCH.ballRadius * 0.35;
+  const goalSide = attackSign(0);
+  const isGoal =
+    free &&
+    Math.sign(bp.x) === goalSide &&
+    Math.abs(bp.x) > lineX &&
+    Math.abs(bp.z) < PITCH.goalHalfWidth &&
+    bp.y < PITCH.goalHeight;
+  const out =
+    Math.abs(bp.x) > PITCH.halfLength + 0.6 ||
+    Math.abs(bp.z) > PITCH.halfWidth + 0.6;
+  const gathered = b.bs.owner !== null && b.bs.owner.get(Team)!.id !== 0;
+  const idleFree = free && speed < 1.2 && Math.abs(bp.x) < PITCH.halfLength;
+
+  if (isGoal) {
+    crowdRoar();
+    radio("penGoal");
+    store.addGoalQuiet(0);
+    banner("BUT !", 1.4);
+    b.bs.owner = null;
+    refState.practiceResetT = 1.6;
+  } else if (gathered || out || idleFree) {
+    banner(gathered ? "ARRÊT !" : "RATÉ !", 1.2);
+    refState.practiceResetT = 1.4;
+  }
 }

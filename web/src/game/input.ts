@@ -42,6 +42,7 @@ export function initInput(): void {
       toggleImportant,
       cycleDifficulty,
       togglePlayers,
+      cyclePractice,
     } = useStore.getState();
     if (e.code === "Enter") {
       if (mode === "menu") newMatch();
@@ -50,6 +51,7 @@ export function initInput(): void {
     if (e.code === "KeyM" && mode === "menu") toggleImportant();
     if (e.code === "KeyD" && mode === "menu") cycleDifficulty();
     if (e.code === "KeyJ" && mode === "menu") togglePlayers();
+    if (e.code === "KeyT" && mode === "menu") cyclePractice();
     if (e.code === "Escape") {
       if (mode === "play") setMode("pause");
       else if (mode === "pause") setMode("play");

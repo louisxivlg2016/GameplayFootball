@@ -14,6 +14,7 @@ export function Hud(): React.ReactNode {
   const selectedName = useStore((s) => s.selectedName);
   const selectedName2 = useStore((s) => s.selectedName2);
   const players = useStore((s) => s.players);
+  const practice = useStore((s) => s.practice);
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
 
@@ -100,9 +101,10 @@ export function Hud(): React.ReactNode {
           </h1>
           <BigButton label="▶ JOUER" onClick={() => act().newMatch()} />
           <div className="prompt">ou appuie sur Entrée</div>
+          <ModePicker />
           <PlayersToggle />
           {players === 1 && <DifficultyPicker />}
-          <ImportantToggle />
+          {practice === 0 && <ImportantToggle />}
           {players === 1 ? (
             <div className="controls">
               <b>WASD / Arrows</b> move&ensp;<b>Shift</b> sprint
@@ -223,6 +225,42 @@ function ShootoutBoard(): React.ReactNode {
           })}
         </div>
       ))}
+    </div>
+  );
+}
+
+const PRACTICE_NAMES = ["MATCH", "TIRS AU BUT", "COUP FRANC", "CORNER", "PENALTY"];
+
+function ModePicker(): React.ReactNode {
+  const practice = useStore((s) => s.practice);
+  return (
+    <div
+      onClick={() => act().cyclePractice()}
+      style={{
+        textAlign: "center",
+        fontSize: 16,
+        color: "#e8e8e8",
+        pointerEvents: "auto",
+        cursor: "pointer",
+        padding: "4px 0",
+      }}
+    >
+      <span
+        style={{
+          background: "rgba(255,255,255,0.12)",
+          borderRadius: 4,
+          padding: "1px 7px",
+          color: "#fff",
+          fontWeight: 600,
+        }}
+      >
+        T
+      </span>{" "}
+      Mode :{" "}
+      <b style={{ color: practice === 0 ? "#7ddb5a" : "#ffe94a" }}>
+        {PRACTICE_NAMES[practice]}
+      </b>{" "}
+      <span style={{ opacity: 0.6 }}>▸</span>
     </div>
   );
 }
