@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { World } from "koota";
 import { BallRef, IsBall, IsReferee, Position, Selected } from "../traits";
-import { PITCH } from "../levels";
+import { PITCH, attackSign } from "../levels";
 import { refState } from "./referee";
 import { cineState } from "./cinematic";
 import { useStore } from "../store";
@@ -15,6 +15,10 @@ const camLook = new THREE.Vector3(0, 0.6, 0);
 const desiredPos = new THREE.Vector3();
 const desiredLook = new THREE.Vector3();
 let fov = 25;
+// identity of the active set-piece, so a brand-new one cuts the camera
+// straight to its framing instead of lazily panning over from midfield
+// (which read as "just a normal match" for the first second)
+let lastSetPieceId: string | null = null;
 
 /**
  * Broadcast camera modeled on match.cpp:723-843: telephoto (25° FOV), parked
@@ -77,6 +81,23 @@ export function cameraSystem(
     desiredPos.set(spotX - s * 6.5, 2.3, 1.5);
     desiredLook.set(s * PITCH.halfLength, 1.1, 0);
     desiredFov = 50;
+  } else if (c && (c.type === "freekick" || c.type === "corner")) {
+    // dedicated set-piece framing so a free kick / corner never looks like
+    // open play: sit behind the ball with the target goal filling the frame
+    const gx = attackSign(c.team) * PITCH.halfLength;
+    const s = Math.sign(gx || 1);
+    if (c.type === "corner") {
+      // from behind & above the flag, ball low in frame, box + goal beyond
+      const zside = Math.sign(c.z || 1);
+      desiredPos.set(c.x + s * 4, 7.5, c.z + zside * 8.5);
+      desiredLook.set(gx - s * 9, 1, c.z * 0.45);
+      desiredFov = 48;
+    } else {
+      // free kick: behind and beside the taker, goal ahead
+      desiredPos.set(c.x - s * 9, 3.2, c.z + 6.5);
+      desiredLook.set(gx * 0.5 + c.x * 0.5, 1.3, c.z * 0.4);
+      desiredFov = 46;
+    }
   } else {
     const sp = world.queryFirst(Selected)?.get(Position);
     const fx = bp.x * (sp ? 0.75 : 1) + (sp ? sp.x * 0.25 : 0) + bv.x * 0.4;
@@ -90,8 +111,16 @@ export function cameraSystem(
     desiredFov = 25;
   }
 
-  // one shared damp so cuts between broadcast and penalty views glide
-  const blend = 1 - Math.exp(-5 * dt);
+  // one shared damp so cuts between broadcast and penalty views glide…
+  let blend = 1 - Math.exp(-5 * dt);
+  // …but cut HARD to a fresh set piece, so it's framed from the very first
+  // frame and the player instantly sees the penalty / free kick / corner
+  const setPieceId =
+    c && (c.type === "penalty" || c.type === "freekick" || c.type === "corner")
+      ? `${c.type}:${Math.round(c.x)}:${Math.round(c.z)}:${c.team}`
+      : null;
+  if (setPieceId !== null && setPieceId !== lastSetPieceId) blend = 1;
+  lastSetPieceId = setPieceId;
   camPos.lerp(desiredPos, blend);
   camLook.lerp(desiredLook, blend);
   camera.position.copy(camPos);

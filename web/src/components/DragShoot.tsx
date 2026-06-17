@@ -127,10 +127,30 @@ export function DragShoot(): React.ReactNode {
         position: "absolute",
         inset: 0,
         pointerEvents: "auto",
-        zIndex: 3,
+        zIndex: 6,
         touchAction: "none",
+        cursor: "crosshair",
       }}
     >
+      {!line && (
+        <div
+          style={{
+            position: "absolute",
+            top: "16%",
+            left: 0,
+            right: 0,
+            textAlign: "center",
+            color: "#fff",
+            fontWeight: 800,
+            fontSize: 22,
+            letterSpacing: 1,
+            textShadow: "0 2px 8px #000",
+            pointerEvents: "none",
+          }}
+        >
+          ✏️ Trace une ligne vers le but pour tirer
+        </div>
+      )}
       {line && (
         <svg
           style={{
@@ -141,18 +161,27 @@ export function DragShoot(): React.ReactNode {
             pointerEvents: "none",
           }}
         >
+          {/* a bold solid white line with a soft halo so it reads on the pitch */}
+          <line
+            x1={line.x1}
+            y1={line.y1}
+            x2={line.x2}
+            y2={line.y2}
+            stroke="rgba(0,0,0,0.5)"
+            strokeWidth={11}
+            strokeLinecap="round"
+          />
           <line
             x1={line.x1}
             y1={line.y1}
             x2={line.x2}
             y2={line.y2}
             stroke="#fff"
-            strokeWidth={4}
+            strokeWidth={6}
             strokeLinecap="round"
-            strokeDasharray="3 12"
-            opacity={0.9}
           />
-          <circle cx={line.x2} cy={line.y2} r={9} fill="rgba(255,255,255,0.9)" />
+          <circle cx={line.x1} cy={line.y1} r={7} fill="#ffe94a" />
+          <circle cx={line.x2} cy={line.y2} r={12} fill="#fff" stroke="#000" strokeWidth={2} />
         </svg>
       )}
     </div>
