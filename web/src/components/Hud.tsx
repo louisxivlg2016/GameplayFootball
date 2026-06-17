@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { TEAMS, useStore } from "../game/store";
 import { TouchControls } from "./TouchControls";
+import { DragShoot } from "./DragShoot";
 
 const act = () => useStore.getState();
 
@@ -57,6 +58,7 @@ export function Hud(): React.ReactNode {
           <Radar />
         </>
       )}
+      {mode !== "menu" && <DragShoot />}
       {mode === "play" && players === 1 && <TouchControls />}
       {mode === "play" && (
         <button

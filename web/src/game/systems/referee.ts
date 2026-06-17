@@ -534,7 +534,9 @@ export function refereeSystem(world: World, dt: number): void {
       if (c.t <= 0) {
         c.ready = true;
         whistle(1);
-        if (humanSlotFor(c.team) !== null && c.type !== "penalty") {
+        const playOn =
+          c.type === "kickoff" || c.type === "throwin" || c.type === "goalkick";
+        if (humanSlotFor(c.team) !== null && playOn) {
           // hand the taker the ball and play on. No countdown that dumps it
           // backward to a teammate and throws away a good attacking restart —
           // you keep it and dribble, pass or shoot from here as you wish.
@@ -548,9 +550,13 @@ export function refereeSystem(world: World, dt: number): void {
           return;
         }
         if (humanSlotFor(c.team) !== null) {
-          // penalty: a strike from the spot — you take it, no auto-fire
-          c.kickDelay = refState.shootout ? 10 : 8;
-          banner("À TOI DE JOUER !", 2.5);
+          // free kick / corner / penalty: a deliberate set-piece you AIM by
+          // drawing a line (or with the buttons). Long window; rarely auto-fires.
+          c.kickDelay = refState.shootout ? 10 : 18;
+          banner(
+            c.type === "penalty" ? "À TOI DE JOUER !" : "TRACE UN TRAIT POUR TIRER",
+            2.5,
+          );
         } else {
           c.kickDelay = 0.6 + Math.random() * 0.6;
         }

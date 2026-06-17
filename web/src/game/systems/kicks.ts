@@ -324,6 +324,38 @@ export function shoot(world: World, kicker: Entity, aimZ: number): void {
   if (dist < 32) radio("shot", { player: kicker.get(Name)?.spoken ?? "" });
 }
 
+/**
+ * Strike the ball toward a 3D world point — used by the draw-to-shoot aim at
+ * set pieces. power 0..1 sets pace; loft arcs it in (corners/crosses).
+ */
+export function strikeToward(
+  world: World,
+  kicker: Entity,
+  hx: number,
+  hy: number,
+  hz: number,
+  power: number,
+  loft: boolean,
+): void {
+  const ball = world.queryFirst(IsBall);
+  const rb = ball?.get(BallRef)!.value;
+  if (!ball || !rb) return;
+  const bp = rb.translation();
+  const dx = hx - bp.x;
+  const dz = hz - bp.z;
+  const dist = Math.hypot(dx, dz) || 1;
+  const speed = 15 + clamp(power, 0, 1) * 16; // 15..31 m/s
+  const lift = loft
+    ? Math.min(10, 4.5 + dist * 0.13)
+    : clamp(Math.max(hy, 0) * 1.3 + dist * 0.04, 0.3, 8);
+  releaseBall(world, kicker, {
+    x: (dx / dist) * speed,
+    y: lift,
+    z: (dz / dist) * speed,
+  });
+  if (!loft && dist < 34) radio("shot", { player: kicker.get(Name)?.spoken ?? "" });
+}
+
 /** Panic clear for low-mindset players near goal (elizacontroller.cpp:924-939). */
 export function panicClear(world: World, kicker: Entity): void {
   const teamId = kicker.get(Team)!.id;

@@ -27,6 +27,9 @@ export function cameraSystem(
   dt: number,
   camera: THREE.Camera,
 ): void {
+  // expose the live camera so the HUD's draw-to-shoot overlay can raycast
+  // screen drags onto the pitch / goal plane
+  (globalThis as { __gpfCam?: THREE.Camera }).__gpfCam = camera;
   const ball = world.queryFirst(IsBall);
   const rb = ball?.get(BallRef)!.value;
   const bp = rb ? rb.translation() : { x: 0, y: 0, z: 0 };
