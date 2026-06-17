@@ -87,12 +87,11 @@ export function cameraSystem(
     const gx = attackSign(c.team) * PITCH.halfLength;
     const s = Math.sign(gx || 1);
     if (c.type === "corner") {
-      // from behind & above the flag: ball low in frame, the packed box and
-      // goal beyond, so you can pick a team-mate and cross to them
+      // from behind & above the flag, ball low in frame, box + goal beyond
       const zside = Math.sign(c.z || 1);
-      desiredPos.set(c.x + s * 4, 8, c.z + zside * 9.5);
-      desiredLook.set(gx - s * 10, 1, c.z * 0.25);
-      desiredFov = 50;
+      desiredPos.set(c.x + s * 4, 7.5, c.z + zside * 8.5);
+      desiredLook.set(gx - s * 9, 1, c.z * 0.45);
+      desiredFov = 48;
     } else {
       // free kick: behind and beside the taker, goal ahead
       desiredPos.set(c.x - s * 9, 3.2, c.z + 6.5);

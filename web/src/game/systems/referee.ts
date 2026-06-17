@@ -161,19 +161,6 @@ export function startSetPiece(
   }
 
   refState.ceremony = { type, team, x, z, t: 2, ready: false, kickDelay: 0.8, taker };
-
-  // a corner is a cross into a crowd: snap both teams into the box right away
-  // (instead of a long jog) so there are team-mates to aim at from the off
-  if (type === "corner") {
-    for (const e of world.query(IsPlayer)) {
-      if (e === taker) continue;
-      const t = ceremonyTarget(world, e);
-      if (!t) continue;
-      e.get(Position)!.set(t.x, 0, t.z);
-      e.get(Velocity)!.set(0, 0, 0);
-    }
-  }
-
   world.queryFirst(Match)?.set(Match, { lastTouchTeam: team });
   refState.flagged.clear();
   if (type !== "kickoff") whistle(1);
@@ -353,25 +340,6 @@ function sendOff(world: World, player: Entity): void {
   }
 }
 
-// box spots for a corner, as {dx, dz} offsets inward from the target goal's
-// centre. Attackers crowd to meet the cross; defenders sit a touch goal-side.
-const CORNER_ATTACK = [
-  { dx: 5.5, dz: -6 },
-  { dx: 6, dz: 6 },
-  { dx: 9, dz: 0 },
-  { dx: 10.5, dz: -10 },
-  { dx: 11, dz: 10 },
-  { dx: 13, dz: 2 },
-];
-const CORNER_DEFEND = [
-  { dx: 4, dz: -4 },
-  { dx: 4, dz: 4 },
-  { dx: 5.5, dz: 0 },
-  { dx: 7, dz: -8 },
-  { dx: 7.5, dz: 8 },
-  { dx: 9, dz: -2 },
-];
-
 /** Ceremony position for off-the-ball players; null = normal positioning. */
 export function ceremonyTarget(
   world: World,
@@ -405,25 +373,7 @@ export function ceremonyTarget(
     const s = attackSign(teamId);
     return { x: Math.min(p.x * s, -1) * s, z: p.z };
   }
-  if (c.type === "corner") {
-    // a corner is a cross, not a shot: my attackers pack the box to head it in,
-    // their keeper guards the line and the rest defend the area
-    const gx = attackSign(c.team) * PITCH.halfLength; // goal the corner attacks
-    const gs = Math.sign(gx || 1);
-    const role = e.get(PlayerInfo)!.role;
-    const idx = e.get(PlayerInfo)!.index;
-    if (teamId === c.team) {
-      // forwards and midfielders crowd the box; defenders hold for the counter
-      if (role === Role.GK || role === Role.DEF) return null;
-      const sp = CORNER_ATTACK[idx % CORNER_ATTACK.length]!;
-      return { x: gx - gs * sp.dx, z: sp.dz };
-    }
-    if (role === Role.GK) return { x: gx - gs * 0.5, z: 0 }; // on the line
-    if (role === Role.ATT) return null; // an outlet stays up the pitch
-    const sp = CORNER_DEFEND[idx % CORNER_DEFEND.length]!;
-    return { x: gx - gs * sp.dx, z: sp.dz };
-  }
-  // free kicks / throw-ins: opponents retreat 9.15m; wall for close FKs
+  // free kicks / corners / throw-ins: opponents retreat 9.15m; wall for close FKs
   if (teamId !== c.team) {
     const d = Math.hypot(p.x - c.x, p.z - c.z);
     if (c.type === "freekick") {
