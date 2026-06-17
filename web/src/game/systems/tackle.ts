@@ -38,6 +38,13 @@ const slides = new Map<Entity, Slide>();
 const cooldowns = new Map<Entity, number>();
 let aiTimer = 0;
 
+/**
+ * How far into the carrier's FRONT arc a challenger must be to win the ball.
+ * Level with or behind his shoulders is a shove in the back, never a clean
+ * take — from there a defender may only contain or foul, never dispossess.
+ */
+const FRONT_TAKE = 0.15;
+
 export function tackleSystem(world: World, dt: number): void {
   const store = useStore.getState();
   const ball = world.queryFirst(IsBall);
@@ -99,11 +106,11 @@ export function tackleSystem(world: World, dt: number): void {
         const behind =
           ((p.x - cp.x) * Math.sin(ch) + (p.z - cp.z) * Math.cos(ch)) /
           (d || 1);
-        if (behind < -0.05) {
-          // The ball is in front of the carrier: a challenge from behind his
-          // shoulders can NEVER take it. He mostly just contains; only rarely
-          // does he stick a leg in and foul. A cooldown stops him hacking away
-          // every tick while sitting in your back.
+        if (behind < FRONT_TAKE) {
+          // The ball sits in front of the carrier: a challenge from level with
+          // or behind his shoulders can NEVER take it — that's a push in the
+          // back. He just contains; only rarely does he stick a leg in and
+          // foul. A cooldown stops him hacking away every tick at your back.
           if (Math.random() < chance * 0.07) {
             cooldowns.set(e, 3);
             refereeFoul(world, e, carrier, 1.45 + Math.random() * 0.25);
@@ -177,7 +184,7 @@ export function tackleSystem(world: World, dt: number): void {
         const ch = bs.owner.get(Heading)!.angle;
         const ahead =
           ((p.x - cp.x) * Math.sin(ch) + (p.z - cp.z) * Math.cos(ch)) / (d || 1);
-        if (ahead < -0.05) continue; // only slide from beside or in front
+        if (ahead < FRONT_TAKE) continue; // only slide from the front or front-side
         // slides are a rare, committed choice — pokes and contains carry
         // almost all of the defending
         const chance =
@@ -212,8 +219,9 @@ export function tackleSystem(world: World, dt: number): void {
       const od = Math.hypot(p.x - op.x, p.z - op.z) || 1;
       const behindOwner =
         ((p.x - op.x) * Math.sin(oh) + (p.z - op.z) * Math.cos(oh)) / od;
-      if (behindOwner < -0.05 && dBall < 0.8 && bp.y < 0.8) {
-        // A slide through the carrier's back cannot poke the ball loose.
+      if (behindOwner < FRONT_TAKE && dBall < 0.8 && bp.y < 0.8) {
+        // A slide that reaches the ball from level with or behind the carrier
+        // cannot poke it loose — it's a trip from behind, so it's a foul.
         slides.delete(e);
         cooldowns.set(e, 3.5);
         refereeFoul(world, e, ownerBeforePoke, 1.45 + Math.random() * 0.3);

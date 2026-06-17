@@ -39,6 +39,14 @@ function segDist(
 
 const CAPTURE_RADIUS = 0.9;
 const STEAL_RADIUS = 0.62;
+/**
+ * How far into the carrier's FRONT arc a challenger must be to win the ball.
+ * +1 is dead ahead, 0 is level with his shoulders, -1 is directly behind. A
+ * defender level or behind the shoulder line is shoving through the carrier's
+ * back, never a clean take — he can only contain or foul. Only a man who has
+ * got clearly in front (or cut across to the front-side) may steal it.
+ */
+const FRONT_TAKE = 0.15;
 let prevBX = 0;
 let prevBZ = 0;
 let prevSeen = false;
@@ -124,12 +132,12 @@ export function possessionSystem(world: World, dt: number): void {
       const oh = bs.owner.get(Heading)!.angle;
       const od = Math.hypot(p.x - op.x, p.z - op.z) || 1;
       // facing factor: +1 dead in front of the carrier, 0 level (his side),
-      // -1 directly behind. Only a side-on or front challenge can win the ball;
-      // anything from behind the carrier's shoulders cannot take it (it's in
-      // front of him). A keeper smothering is exempt.
+      // -1 directly behind. Only a man clearly in the carrier's front arc can
+      // win it; anything from level or behind his shoulders cannot take it —
+      // that's a push in the back, not a tackle. A keeper smothering is exempt.
       const facing =
         ((p.x - op.x) * Math.sin(oh) + (p.z - op.z) * Math.cos(oh)) / od;
-      if (facing < -0.05) continue;
+      if (facing < FRONT_TAKE) continue;
     }
     // a 26 m/s strike covers over a meter per frame: test the keeper against
     // the ball's swept path this frame so shots can't tunnel through him
