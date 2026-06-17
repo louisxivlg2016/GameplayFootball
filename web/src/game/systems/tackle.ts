@@ -39,12 +39,11 @@ const cooldowns = new Map<Entity, number>();
 let aiTimer = 0;
 
 /**
- * AI defenders challenge far less eagerly than the human can. The human still
- * pokes and slides at full rate (it's a fair, two-way move), but the bots only
- * go for the ball a fraction as often — so the carrier isn't constantly harried
- * and dispossessed by the opposition.
+ * How hard the AI defenders go for the ball, relative to the difficulty's base
+ * tackle rate. Above 1 the bots press and challenge MORE eagerly than the
+ * human's full rate — they hunt the carrier down instead of standing off.
  */
-const AI_TACKLE_RARITY = 0.4;
+const AI_TACKLE_EAGERNESS = 1.5;
 
 export function tackleSystem(world: World, dt: number): void {
   const store = useStore.getState();
@@ -98,7 +97,7 @@ export function tackleSystem(world: World, dt: number): void {
         if (d > 1.05) continue;
         const chance =
           (0.09 + e.get(Stats)!.tackle * 0.16) *
-          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance * AI_TACKLE_RARITY : 1);
+          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance * AI_TACKLE_EAGERNESS : 1);
         // the ball sits in FRONT of the carrier: a man straight behind him
         // can't play it without going through the player. Shoving through
         // the back is never a steal — it's a whistled foul (referee.cpp
@@ -190,7 +189,7 @@ export function tackleSystem(world: World, dt: number): void {
         // almost all of the defending
         const chance =
           (0.05 + e.get(Stats)!.tackle * 0.06) *
-          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance * AI_TACKLE_RARITY : 1);
+          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance * AI_TACKLE_EAGERNESS : 1);
         if (d > 1.2 && d < 2.6 && Math.random() < chance) {
           startSlide(e);
           break; // one new slide per tick
