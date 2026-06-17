@@ -510,10 +510,21 @@ export function refereeSystem(world: World, dt: number): void {
       if (c.t <= 0) {
         c.ready = true;
         whistle(1);
-        // a human gets a comfortable window to take their own kicks — long
-        // enough to aim, short enough that the frozen-pitch wait never drags
-        // (the auto-take remains a stall safety, not a thief)
+        if (humanSlotFor(c.team) !== null && c.type !== "penalty") {
+          // hand the taker the ball and play on. No countdown that dumps it
+          // backward to a teammate and throws away a good attacking restart —
+          // you keep it and dribble, pass or shoot from here as you wish.
+          if (c.taker && c.taker.isAlive()) {
+            b.bs.owner = c.taker;
+            b.bs.lastKicker = null;
+            b.bs.kickCooldown = 0;
+          }
+          refState.ceremony = null;
+          banner("À TOI DE JOUER !", 1.5);
+          return;
+        }
         if (humanSlotFor(c.team) !== null) {
+          // penalty: a strike from the spot — you take it, no auto-fire
           c.kickDelay = refState.shootout ? 10 : 8;
           banner("À TOI DE JOUER !", 2.5);
         } else {
