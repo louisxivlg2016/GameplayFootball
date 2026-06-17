@@ -105,14 +105,22 @@ function controlSlot(
     1.04;
   const vel = sel.get(Velocity)!;
   const k = Math.min(1, dt * 8);
-  vel.x += (dir.x * top - vel.x) * k;
-  vel.z += (dir.z * top - vel.z) * k;
-  // input is authoritative for the human's facing: at high fps a reversal sits
-  // multiple frames in the low-speed band where velocity-derived heading stalls
-  if (moving) sel.set(Heading, { angle: Math.atan2(dir.x, dir.z) });
+  const ceremony = refState.ceremony;
+  // a penalty is a strike from the spot: the taker is rooted (no dribbling it
+  // forward), direction only aims the corner. Same for either team.
+  const penaltyTaker = ceremony?.type === "penalty" && ceremony.taker === sel;
+  if (penaltyTaker) {
+    vel.x = 0;
+    vel.z = 0;
+  } else {
+    vel.x += (dir.x * top - vel.x) * k;
+    vel.z += (dir.z * top - vel.z) * k;
+    // input is authoritative for the human's facing: at high fps a reversal sits
+    // multiple frames in the low-speed band where velocity-derived heading stalls
+    if (moving) sel.set(Heading, { angle: Math.atan2(dir.x, dir.z) });
+  }
 
   // during a restart only the taker may play the ball, and only after the whistle
-  const ceremony = refState.ceremony;
   if (ceremony && (!ceremony.ready || ceremony.taker !== sel)) return;
 
   // kicks need the ball physically in striking range
@@ -127,9 +135,9 @@ function controlSlot(
       // vertical input steers toward a corner, like the original's aim bias
       // (aimZ is world-z in the goal mouth, the same axis for either goal)
       shoot(world, sel, dir.z * PITCH.goalHalfWidth * 0.85 + (Math.random() - 0.5));
-    } else if (consumePress(pad.pass)) {
+    } else if (!penaltyTaker && consumePress(pad.pass)) {
       pass(world, sel, fx, fz, false);
-    } else if (consumePress(pad.lob)) {
+    } else if (!penaltyTaker && consumePress(pad.lob)) {
       pass(world, sel, fx, fz, true);
     }
   }
