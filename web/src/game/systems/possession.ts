@@ -146,8 +146,8 @@ export function possessionSystem(world: World, dt: number): void {
     const radius =
       (bs.owner ? STEAL_RADIUS : CAPTURE_RADIUS) *
       (0.85 + 0.3 * e.get(Stats)!.ballcontrol) *
-      (isKeeper ? 1.7 : 1) * // a keeper covers far more ground than an outfielder
-      (e.has(KeeperDive) ? 1.9 : 1) * // arms fully outstretched mid-dive
+      (isKeeper ? 1.5 : 1) * // a keeper covers more ground, but not the whole goal
+      (e.has(KeeperDive) ? 1.7 : 1) * // arms outstretched mid-dive
       (intended ? 0.85 : 1); // the intended receiver traps it at his feet
     if (d < radius && d < bestD) {
       bestD = d;
@@ -179,16 +179,17 @@ export function possessionSystem(world: World, dt: number): void {
     // beat him, and even then he often gets a hand to it. Pace ramps slowly,
     // stretch matters less, and the ceiling is far below a sure thing.
     const pace = clamp((ballSpeed - TRAP_SPEED) / 17, 0, 1);
-    const reach = CAPTURE_RADIUS * (0.85 + 0.3 * stats.ballcontrol) * 1.7;
+    const reach = CAPTURE_RADIUS * (0.85 + 0.3 * stats.ballcontrol) * 1.6;
     const stretch = Math.min(bestD / reach, 1);
-    // strong asymmetry: the HUMAN's keeper is a wall, but the opponent AI
-    // keeper is genuinely beatable — a well-struck shot beats or spills past
-    // him often, so the human can actually score. Difficulty scales the AI one.
+    // a STRONG keeper that is still beaten now and then. Both keepers hold the
+    // bulk of what they reach; only a hard, well-placed strike to the corner
+    // beats or spills past them. The opponent AI keeper leaks a bit more than
+    // the human's so the player can score; difficulty scales the AI one.
     const isAIKeeper = best.get(Team)!.id === AI_TEAM;
-    const beatMul = isAIKeeper ? 1.15 / difficulty().keeperSave : 0.18;
-    const parryMul = isAIKeeper ? 1.15 : 0.5;
-    let hardness = pace * (0.05 + 0.5 * stretch) * beatMul;
-    hardness = clamp(hardness, 0, isAIKeeper ? 0.75 : 0.5);
+    const beatMul = isAIKeeper ? 0.6 / difficulty().keeperSave : 0.2;
+    const parryMul = isAIKeeper ? 0.6 : 0.4;
+    let hardness = pace * (0.04 + 0.45 * stretch) * beatMul;
+    hardness = clamp(hardness, 0, isAIKeeper ? 0.55 : 0.4);
     const roll = Math.random();
     if (roll < hardness) {
       // beaten: the ball flies past — but he still hurls himself at it
@@ -204,7 +205,7 @@ export function possessionSystem(world: World, dt: number): void {
     // a hard shot he reaches isn't always HELD: often he can only parry it
     // away, spilling a rebound rather than catching cleanly. Tame shots are
     // still gathered; only pace + stretch produce spills.
-    const parry = clamp(pace * (0.2 + 0.55 * stretch) * parryMul, 0, 0.7);
+    const parry = clamp(pace * (0.18 + 0.5 * stretch) * parryMul, 0, 0.55);
     if (roll < hardness + parry) {
       const kp = best.get(Position)!;
       if (!best.has(KeeperDive)) {

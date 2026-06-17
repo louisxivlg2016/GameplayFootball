@@ -5,6 +5,7 @@ import {
   Heading,
   IsBall,
   IsPlayer,
+  KeeperDive,
   Match,
   Name,
   PlayerInfo,
@@ -12,8 +13,10 @@ import {
   Role,
   Selected,
   Selected2,
+  SlideTackle,
   Stats,
   Team,
+  Tripped,
   Velocity,
 } from "../traits";
 import {
@@ -562,16 +565,14 @@ export function refereeSystem(world: World, dt: number): void {
   }
 
   // ---- goals & out of play ----
-  // only a FREE ball that actually CROSSES the line counts. A ball glued to a
-  // carrier's feet (the dribble model keeps it ~0.55m ahead) must never score,
-  // and neither must a ball released while already sitting past the line — e.g.
-  // a keeper carrying it into his own net, or distributing from in there.
+  // a goal needs a FREE ball over the line. A ball glued to a carrier's feet
+  // (the dribble model keeps it ~0.55m ahead) is owned, so walking it into the
+  // net never scores; and possession refuses to "catch" a ball already inside
+  // the frame, so a real shot the keeper can't stop always counts.
   const R = PITCH.ballRadius;
   const lineX = PITCH.halfLength - R * 0.35;
   const ballFree = b.bs.owner === null;
-  const wasInside = Math.abs(refState.prevBallX) <= lineX;
-  refState.prevBallX = bp.x; // track every frame, carried or free
-  const crossedGoalLine = ballFree && wasInside && Math.abs(bp.x) > lineX;
+  const crossedGoalLine = ballFree && Math.abs(bp.x) > lineX;
   if (crossedGoalLine) {
     const side = Math.sign(bp.x);
     if (Math.abs(bp.z) < PITCH.goalHalfWidth && bp.y < PITCH.goalHeight) {
@@ -593,6 +594,14 @@ export function refereeSystem(world: World, dt: number): void {
         player: ownGoal ? "" : (kNm?.spoken ?? ""), // radio (TTS): surname
       });
       b.bs.owner = null;
+      // celebration runs in "goal" mode where movement (and its pose timers)
+      // is paused — clear any dive/slide/trip so nobody freezes face-down on
+      // the turf for the whole replay
+      for (const e of world.query(IsPlayer)) {
+        if (e.has(KeeperDive)) e.remove(KeeperDive);
+        if (e.has(SlideTackle)) e.remove(SlideTackle);
+        if (e.has(Tripped)) e.remove(Tripped);
+      }
       queueGoalCinematic(kicker?.isAlive() ? kicker : null, scorer);
       match.set(Match, { resetTimer: 3.2, pendingKickoffTeam: 1 - scorer });
       return;
