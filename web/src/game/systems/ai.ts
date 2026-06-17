@@ -22,6 +22,7 @@ import {
   MINDSET,
   evaluateBestPass,
   executePass,
+  header,
   panicClear,
   shoot,
   shotOdds,
@@ -65,6 +66,8 @@ const state = {
   carrierSeconds: 0,
   /** keepers' committed (imperfect) reads of incoming shots */
   reads: new Map<Entity, { until: number; off: number }>(),
+  /** cooldown between AI headers so a high ball isn't volleyed every frame */
+  headerT: 0,
 };
 
 function seek(e: Entity, tx: number, tz: number, dt: number, maxSpeed: number = SPEEDS.sprint): void {
@@ -130,6 +133,7 @@ export function aiSystem(world: World, dt: number): void {
     state.reads.clear();
     state.carrier = null;
     state.carrierSeconds = 0;
+    state.headerT = 0;
   }
   state.time += dt;
 
@@ -152,6 +156,32 @@ export function aiSystem(world: World, dt: number): void {
 
   const players = world.query(IsPlayer);
   const lines = [offsideLine(world, 0, bp.x), offsideLine(world, 1, bp.x)];
+
+  // AI volley/header: a free, airborne ball near a player (not the human's) is
+  // played with the head — on goal in the attacking third, else cleared upfield.
+  // The feet can't reach a high ball, so without this crosses just bounce away.
+  state.headerT -= dt;
+  if (!bs.owner && bp.y >= 1.1 && bp.y < 2.9 && state.headerT <= 0 && !refState.ceremony) {
+    let near: Entity | null = null;
+    let nd = 1.9;
+    for (const e of players) {
+      if (e.has(Selected) || e.has(Selected2) || e.get(PlayerInfo)!.role === Role.GK)
+        continue;
+      if (bs.recaptureBlocks.some((b) => b.player === e)) continue;
+      const p = e.get(Position)!;
+      const d = Math.hypot(p.x - bp.x, p.z - bp.z);
+      if (d < nd) {
+        nd = d;
+        near = e;
+      }
+    }
+    if (near) {
+      const s = attackSign(near.get(Team)!.id);
+      const onGoal = bp.x * s > PITCH.halfLength - 24;
+      header(world, near, s, 0, onGoal);
+      state.headerT = 0.6;
+    }
+  }
 
   updateAssignments(world, players, carrier, carrierTeam, bp, dt);
   updateRuns(world, players, carrier, carrierTeam);

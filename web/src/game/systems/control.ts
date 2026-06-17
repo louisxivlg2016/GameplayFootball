@@ -18,7 +18,7 @@ import {
 } from "../traits";
 import { PITCH, SPEEDS, setSelected } from "../levels";
 import { useStore } from "../store";
-import { pass, shoot } from "./kicks";
+import { header, pass, shoot } from "./kicks";
 import { refState } from "./referee";
 
 // per-slot auto-switch hysteresis (the Match trait keeps slot 0's for the
@@ -123,14 +123,29 @@ function controlSlot(
   // during a restart only the taker may play the ball, and only after the whistle
   if (ceremony && (!ceremony.ready || ceremony.taker !== sel)) return;
 
+  const h = sel.get(Heading)!.angle;
+  const fx = moving ? dir.x : Math.sin(h);
+  const fz = moving ? dir.z : Math.cos(h);
+
+  // an airborne ball (cross, bounce, clearance) is played with the HEAD/volley,
+  // which the feet can't reach. Head with V (TÊTE button) or the shoot button;
+  // pass/lob become a headed flick.
+  const headable =
+    bp.y >= 1 && bp.y < 2.9 && bs.owner === null && dBall < 2 && bs.kickCooldown <= 0 && !penaltyTaker;
+  if (headable) {
+    if (consumePress(pad.head) || consumePress(pad.shoot)) {
+      header(world, sel, dir.x, dir.z, true);
+    } else if (consumePress(pad.pass) || consumePress(pad.lob)) {
+      header(world, sel, fx, fz, false);
+    }
+    return;
+  }
+
   // kicks need the ball physically in striking range
   const kickable =
     (hasBall || bs.owner === null) && dBall < 1.5 && bp.y < 1 && bs.kickCooldown <= 0;
 
   if (kickable) {
-    const h = sel.get(Heading)!.angle;
-    const fx = moving ? dir.x : Math.sin(h);
-    const fz = moving ? dir.z : Math.cos(h);
     if (consumePress(pad.shoot)) {
       // vertical input steers toward a corner, like the original's aim bias
       // (aimZ is world-z in the goal mouth, the same axis for either goal)

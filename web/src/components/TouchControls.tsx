@@ -181,15 +181,18 @@ function Actions(): React.ReactNode {
         pointerEvents: "none",
       }}
     >
-      {/* sprint pad: held while pressed */}
-      <div style={{ position: "absolute", right: 188, bottom: 24 }}>
+      {/* sprint + header pads */}
+      <div style={{ position: "absolute", right: 188, bottom: 90 }}>
         <Btn
           label="SPRINT"
           color="#7ddb5a"
-          size={64}
+          size={62}
           onDown={() => holdKey(SPRINT_CODE)}
           onUp={() => releaseKey(SPRINT_CODE)}
         />
+      </div>
+      <div style={{ position: "absolute", right: 190, bottom: 20 }}>
+        <Btn label="TÊTE" color="#c98bff" size={58} onDown={() => tapKey("KeyV")} />
       </div>
       {/* action diamond */}
       <div style={{ position: "relative", width: 176, height: 176 }}>

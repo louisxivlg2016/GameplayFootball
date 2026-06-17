@@ -2,6 +2,7 @@ import type { Entity, World } from "koota";
 import {
   BallRef,
   BallState,
+  Heading,
   IsBall,
   IsPlayer,
   Match,
@@ -354,6 +355,57 @@ export function strikeToward(
     z: (dz / dist) * speed,
   });
   if (!loft && dist < 34) radio("shot", { player: kicker.get(Name)?.spoken ?? "" });
+}
+
+/**
+ * Head / volley an airborne ball. Near goal it's powered down on target; out
+ * wide it's a directional flick or clearance. Works on balls the feet can't
+ * reach (crosses, bounces) — the normal ground shot can't.
+ */
+export function header(
+  world: World,
+  player: Entity,
+  dirX: number,
+  dirZ: number,
+  onGoal: boolean,
+): void {
+  const ball = world.queryFirst(IsBall);
+  const rb = ball?.get(BallRef)!.value;
+  if (!ball || !rb) return;
+  const bp = rb.translation();
+  const teamId = player.get(Team)!.id;
+  const goalX = attackSign(teamId) * PITCH.halfLength;
+  const distGoal = Math.hypot(goalX - bp.x, bp.z);
+  const hasDir = dirX !== 0 || dirZ !== 0;
+  let vx: number;
+  let vy: number;
+  let vz: number;
+  if (onGoal && distGoal < 22) {
+    // powered header/volley down into the goal, biased by the aim input
+    const aimZ = clamp(
+      hasDir ? dirZ * PITCH.goalHalfWidth * 0.8 : bp.z * 0.4,
+      -3.3,
+      3.3,
+    );
+    const dx = goalX - bp.x;
+    const dz = aimZ - bp.z;
+    const d = Math.hypot(dx, dz) || 1;
+    const speed = 16;
+    vx = (dx / d) * speed;
+    vz = (dz / d) * speed;
+    vy = -1; // headed down
+    if (distGoal < 32) radio("shot", { player: player.get(Name)?.spoken ?? "" });
+  } else {
+    // a directional flick / clearance up the pitch
+    const h = player.get(Heading)!.angle;
+    const fx = hasDir ? dirX : Math.sin(h);
+    const fz = hasDir ? dirZ : Math.cos(h);
+    const speed = 11;
+    vx = fx * speed;
+    vz = fz * speed;
+    vy = 1.6;
+  }
+  releaseBall(world, player, { x: vx, y: vy, z: vz });
 }
 
 /** Panic clear for low-mindset players near goal (elizacontroller.cpp:924-939). */

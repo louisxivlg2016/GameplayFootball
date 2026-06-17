@@ -73,6 +73,7 @@ export interface Pad {
   pass: string;
   lob: string;
   tackle: string;
+  head: string;
   /** player 1 only: the on-screen joystick feeds movement to this pad */
   solo?: boolean;
 }
@@ -88,6 +89,7 @@ const SOLO_PAD: Pad = {
   pass: "KeyX",
   lob: "KeyC",
   tackle: "KeyE",
+  head: "KeyV",
   solo: true,
 };
 
@@ -114,6 +116,7 @@ export const PADS: [Pad, Pad] = [
     pass: "KeyX",
     lob: "KeyC",
     tackle: "KeyE",
+    head: "KeyV",
   },
   {
     up: ["ArrowUp"],
@@ -125,6 +128,7 @@ export const PADS: [Pad, Pad] = [
     pass: "KeyL",
     lob: "KeyM",
     tackle: "KeyI",
+    head: "KeyO",
   },
 ];
 
