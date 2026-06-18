@@ -7,12 +7,13 @@ import { humanSlotFor, PITCH, attackSign } from "../game/levels";
 import { strikeToward } from "../game/systems/kicks";
 
 /**
- * Draw-to-shoot: at a human penalty, free kick or corner you trace a white line
- * with the mouse or finger toward where you want the ball to go. On release the
- * line is raycast onto the goal plane (a shot) or the pitch (a cross) and the
- * ball is struck there, with power from the line's length.
+ * Draw-to-shoot: at a human penalty, free kick or corner you scribble a white
+ * line with the mouse or finger — like a pencil, it follows your exact stroke,
+ * curves and all. On release the END of the stroke is raycast onto the goal
+ * plane (a shot) or the pitch (a cross) and the ball is struck there, with power
+ * from how far the stroke reaches from the ball.
  */
-type Line = { x1: number; y1: number; x2: number; y2: number };
+type Pt = { x: number; y: number };
 
 function activeSetPiece(): typeof refState.ceremony {
   const c = refState.ceremony;
@@ -48,7 +49,7 @@ function ballScreen(): { x: number; y: number } | null {
 
 export function DragShoot(): React.ReactNode {
   const [active, setActive] = useState(false);
-  const [line, setLine] = useState<Line | null>(null);
+  const [path, setPath] = useState<Pt[] | null>(null);
   const dragging = useRef(false);
 
   useEffect(() => {
@@ -67,21 +68,30 @@ export function DragShoot(): React.ReactNode {
     if (!activeSetPiece()) return;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     dragging.current = true;
+    // anchor the stroke at the ball, then follow the finger from there
     const bs = ballScreen() ?? { x: e.clientX, y: e.clientY };
-    setLine({ x1: bs.x, y1: bs.y, x2: e.clientX, y2: e.clientY });
+    setPath([bs, { x: e.clientX, y: e.clientY }]);
   };
   const move = (e: React.PointerEvent): void => {
     if (!dragging.current) return;
-    setLine((l) => (l ? { ...l, x2: e.clientX, y2: e.clientY } : null));
+    const x = e.clientX;
+    const y = e.clientY;
+    setPath((p) => {
+      if (!p) return p;
+      const last = p[p.length - 1]!;
+      // skip near-duplicate points so the stroke stays light but smooth
+      if (Math.hypot(x - last.x, y - last.y) < 4) return p;
+      return [...p, { x, y }];
+    });
   };
   const cancel = (): void => {
     dragging.current = false;
-    setLine(null);
+    setPath(null);
   };
   const end = (e: React.PointerEvent): void => {
     if (!dragging.current) return;
     dragging.current = false;
-    setLine(null);
+    setPath(null);
     const c = activeSetPiece();
     const cam = (globalThis as { __gpfCam?: THREE.Camera }).__gpfCam;
     if (!c || !c.taker || !cam) return;
@@ -142,7 +152,7 @@ export function DragShoot(): React.ReactNode {
         cursor: "crosshair",
       }}
     >
-      {!line && (
+      {!path && (
         <div
           style={{
             position: "absolute",
@@ -158,10 +168,10 @@ export function DragShoot(): React.ReactNode {
             pointerEvents: "none",
           }}
         >
-          ✏️ Trace une ligne vers le but pour tirer
+          ✏️ Trace un trait pour tirer
         </div>
       )}
-      {line && (
+      {path && path.length > 1 && (
         <svg
           style={{
             position: "absolute",
@@ -171,27 +181,33 @@ export function DragShoot(): React.ReactNode {
             pointerEvents: "none",
           }}
         >
-          {/* a bold solid white line with a soft halo so it reads on the pitch */}
-          <line
-            x1={line.x1}
-            y1={line.y1}
-            x2={line.x2}
-            y2={line.y2}
+          {/* freehand pencil stroke: the exact path the finger drew, bold white
+              with a soft dark halo so it reads on the pitch */}
+          <polyline
+            points={path.map((p) => `${p.x},${p.y}`).join(" ")}
+            fill="none"
             stroke="rgba(0,0,0,0.5)"
             strokeWidth={11}
             strokeLinecap="round"
+            strokeLinejoin="round"
           />
-          <line
-            x1={line.x1}
-            y1={line.y1}
-            x2={line.x2}
-            y2={line.y2}
+          <polyline
+            points={path.map((p) => `${p.x},${p.y}`).join(" ")}
+            fill="none"
             stroke="#fff"
             strokeWidth={6}
             strokeLinecap="round"
+            strokeLinejoin="round"
           />
-          <circle cx={line.x1} cy={line.y1} r={7} fill="#ffe94a" />
-          <circle cx={line.x2} cy={line.y2} r={12} fill="#fff" stroke="#000" strokeWidth={2} />
+          <circle cx={path[0]!.x} cy={path[0]!.y} r={7} fill="#ffe94a" />
+          <circle
+            cx={path[path.length - 1]!.x}
+            cy={path[path.length - 1]!.y}
+            r={12}
+            fill="#fff"
+            stroke="#000"
+            strokeWidth={2}
+          />
         </svg>
       )}
     </div>
