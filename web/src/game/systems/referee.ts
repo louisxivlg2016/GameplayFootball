@@ -553,10 +553,7 @@ export function refereeSystem(world: World, dt: number): void {
           // free kick / corner / penalty: a deliberate set-piece you AIM by
           // drawing a line (or with the buttons). Long window; rarely auto-fires.
           c.kickDelay = refState.shootout ? 10 : 18;
-          banner(
-            c.type === "penalty" ? "À TOI DE JOUER !" : "TRACE UN TRAIT POUR TIRER",
-            2.5,
-          );
+          banner("TRACE UN TRAIT POUR TIRER", 2.5);
         } else {
           c.kickDelay = 0.6 + Math.random() * 0.6;
         }
@@ -779,7 +776,7 @@ function startShootoutKick(world: World): void {
     const v = e.get(Velocity)!;
     v.set(0, 0, 0);
     if (e === taker) {
-      p.set(41.5, 0, 0);
+      p.set(43.2, 0, 0); // right at the spot, like a normal penalty
       e.set(Heading, { angle: Math.PI / 2 }); // facing the goal (+x)
     } else if (e.get(Team)!.id !== team && e.get(PlayerInfo)!.role === Role.GK) {
       p.set(PITCH.halfLength - 0.7, 0, 0);

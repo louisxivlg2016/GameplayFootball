@@ -24,6 +24,16 @@ function activeSetPiece(): typeof refState.ceremony {
   return c;
 }
 
+/** True whenever the human is on a draw-to-shoot set piece (preparing or ready),
+ *  so the HUD can clear the radar out of the way of the ball and aim line. */
+export function humanSetPieceActive(): boolean {
+  const c = refState.ceremony;
+  if (!c) return false;
+  if (c.type !== "penalty" && c.type !== "freekick" && c.type !== "corner")
+    return false;
+  return humanSlotFor(c.team) !== null;
+}
+
 function ballScreen(): { x: number; y: number } | null {
   const cam = (globalThis as { __gpfCam?: THREE.Camera }).__gpfCam;
   const rb = world.queryFirst(IsBall)?.get(BallRef)?.value;

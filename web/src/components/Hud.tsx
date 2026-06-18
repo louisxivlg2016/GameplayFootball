@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TEAMS, useStore } from "../game/store";
 import { TouchControls } from "./TouchControls";
-import { DragShoot } from "./DragShoot";
+import { DragShoot, humanSetPieceActive } from "./DragShoot";
 
 const act = () => useStore.getState();
 
@@ -411,6 +411,17 @@ const RADAR_H = 148;
 function Radar(): React.ReactNode {
   const radar = useStore((s) => s.radar);
   const ref = useRef<HTMLCanvasElement>(null);
+  // hide the radar while aiming a set piece — it sits right over the ball
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let raf = 0;
+    const tick = (): void => {
+      setHidden(humanSetPieceActive());
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   useEffect(() => {
     const ctx = ref.current?.getContext("2d");
@@ -447,6 +458,7 @@ function Radar(): React.ReactNode {
     }
   }, [radar]);
 
+  if (hidden) return null;
   return (
     <canvas
       ref={ref}
