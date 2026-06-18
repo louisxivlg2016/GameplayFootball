@@ -221,6 +221,15 @@ export function aiSystem(world: World, dt: number): void {
       }
     }
 
+    // set-piece practice between attempts (no ceremony yet): bystanders hold
+    // their shape instead of swarming the loose ball, so it never turns into a
+    // normal match. The keeper still plays (it must keep reacting to save).
+    if (store.practice >= 2 && info.role !== Role.GK && carrier !== e) {
+      const a = e.get(HomePos)!;
+      seek(e, a.x, a.z, dt, SPEEDS.walk);
+      continue;
+    }
+
     if (info.role === Role.GK) {
       keeper(world, e, teamId, bs, bp, bv, dt);
       continue;
@@ -743,8 +752,8 @@ function keeper(
         if (!read || state.time > read.until) {
           const shotSpeed = Math.hypot(bv.x, bv.z);
           const spread =
-            (0.18 + shotSpeed * 0.03) * (1.1 - 0.5 * e.get(Stats)!.ballcontrol);
-          const wrongChance = clamp((shotSpeed - 14) * 0.025, 0, 0.28);
+            (0.35 + shotSpeed * 0.05) * (1.2 - 0.5 * e.get(Stats)!.ballcontrol);
+          const wrongChance = clamp((shotSpeed - 10) * 0.038, 0, 0.5);
           read = {
             until: state.time + tCross + 0.2,
             off:

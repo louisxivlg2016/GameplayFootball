@@ -93,9 +93,17 @@ export function possessionSystem(world: World, dt: number): void {
 
   // during a restart ceremony only the taker may take the ball
   const ceremony = refState.ceremony;
-  // a penalty is a dead-ball strike: nobody dribbles it off the spot, so no one
-  // may pick it up until it is actually struck (which clears the ceremony).
-  if (ceremony && ceremony.type === "penalty") return;
+  // penalties, free kicks and corners are deliberate dead-ball strikes you AIM
+  // (draw-to-shoot): nobody — not even the taker — may pick the ball up off the
+  // spot, or grabbing it would end the ceremony and drop you into open play.
+  // It stays put until it is actually struck (which clears the ceremony).
+  if (
+    ceremony &&
+    (ceremony.type === "penalty" ||
+      ceremony.type === "freekick" ||
+      ceremony.type === "corner")
+  )
+    return;
 
   const ownerTeam = bs.owner ? bs.owner.get(Team)!.id : -1;
   let best: Entity | null = null;

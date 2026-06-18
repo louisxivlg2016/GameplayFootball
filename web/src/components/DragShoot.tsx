@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState } from "react";
+import type { Entity } from "koota";
 import * as THREE from "three";
 import { world } from "../game/world";
-import { BallRef, IsBall } from "../game/traits";
+import {
+  BallRef,
+  IsBall,
+  IsPlayer,
+  KeeperDive,
+  PlayerInfo,
+  Position,
+  Role,
+  Team,
+  Velocity,
+} from "../game/traits";
 import { refState } from "../game/systems/referee";
 import { humanSlotFor, PITCH, attackSign } from "../game/levels";
 import { strikeToward } from "../game/systems/kicks";
@@ -210,6 +221,120 @@ export function DragShoot(): React.ReactNode {
           />
         </svg>
       )}
+    </div>
+  );
+}
+
+/** The human's keeper, when an OPPONENT is taking a penalty against him. */
+function defendingKeeper(): Entity | null {
+  const c = refState.ceremony;
+  if (!c || c.type !== "penalty") return null;
+  if (humanSlotFor(c.team) !== null) return null; // the human is the taker, not defending
+  const defTeam = 1 - c.team;
+  if (humanSlotFor(defTeam) === null) return null; // human doesn't control the defenders
+  for (const e of world.query(IsPlayer)) {
+    if (
+      e.isAlive() &&
+      e.get(Team)!.id === defTeam &&
+      e.get(PlayerInfo)!.role === Role.GK
+    )
+      return e;
+  }
+  return null;
+}
+
+function screenOf(e: Entity): { x: number; y: number } | null {
+  const cam = (globalThis as { __gpfCam?: THREE.Camera }).__gpfCam;
+  if (!cam || !e.isAlive()) return null;
+  const p = e.get(Position)!;
+  const v = new THREE.Vector3(p.x, 1.2, p.z).project(cam);
+  if (v.z > 1) return null; // behind the camera
+  return {
+    x: (v.x * 0.5 + 0.5) * window.innerWidth,
+    y: (-v.y * 0.5 + 0.5) * window.innerHeight,
+  };
+}
+
+/** Fling the human keeper to a side. dir -1 = screen-left, +1 = screen-right
+ *  (the broadcast/penalty camera's right axis is world +z). */
+function diveKeeper(dir: number): void {
+  const gk = defendingKeeper();
+  if (!gk || gk.has(KeeperDive)) return;
+  gk.add(KeeperDive);
+  gk.set(KeeperDive, { t: 0, side: dir });
+  const v = gk.get(Velocity)!;
+  v.z = dir * 14;
+  v.x = 0;
+}
+
+/**
+ * When the AI takes a penalty against you, control of the save is a guess: a
+ * big arrow sits either side of your keeper. Press one and he flings himself
+ * that way — pick the right side and you keep it out.
+ */
+export function KeeperArrows(): React.ReactNode {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    let raf = 0;
+    const tick = (): void => {
+      const gk = defendingKeeper();
+      setPos(gk ? screenOf(gk) : null);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  if (!pos) return null;
+
+  const btn = (dir: -1 | 1): React.ReactNode => (
+    <div
+      onPointerDown={(e) => {
+        e.preventDefault();
+        diveKeeper(dir);
+      }}
+      style={{
+        position: "absolute",
+        left: pos.x + dir * 120 - 36,
+        top: pos.y - 36,
+        width: 72,
+        height: 72,
+        borderRadius: "50%",
+        background: "rgba(255,233,74,0.85)",
+        border: "3px solid #000",
+        color: "#000",
+        fontSize: 40,
+        fontWeight: 900,
+        lineHeight: "66px",
+        textAlign: "center",
+        pointerEvents: "auto",
+        touchAction: "none",
+        userSelect: "none",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.6)",
+      }}
+    >
+      {dir < 0 ? "←" : "→"}
+    </div>
+  );
+
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 6 }}>
+      <div
+        style={{
+          position: "absolute",
+          top: "16%",
+          left: 0,
+          right: 0,
+          textAlign: "center",
+          color: "#fff",
+          fontWeight: 800,
+          fontSize: 22,
+          textShadow: "0 2px 8px #000",
+        }}
+      >
+        🧤 Choisis un côté pour plonger
+      </div>
+      {btn(-1)}
+      {btn(1)}
     </div>
   );
 }

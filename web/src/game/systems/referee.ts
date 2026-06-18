@@ -169,6 +169,20 @@ export function startSetPiece(
   }
 
   refState.ceremony = { type, team, x, z, t: 2, ready: false, kickDelay: 0.8, taker };
+
+  // a free kick near goal: snap the wall (and the forwards beside it) into place
+  // the instant the whistle blows, instead of a long jog — a proper wall, like
+  // the real thing, ready to leap when you strike it
+  if (type === "freekick") {
+    for (const e of world.query(IsPlayer)) {
+      if (e === taker) continue;
+      const t = ceremonyTarget(world, e);
+      if (!t) continue;
+      e.get(Position)!.set(t.x, 0, t.z);
+      e.get(Velocity)!.set(0, 0, 0);
+    }
+  }
+
   world.queryFirst(Match)?.set(Match, { lastTouchTeam: team });
   refState.flagged.clear();
   if (type !== "kickoff") whistle(1);
