@@ -50,7 +50,11 @@ const server = Bun.serve({
     "/": index,
   },
   development: {
-    hmr: true,
+    // HMR off on purpose: hot-patching modules into an OPEN page mid-edit left
+    // the game in half-broken states (missing taker, "normal match", crashes).
+    // A plain reload always loads a clean, consistent bundle. Flip to true only
+    // if you want live reload and accept the occasional broken in-between state.
+    hmr: false,
     console: true,
   },
   async fetch(req) {
