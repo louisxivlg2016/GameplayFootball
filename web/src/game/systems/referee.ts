@@ -288,7 +288,7 @@ export function refereeFoul(
     if (penalty) {
       banner("PENALTY!", 3);
       radio("penalty");
-      startSetPiece(world, "penalty", victimTeam, Math.sign(defGoalX) * 44, 0);
+      startSetPiece(world, "penalty", victimTeam, Math.sign(defGoalX) * 49, 0);
     } else {
       banner("FOUL");
       radio("foul");
@@ -810,7 +810,7 @@ function startShootoutKick(world: World): void {
   const team = so.turn;
   // shooter's goal is always +x; point the sides that way
   if (attackSign(team) < 0) swapSides();
-  startSetPiece(world, "penalty", team, 44, 0);
+  startSetPiece(world, "penalty", team, 49, 0);
   const round = so.taken[team]!;
   // rotate takers through the outfield
   const candidates = world
@@ -832,7 +832,7 @@ function startShootoutKick(world: World): void {
     const v = e.get(Velocity)!;
     v.set(0, 0, 0);
     if (e === taker) {
-      p.set(43.2, 0, 0); // right at the spot, like a normal penalty
+      p.set(48.2, 0, 0); // right at the spot, close to the keeper
       e.set(Heading, { angle: Math.PI / 2 }); // facing the goal (+x)
     } else if (e.get(Team)!.id !== team && e.get(PlayerInfo)!.role === Role.GK) {
       p.set(PITCH.halfLength - 0.7, 0, 0);
@@ -909,7 +909,7 @@ function placePractice(world: World): void {
     startSetPiece(world, "corner", 0, s * 53.5, (Math.random() < 0.5 ? 1 : -1) * 34);
   } else {
     // a penalty
-    startSetPiece(world, "penalty", 0, s * 44, 0);
+    startSetPiece(world, "penalty", 0, s * 49, 0);
   }
 }
 
