@@ -873,8 +873,15 @@ function shootoutSystem(
     bp.x > PITCH.halfLength + PITCH.ballRadius &&
     Math.abs(bp.z) < PITCH.goalHalfWidth &&
     bp.y < PITCH.goalHeight;
+  // a miss is over the instant the ball settles — no waiting around for a
+  // rebound, and the kick is dead so nobody can knock it back in
+  const bb = ballOf(world);
+  const bv = bb ? bb.rb.linvel() : { x: 0, y: 0, z: 0 };
+  const stopped =
+    so.awaiting < 3.2 && Math.hypot(bv.x, bv.y, bv.z) < 1.2 && !goal;
   const dead =
     so.awaiting <= 0 ||
+    stopped ||
     Math.abs(bp.x) > PITCH.halfLength + 0.5 ||
     Math.hypot(bp.x - 55, bp.z) > 30;
 

@@ -105,6 +105,10 @@ export function possessionSystem(world: World, dt: number): void {
   )
     return;
 
+  // shoot-out: a kick is ONE shot. Once it's struck (awaiting > 0) the ball is
+  // dead — no rebounds, no retakes, nobody may touch it until the next kick.
+  if (refState.shootout && refState.shootout.awaiting > 0) return;
+
   const ownerTeam = bs.owner ? bs.owner.get(Team)!.id : -1;
   let best: Entity | null = null;
   let bestD = Infinity;
