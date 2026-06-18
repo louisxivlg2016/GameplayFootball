@@ -147,6 +147,13 @@ export function loadMatch(world: World): void {
     }
   }
   placeKickoff(world, Math.random() < 0.5 ? 0 : 1);
+
+  // bump an epoch tied to THIS fresh set of entities. The referee keys its
+  // one-time match setup (shoot-out staging, kickoff, etc.) off this — not off
+  // the store's gen — so the setup always runs on the entities loadMatch just
+  // created, never on a stale set about to be destroyed by a remount.
+  const g = globalThis as { __gpfEpoch?: number };
+  g.__gpfEpoch = (g.__gpfEpoch ?? 0) + 1;
 }
 
 /** Everyone to their own half, ball dead on the centre spot, one striker on it. */

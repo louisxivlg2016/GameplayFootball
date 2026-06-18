@@ -77,6 +77,8 @@ interface PendingFoul {
 
 export const refState = {
   gen: -1,
+  /** matches loadMatch's epoch; a mismatch means a fresh set of entities to set up */
+  epoch: -1,
   clock: 0,
   phase: 0,
   firstKickoff: 0,
@@ -503,13 +505,20 @@ export function refereeSystem(world: World, dt: number): void {
   const store = useStore.getState();
   const match = world.queryFirst(Match);
   const b = ballOf(world);
-  // NB: the gen-reset below runs with only the Match entity — it does NOT wait
-  // for the ball's physics body to attach. That way a chosen mode (shoot-out,
-  // free kick…) is staged and the camera cuts to it on the very FIRST frame,
-  // instead of briefly showing the kickoff while the ball body spins up.
+  // NB: the match-reset below runs with only the Match entity — it does NOT
+  // wait for the ball's physics body to attach. That way a chosen mode
+  // (shoot-out, free kick…) is staged and the camera cuts to it on the very
+  // FIRST frame, instead of briefly showing the kickoff while the ball spins up.
   if (!match) return;
 
-  if (store.gen !== refState.gen) {
+  // Key the one-time setup off loadMatch's epoch, NOT the store's gen. On a
+  // menu→play remount the old screen's last frame sees the new gen before
+  // loadMatch has rebuilt the world; keying off gen there would stage the
+  // about-to-be-destroyed entities (dead taker → no player, then it collapses
+  // into open play). The epoch only bumps once loadMatch creates the new set.
+  const epoch = (globalThis as { __gpfEpoch?: number }).__gpfEpoch ?? 0;
+  if (epoch !== refState.epoch) {
+    refState.epoch = epoch;
     refState.gen = store.gen;
     refState.clock = 0;
     refState.phase = 0;
