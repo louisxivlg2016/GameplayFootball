@@ -923,8 +923,10 @@ function placePractice(world: World): void {
   const practice = useStore.getState().practice;
   const s = attackSign(0); // the human team attacks +x
   if (practice === 2) {
-    // a free kick around 22m out, central-ish (z varies)
-    startSetPiece(world, "freekick", 0, s * (PITCH.halfLength - 22), (Math.random() - 0.5) * 16);
+    // a dangerous free kick ~19m out, off to one side (an angled shooting
+    // position with a proper wall, like a real one)
+    const side = Math.random() < 0.5 ? -1 : 1;
+    startSetPiece(world, "freekick", 0, s * (PITCH.halfLength - 19), side * (6 + Math.random() * 6));
   } else if (practice === 3) {
     // a corner, alternating flags
     startSetPiece(world, "corner", 0, s * 53.5, (Math.random() < 0.5 ? 1 : -1) * 34);
