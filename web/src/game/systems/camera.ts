@@ -77,11 +77,11 @@ export function cameraSystem(
   } else if (penalty) {
     const spotX = c ? c.x : 44;
     const s = Math.sign(spotX || 1);
-    // pulled back and up so the taker sits clearly in the lower-middle of the
-    // frame (above the radar), the ball ahead of him, goal + keeper beyond
-    desiredPos.set(spotX - s * 10, 3.5, 1.3);
-    desiredLook.set(s * PITCH.halfLength, 1.5, 0);
-    desiredFov = 46;
+    // close behind the taker so HE is the prominent figure in the foreground
+    // (radar is hidden during the kick, so nothing covers him), goal beyond
+    desiredPos.set(spotX - s * 6, 2.5, 1.1);
+    desiredLook.set(s * PITCH.halfLength * 0.9, 1.2, 0);
+    desiredFov = 52;
   } else if (c && (c.type === "freekick" || c.type === "corner")) {
     // dedicated set-piece framing so a free kick / corner never looks like
     // open play: sit behind the ball with the target goal filling the frame

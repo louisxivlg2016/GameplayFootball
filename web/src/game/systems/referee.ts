@@ -5,6 +5,7 @@ import {
   Heading,
   IsBall,
   IsPlayer,
+  Jump,
   KeeperDive,
   Match,
   Name,
@@ -123,18 +124,23 @@ export function startSetPiece(
   x: number,
   z: number,
 ): void {
+  // The ball body may not have attached yet on a fresh match — that's fine:
+  // we still set the ceremony and place the taker now (so the camera cuts to
+  // the set piece this frame), and the staging loop drops the ball on the spot
+  // as soon as its body is live.
   const b = ballOf(world);
-  if (!b) return;
-  b.rb.setTranslation({ x, y: PITCH.ballRadius, z }, true);
-  b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
-  b.rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
-  b.bs.owner = null;
-  b.bs.lastKicker = null;
-  b.bs.passTarget = null;
-  b.bs.passHomingT = 0;
-  b.bs.passProtected = false;
-  b.bs.kickCooldown = 0;
-  b.bs.recaptureBlocks = [];
+  if (b) {
+    b.rb.setTranslation({ x, y: PITCH.ballRadius, z }, true);
+    b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    b.rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    b.bs.owner = null;
+    b.bs.lastKicker = null;
+    b.bs.passTarget = null;
+    b.bs.passHomingT = 0;
+    b.bs.passProtected = false;
+    b.bs.kickCooldown = 0;
+    b.bs.recaptureBlocks = [];
+  }
 
   // taker: nearest outfielder, except goal kicks (the keeper takes those)
   let taker: Entity | null = null;
@@ -193,6 +199,21 @@ export function refereeOnKick(world: World, kicker: Entity): void {
     if (refState.shootout) {
       refState.shootout.awaiting = 3.5;
       setTension(false); // the kick releases the held breath
+    }
+    // free kick struck: the wall (and the forwards beside it) leap to block
+    if (c.type === "freekick") {
+      const gx = attackSign(c.team) * PITCH.halfLength;
+      const goalDist = Math.hypot(gx - c.x, c.z) || 1;
+      const wallX = c.x + ((gx - c.x) / goalDist) * 9.15;
+      const wallZ = c.z + ((0 - c.z) / goalDist) * 9.15;
+      for (const e of world.query(IsPlayer)) {
+        if (e === kicker || e.get(PlayerInfo)!.role === Role.GK) continue;
+        const p = e.get(Position)!;
+        if (Math.hypot(p.x - wallX, p.z - wallZ) < 6 && !e.has(Jump)) {
+          e.add(Jump);
+          e.set(Jump, { t: 0 });
+        }
+      }
     }
   }
   const team = kicker.get(Team)!.id;
@@ -373,24 +394,44 @@ export function ceremonyTarget(
     const s = attackSign(teamId);
     return { x: Math.min(p.x * s, -1) * s, z: p.z };
   }
-  // free kicks / corners / throw-ins: opponents retreat 9.15m; wall for close FKs
-  if (teamId !== c.team) {
-    const d = Math.hypot(p.x - c.x, p.z - c.z);
-    if (c.type === "freekick") {
-      const goalX = -attackSign(c.team) * -PITCH.halfLength; // goal the FK attacks
-      const gx = attackSign(c.team) * PITCH.halfLength;
-      const goalDist = Math.hypot(gx - c.x, c.z);
-      if (goalDist < 30) {
-        // two nearest defenders form a wall on the ball-goal line at 9.15m
-        void goalX;
-        const dirX = (gx - c.x) / goalDist;
-        const dirZ = (0 - c.z) / goalDist;
-        const idx = e.get(PlayerInfo)!.index % 2 === 0 ? 0.5 : -0.5;
-        if (d < 12 && e.get(PlayerInfo)!.role !== Role.GK) {
-          return { x: c.x + dirX * 9.15 - dirZ * idx, z: c.z + dirZ * 9.15 + dirX * idx };
+  // free kick near goal: both teams form up by the ball — a defensive wall
+  // and the attackers crowding alongside it (two little groups), set to leap
+  if (c.type === "freekick") {
+    const gx = attackSign(c.team) * PITCH.halfLength; // goal the FK attacks
+    const goalDist = Math.hypot(gx - c.x, c.z);
+    const role = e.get(PlayerInfo)!.role;
+    if (goalDist < 32 && role !== Role.GK) {
+      const dirX = (gx - c.x) / goalDist;
+      const dirZ = (0 - c.z) / goalDist;
+      const perpX = -dirZ; // along the wall, square to the ball-goal line
+      const perpZ = dirX;
+      const idx = e.get(PlayerInfo)!.index;
+      if (teamId !== c.team) {
+        if (role === Role.DEF) {
+          // the wall: four defenders shoulder to shoulder, on the line
+          const slot = idx - 1 - 1.5; // idx 1..4 → -1.5,-0.5,0.5,1.5
+          return {
+            x: c.x + dirX * 9.15 + perpX * slot * 0.85,
+            z: c.z + dirZ * 9.15 + perpZ * slot * 0.85,
+          };
         }
+        // their mids/forwards aren't in the wall — fall through to the retreat
+      } else {
+        if (role === Role.ATT) {
+          // my two forwards jostle right alongside the wall for the rebound
+          const slot = idx === 9 ? -1.7 : 1.7;
+          return {
+            x: c.x + dirX * 8.4 + perpX * slot,
+            z: c.z + dirZ * 8.4 + perpZ * slot,
+          };
+        }
+        return null; // my other players hold their shape
       }
     }
+  }
+  // opponents otherwise retreat the regulation 9.15m from the ball
+  if (teamId !== c.team) {
+    const d = Math.hypot(p.x - c.x, p.z - c.z);
     if (d < 9.15) {
       const dd = d || 1;
       return {
@@ -462,7 +503,11 @@ export function refereeSystem(world: World, dt: number): void {
   const store = useStore.getState();
   const match = world.queryFirst(Match);
   const b = ballOf(world);
-  if (!match || !b) return;
+  // NB: the gen-reset below runs with only the Match entity — it does NOT wait
+  // for the ball's physics body to attach. That way a chosen mode (shoot-out,
+  // free kick…) is staged and the camera cuts to it on the very FIRST frame,
+  // instead of briefly showing the kickoff while the ball body spins up.
+  if (!match) return;
 
   if (store.gen !== refState.gen) {
     refState.gen = store.gen;
@@ -521,15 +566,17 @@ export function refereeSystem(world: World, dt: number): void {
     return;
   }
 
+  if (!b) return; // everything below needs the ball's physics body
   const bp = b.rb.translation();
 
   // ---- ceremony staging ----
   const c = refState.ceremony;
   if (c) {
     if (!c.ready) {
-      // dead ball until the whistle
+      // dead ball until the whistle — held on the spot, detached from anyone
       b.rb.setTranslation({ x: c.x, y: PITCH.ballRadius, z: c.z }, true);
       b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      b.bs.owner = null;
       c.t -= dt;
       if (c.t <= 0) {
         c.ready = true;

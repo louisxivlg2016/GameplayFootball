@@ -5,6 +5,7 @@ import {
   Heading,
   IsBall,
   IsPlayer,
+  Jump,
   KeeperDive,
   MeshRef,
   Position,
@@ -120,6 +121,19 @@ export function movementSystem(world: World, dt: number): void {
       }
     }
 
+    // wall-jump timer: a quick ~0.7s leap to block the free kick
+    let jump = e.get(Jump);
+    if (jump) {
+      const t = jump.t + dt;
+      if (t > 0.75) {
+        e.remove(Jump);
+        jump = undefined;
+      } else {
+        e.set(Jump, { t });
+        jump = { ...jump, t };
+      }
+    }
+
     // heading lags velocity — the original turns through animation, not snapping
     let heading = e.get(Heading)!.angle;
     let angleDiff = 0;
@@ -177,6 +191,11 @@ export function movementSystem(world: World, dt: number): void {
         const amt = inK * upK * trip.fall;
         h.value.position.set(p.x, -0.04 * amt, p.z);
         h.value.rotation.set(1.5 * amt, trip.yaw, 0.1 * amt, "YZX");
+      } else if (jump) {
+        // a clean vertical leap — arms up implied, feet off the turf
+        const hop = Math.sin(Math.min(jump.t / 0.75, 1) * Math.PI) * 0.95;
+        h.value.position.set(p.x, hop, p.z);
+        h.value.rotation.set(0, heading, 0, "YZX");
       } else {
         h.value.position.set(p.x, 0, p.z);
         h.value.rotation.set(0, heading, 0, "YZX");
@@ -185,7 +204,7 @@ export function movementSystem(world: World, dt: number): void {
     const selected = e.has(Selected) || e.has(Selected2);
     // the ring/tag are children of the posed group: hide them while a body is
     // on the turf or they pitch up into a giant hoop beside the player
-    const posed = !!(dive || slide || trip);
+    const posed = !!(dive || slide || trip || jump);
     if (h.ring) {
       h.ring.visible = selected && !posed;
       if (selected) {

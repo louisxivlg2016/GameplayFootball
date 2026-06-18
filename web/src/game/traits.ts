@@ -44,6 +44,8 @@ export const Velocity = trait(() => new THREE.Vector3());
 export const Heading = trait({ angle: 0 });
 /** A keeper mid-dive: committed flight, procedural pose, extended reach. */
 export const KeeperDive = trait({ t: 0, side: 1 });
+/** A player hopping to block — the free-kick wall leaping as the ball is struck. */
+export const Jump = trait({ t: 0 });
 /** A player mid slide-tackle: low reclined pose along the locked yaw. */
 export const SlideTackle = trait({ t: 0, yaw: 0 });
 /** A tackled player going down: fall=1 full knockdown (foul), 0.5 stumble. */
