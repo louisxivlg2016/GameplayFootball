@@ -463,7 +463,12 @@ export function radio(
       void playGoalClip();
       break;
     case "foul":
-      say(pick(["Faute sifflée !", "L'arbitre arrête le jeu, faute !", "Oh la semelle ! Coup franc."]), 2);
+      say(
+        team
+          ? pick([`Faute ! Coup franc pour ${team}.`, `L'arbitre siffle, coup franc pour ${team} !`])
+          : pick(["Faute sifflée !", "L'arbitre arrête le jeu, faute !"]),
+        2,
+      );
       break;
     case "yellow":
       say(
@@ -485,7 +490,12 @@ export function radio(
       );
       break;
     case "penalty":
-      say(pick(["Penalty ! C'est penalty !", "L'arbitre désigne le point de penalty !"]), 2);
+      say(
+        team
+          ? pick([`Penalty pour ${team} !`, `L'arbitre désigne le point de penalty, penalty pour ${team} !`])
+          : pick(["Penalty ! C'est penalty !", "L'arbitre désigne le point de penalty !"]),
+        2,
+      );
       break;
     case "offside":
       say(pick(["Signalé hors-jeu !", "Le drapeau se lève, hors-jeu !"]), 2);

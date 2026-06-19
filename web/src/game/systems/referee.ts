@@ -300,14 +300,23 @@ export function refereeFoul(
   const award = (): void => {
     whistle(2);
     if (penalty) {
-      banner("PENALTY!", 3);
-      radio("penalty");
+      banner("PENALTY !", 3);
+      radio("penalty", { team: victimTeam });
       startSetPiece(world, "penalty", victimTeam, Math.sign(defGoalX) * 51, 0);
-    } else {
-      banner("FOUL");
-      radio("foul");
-      startSetPiece(world, "freekick", victimTeam, clamp(fp.x, -52, 52), clamp(fp.z, -33, 33));
+      return;
     }
+    // A foul committed against you deep in your OWN defensive area (the other
+    // side fouled you in front of your net) isn't a fussy free kick — your
+    // keeper just collects it and plays out, like a goal kick. (A penalty here
+    // only happens when YOU foul in your own box, handled above.)
+    const ownGoalX = -attackSign(victimTeam) * PITCH.halfLength;
+    if (Math.sign(fp.x) === Math.sign(ownGoalX) && Math.abs(fp.x - ownGoalX) < 22) {
+      startGoalRestart(world, victimTeam); // keeper's ball (announces the goal kick)
+      return;
+    }
+    banner("COUP FRANC");
+    radio("foul", { team: victimTeam });
+    startSetPiece(world, "freekick", victimTeam, clamp(fp.x, -52, 52), clamp(fp.z, -33, 33));
   };
 
   // a booking always stops play: card close-up + tackle replay, no advantage.
