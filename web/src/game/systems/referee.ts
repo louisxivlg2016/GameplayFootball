@@ -427,21 +427,37 @@ export function ceremonyTarget(
           // the wall: four defenders shoulder to shoulder, on the line
           const slot = idx - 1 - 1.5; // idx 1..4 → -1.5,-0.5,0.5,1.5
           return {
-            x: c.x + dirX * 9.15 + perpX * slot * 0.85,
-            z: c.z + dirZ * 9.15 + perpZ * slot * 0.85,
+            x: c.x + dirX * 9.15 + perpX * slot * 0.82,
+            z: c.z + dirZ * 9.15 + perpZ * slot * 0.82,
           };
         }
-        // their mids/forwards aren't in the wall — fall through to the retreat
+        if (role === Role.MID && idx <= 6) {
+          // two midfielders drop into the box to mark, wide of the wall
+          const slot = idx === 5 ? -2.4 : 2.4;
+          return {
+            x: c.x + dirX * 13 + perpX * slot,
+            z: c.z + dirZ * 13 + perpZ * slot,
+          };
+        }
+        // their remaining mids/forwards stay up the pitch for a counter
       } else {
         if (role === Role.ATT) {
-          // my two forwards jostle right alongside the wall for the rebound
-          const slot = idx === 9 ? -1.7 : 1.7;
+          // my forwards attack the box, wide either side, for the cross/rebound
+          const slot = idx === 9 ? -2.6 : 2.6;
           return {
-            x: c.x + dirX * 8.4 + perpX * slot,
-            z: c.z + dirZ * 8.4 + perpZ * slot,
+            x: c.x + dirX * 10.5 + perpX * slot,
+            z: c.z + dirZ * 10.5 + perpZ * slot,
           };
         }
-        return null; // my other players hold their shape
+        if (role === Role.MID && idx <= 6) {
+          // two midfielders join them, tighter in
+          const slot = idx === 5 ? -1 : 1;
+          return {
+            x: c.x + dirX * 12 + perpX * slot,
+            z: c.z + dirZ * 12 + perpZ * slot,
+          };
+        }
+        return null; // my defenders hold for the counter
       }
     }
   }
@@ -923,10 +939,11 @@ function placePractice(world: World): void {
   const practice = useStore.getState().practice;
   const s = attackSign(0); // the human team attacks +x
   if (practice === 2) {
-    // a dangerous free kick ~19m out, off to one side (an angled shooting
-    // position with a proper wall, like a real one)
+    // a dangerous free kick ~18-23m out: sometimes flat and central, sometimes
+    // off to one side at an angle (with a proper wall, like a real one)
     const side = Math.random() < 0.5 ? -1 : 1;
-    startSetPiece(world, "freekick", 0, s * (PITCH.halfLength - 19), side * (6 + Math.random() * 6));
+    const z = Math.random() < 0.35 ? (Math.random() - 0.5) * 6 : side * (6 + Math.random() * 6);
+    startSetPiece(world, "freekick", 0, s * (PITCH.halfLength - (18 + Math.random() * 5)), z);
   } else if (practice === 3) {
     // a corner, alternating flags
     startSetPiece(world, "corner", 0, s * 53.5, (Math.random() < 0.5 ? 1 : -1) * 34);

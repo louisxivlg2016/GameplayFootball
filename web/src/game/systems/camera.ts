@@ -95,12 +95,17 @@ export function cameraSystem(
       desiredLook.set(gx - s * 9, 1, c.z * 0.45);
       desiredFov = 48;
     } else {
-      // free kick, TV style: behind & beside the taker looking right at the
-      // goal, so the wall sits across the middle of frame and the keeper beyond
-      const zside = Math.sign(c.z || 1);
-      desiredPos.set(c.x - s * 6.5, 3.2, c.z * 0.5 + zside * 4.5);
-      desiredLook.set(gx, 1.5, c.z * 0.15);
-      desiredFov = 47;
+      // free kick, TV style: sit behind the taker ALONG the ball→goal line (so
+      // he stays centred in frame at any angle), a touch to the side and raised,
+      // looking at the goal — taker foreground, wall across the middle, keeper beyond
+      const tgx = gx - c.x;
+      const tgz = 0 - c.z;
+      const d = Math.hypot(tgx, tgz) || 1;
+      const ux = tgx / d;
+      const uz = tgz / d;
+      desiredPos.set(c.x - ux * 7 - uz * 3.5, 3.4, c.z - uz * 7 + ux * 3.5);
+      desiredLook.set(gx, 1.5, 0);
+      desiredFov = 50;
     }
   } else {
     const sp = world.queryFirst(Selected)?.get(Position);
