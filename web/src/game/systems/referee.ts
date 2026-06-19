@@ -216,6 +216,10 @@ export function refereeOnKick(world: World, kicker: Entity): void {
       refState.shootout.awaiting = 3.5;
       setTension(false); // the kick releases the held breath
     }
+    // penalty/shoot-out struck: the defending keeper commits to a guess now
+    if (c.type === "penalty") {
+      penaltyDive(world, c.team);
+    }
     // free kick struck: the wall (and the forwards beside it) leap to block
     if (c.type === "freekick") {
       const gx = attackSign(c.team) * PITCH.halfLength;
@@ -538,18 +542,28 @@ function aiTakeSetPiece(world: World, c: Ceremony): void {
     }
     case "penalty": {
       shoot(world, taker, (Math.random() > 0.5 ? 1 : -1) * (2.2 + Math.random() * 0.9));
-      penaltyDive(world, c.team);
-      break;
+      break; // the keeper guesses in refereeOnKick, as the ball is struck
     }
   }
 }
 
+/**
+ * On a penalty/shoot-out, the DEFENDING keeper (when it's an AI keeper — a human
+ * dives his own) makes a genuine guess: he commits fully to a side, left OR
+ * right at random, in a proper dive you can actually watch (not a blink-fast
+ * flick). Pick the side he doesn't and you score.
+ */
 function penaltyDive(world: World, attackingTeam: number): void {
+  const defending = 1 - attackingTeam;
+  if (humanSlotFor(defending) !== null) return; // a human keeps this goal — he dives himself
   for (const e of world.query(IsPlayer)) {
-    if (e.get(Team)!.id === attackingTeam || e.get(PlayerInfo)!.role !== Role.GK)
-      continue;
+    if (e.get(Team)!.id !== defending || e.get(PlayerInfo)!.role !== Role.GK) continue;
+    if (e.has(KeeperDive)) continue;
+    const side = Math.random() < 0.5 ? -1 : 1; // a real guess: left OR right
+    e.add(KeeperDive);
+    e.set(KeeperDive, { t: 0, side });
     const v = e.get(Velocity)!;
-    v.z = (Math.random() > 0.5 ? 1 : -1) * 7;
+    v.z = side * 8; // slow enough to see the full dive
     v.x = 0;
   }
 }
