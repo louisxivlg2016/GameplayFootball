@@ -161,8 +161,8 @@ export function possessionSystem(world: World, dt: number): void {
     const radius =
       (bs.owner ? STEAL_RADIUS : CAPTURE_RADIUS) *
       (0.85 + 0.3 * e.get(Stats)!.ballcontrol) *
-      (isKeeper ? 1.5 : 1) * // a keeper covers more ground, but not the whole goal
-      (e.has(KeeperDive) ? 1.7 : 1) * // arms outstretched mid-dive
+      (isKeeper ? 1.4 : 1) * // a keeper covers more ground, but not the whole goal
+      (e.has(KeeperDive) ? 1.3 : 1) * // arms outstretched mid-dive (beatable to the corners)
       (intended ? 0.85 : 1); // the intended receiver traps it at his feet
     if (d < radius && d < bestD) {
       bestD = d;

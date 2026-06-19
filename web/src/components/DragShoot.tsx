@@ -267,7 +267,7 @@ function diveKeeper(dir: number): void {
   gk.add(KeeperDive);
   gk.set(KeeperDive, { t: 0, side: worldDir });
   const v = gk.get(Velocity)!;
-  v.z = worldDir * 10;
+  v.z = worldDir * 8;
   v.x = 0;
 }
 

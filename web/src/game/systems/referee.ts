@@ -559,7 +559,7 @@ function penaltyDive(world: World, attackingTeam: number): void {
     e.add(KeeperDive);
     e.set(KeeperDive, { t: 0, side });
     const v = e.get(Velocity)!;
-    v.z = side * 8; // slow enough to see the full dive
+    v.z = side * 6; // slow enough to clearly see the full dive
     v.x = 0;
   }
 }

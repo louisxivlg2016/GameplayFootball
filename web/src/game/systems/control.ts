@@ -167,8 +167,8 @@ function controlSlot(
   ) {
     sel.add(KeeperDive);
     sel.set(KeeperDive, { t: 0, side: Math.sign(dir.z) || Math.sign(dir.x) || 1 });
-    vel.z = dir.z * 10;
-    vel.x = dir.x * 7;
+    vel.z = dir.z * 8;
+    vel.x = dir.x * 6;
     return;
   }
 

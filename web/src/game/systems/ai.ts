@@ -771,8 +771,8 @@ function keeper(
           e.set(KeeperDive, { t: 0, side: Math.sign(lateral) || 1 });
           const v = e.get(Velocity)!;
           const tFly = Math.max(tCross, 0.2);
-          v.z = clamp(lateral / tFly, -13, 13); // reaches out to the corners, watchable
-          v.x = clamp((gx + s * 0.4 - kp.x) / tFly, -8, 8);
+          v.z = clamp(lateral / tFly, -8, 8); // slow, watchable, beatable to the corners
+          v.x = clamp((gx + s * 0.4 - kp.x) / tFly, -6, 6);
           return;
         }
         // not diving yet: shuffle onto the predicted line, staying set
