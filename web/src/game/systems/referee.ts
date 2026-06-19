@@ -765,13 +765,11 @@ export function refereeSystem(world: World, dt: number): void {
       if (Math.hypot(bvOut.x, bvOut.y, bvOut.z) > 11 && Math.abs(bp.z) < 9) {
         radio("miss");
       }
+      // ball out behind a goal → the keeper just collects it and plays out (a
+      // goal kick). No corners in a match — whoever knocked it out, near your
+      // goal it's your keeper's ball. (Corners are their own practice mode.)
       const defending = attackSign(0) * side > 0 ? 1 : 0;
-      const lastTouch = match.get(Match)!.lastTouchTeam;
-      if (lastTouch === defending) {
-        startSetPiece(world, "corner", 1 - defending, side * 53.5, Math.sign(bp.z) * 34);
-      } else {
-        startSetPiece(world, "goalkick", defending, side * PITCH.halfLength * 0.92, 0);
-      }
+      startSetPiece(world, "goalkick", defending, side * PITCH.halfLength * 0.92, 0);
       return;
     }
   }
