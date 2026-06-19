@@ -712,19 +712,10 @@ function keeper(
   const s = attackSign(teamId);
   const gx = -s * PITCH.halfLength;
 
-  // mid-dive: he is committed — fly, scrub along the turf, then get back up.
-  // The timer itself lives in movementSystem (it must keep running even when
-  // a human takes control of the keeper, or he walks around lying down).
-  const dive = e.get(KeeperDive);
-  if (dive) {
-    if (dive.t > 0.45) {
-      const f = Math.pow(0.02, dt); // landed: the turf eats the slide
-      const v = e.get(Velocity)!;
-      v.x *= f;
-      v.z *= f;
-    }
-    return;
-  }
+  // mid-dive: he is committed — leave him to fly. The timer AND the turf scrub
+  // both live in movementSystem now (so it's the same long dive whether the AI
+  // or a human launched it).
+  if (e.has(KeeperDive)) return;
 
   // distribution: keeper holds briefly, then plays out
   if (bs.owner === e) {
@@ -772,15 +763,15 @@ function keeper(
         // anything past a boot's reach launches the dive — airborne, arms first,
         // and fast enough to fling himself to the top/bottom corners
         if (
-          tCross < 0.8 &&
-          Math.abs(lateral) > 0.35 &&
+          tCross < 0.95 &&
+          Math.abs(lateral) > 0.3 &&
           Math.hypot(bv.x, bv.z) > 6
         ) {
           e.add(KeeperDive);
           e.set(KeeperDive, { t: 0, side: Math.sign(lateral) || 1 });
           const v = e.get(Velocity)!;
-          const tFly = Math.max(tCross, 0.16);
-          v.z = clamp(lateral / tFly, -16, 16);
+          const tFly = Math.max(tCross, 0.2);
+          v.z = clamp(lateral / tFly, -17, 17); // flings out to the corners
           v.x = clamp((gx + s * 0.4 - kp.x) / tFly, -9, 9);
           return;
         }

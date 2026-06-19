@@ -73,17 +73,24 @@ export function movementSystem(world: World, dt: number): void {
 
     const speed = Math.hypot(v.x, v.z);
 
-    // keeper-dive timer: flight, landing, then back to the feet — ticked here
-    // (not in the AI) so it still expires when a human controls the keeper
+    // keeper-dive timer: a long committed flight, landing, then back to the
+    // feet — ticked here (not in the AI) so it still expires when a human
+    // controls the keeper, and so the slide scrub works for either keeper.
     let dive = e.get(KeeperDive);
     if (dive) {
       const t = dive.t + dt;
-      if (t > 1.15) {
+      if (t > 1.55) {
         e.remove(KeeperDive);
         dive = undefined;
       } else {
         e.set(KeeperDive, { t });
         dive = { ...dive, t };
+        // fly fully committed for a good stretch, THEN the turf scrubs the slide
+        if (t > 0.5) {
+          const f = Math.pow(0.04, dt);
+          v.x *= f;
+          v.z *= f;
+        }
       }
     }
 
@@ -162,12 +169,12 @@ export function movementSystem(world: World, dt: number): void {
         // procedural dive: roll horizontal toward the ball side, arms-first,
         // launch UP into an airborne arc, then settle (no clip exists for it).
         const inK = Math.min(dive.t / 0.22, 1); // launch ramp
-        const upK = dive.t < 0.55 ? 1 : Math.max(0, 1 - (dive.t - 0.55) / 0.55);
+        const upK = dive.t < 0.8 ? 1 : Math.max(0, 1 - (dive.t - 0.8) / 0.7);
         const amt = inK * upK;
         // the rig pivots around its feet, so a body rolled flat would sink half
         // into the pitch — lift it by the roll amount so it always floats on the
-        // grass, then add a pronounced arc so he leaps UP like a real keeper
-        const leap = Math.sin(Math.min(dive.t / 0.7, 1) * Math.PI) * 0.5;
+        // grass, then add a long, pronounced arc so he leaps UP like a real keeper
+        const leap = Math.sin(Math.min(dive.t / 0.95, 1) * Math.PI) * 0.6;
         const air = amt * 0.5 + leap;
         h.value.position.set(p.x, air, p.z);
         h.value.rotation.set(0.3 * amt, heading, -dive.side * 1.4 * amt, "YZX");

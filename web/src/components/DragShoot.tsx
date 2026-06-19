@@ -225,10 +225,10 @@ export function DragShoot(): React.ReactNode {
   );
 }
 
-/** The human's keeper, when an OPPONENT is taking a penalty against him. */
+/** The human's keeper, when an OPPONENT is taking a penalty OR free kick at him. */
 function defendingKeeper(): Entity | null {
   const c = refState.ceremony;
-  if (!c || c.type !== "penalty") return null;
+  if (!c || (c.type !== "penalty" && c.type !== "freekick")) return null;
   if (humanSlotFor(c.team) !== null) return null; // the human is the taker, not defending
   const defTeam = 1 - c.team;
   if (humanSlotFor(defTeam) === null) return null; // human doesn't control the defenders

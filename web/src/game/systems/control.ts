@@ -70,13 +70,16 @@ function controlSlot(
     tCross < 1.4 &&
     Math.abs(zAtGoal) < 6.5;
   const cer = refState.ceremony;
-  const defendingPenalty = cer?.type === "penalty" && cer.team !== team;
+  // a penalty OR a free kick the OPPONENT is taking against you → you defend in
+  // goal, ready to dive
+  const defendingSetPiece =
+    (cer?.type === "penalty" || cer?.type === "freekick") && cer.team !== team;
 
   // Mirrors team.cpp:360-394 — control snaps to the teammate in possession,
   // otherwise to the closest outfield teammate to the ball (with hysteresis).
   const humanOwner =
     bs.owner && bs.owner.get(Team)!.id === team ? bs.owner : null;
-  if (incomingShot || defendingPenalty) {
+  if (incomingShot || defendingSetPiece) {
     let gk: Entity | null = null;
     for (const e of world.query(IsPlayer)) {
       if (e.get(Team)!.id === team && e.get(PlayerInfo)!.role === Role.GK) {
@@ -139,9 +142,12 @@ function controlSlot(
   // a penalty is a strike from the spot: the taker is rooted (no dribbling it
   // forward), direction only aims the corner. Same for either team.
   const penaltyTaker = ceremony?.type === "penalty" && ceremony.taker === sel;
+  const isKeeper = sel.get(PlayerInfo)!.role === Role.GK;
   if (penaltyTaker) {
     vel.x = 0;
     vel.z = 0;
+  } else if (isKeeper && sel.has(KeeperDive)) {
+    // mid-dive: he is committed — don't fight the launch, let him fly full stretch
   } else {
     vel.x += (dir.x * top - vel.x) * k;
     vel.z += (dir.z * top - vel.z) * k;
@@ -150,9 +156,8 @@ function controlSlot(
     if (moving) sel.set(Heading, { angle: Math.atan2(dir.x, dir.z) });
   }
 
-  // human keeper: a full-stretch dive (shoot or tackle button) flings him the
-  // way the stick points, fast enough to reach the corners — your call, your save
-  const isKeeper = sel.get(PlayerInfo)!.role === Role.GK;
+  // human keeper: a long full-stretch dive (shoot or tackle button) flings him
+  // the way the stick points, fast enough to reach the corners — your save
   if (
     isKeeper &&
     !hasBall &&
