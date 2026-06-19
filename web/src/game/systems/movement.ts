@@ -175,7 +175,7 @@ export function movementSystem(world: World, dt: number): void {
         // the rig pivots around its feet, so a body rolled flat would sink half
         // into the pitch — lift it by the roll amount so it always floats on the
         // grass, then add a long, slow arc so he leaps UP like a real keeper
-        const leap = Math.sin(Math.min(dive.t / 1.15, 1) * Math.PI) * 0.6;
+        const leap = Math.sin(Math.min(dive.t / 1.0, 1) * Math.PI) * 0.5;
         const air = amt * 0.5 + leap;
         h.value.position.set(p.x, air, p.z);
         h.value.rotation.set(0.3 * amt, heading, -dive.side * 1.4 * amt, "YZX");
@@ -235,7 +235,7 @@ export function movementSystem(world: World, dt: number): void {
     }
     if (dive && h.bones) {
       // arms stretched out toward the ball, like the reference dive
-      const reach = Math.min(dive.t / 0.22, 1) * (dive.t < 0.7 ? 1 : Math.max(0, 1 - (dive.t - 0.7) / 0.45)) * 2.3;
+      const reach = Math.min(dive.t / 0.3, 1) * (dive.t < 0.95 ? 1 : Math.max(0, 1 - (dive.t - 0.95) / 0.6)) * 2.3;
       h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -reach));
       h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -reach));
     }

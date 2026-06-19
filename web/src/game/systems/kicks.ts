@@ -345,7 +345,7 @@ export function strikeToward(
   const dx = hx - bp.x;
   const dz = hz - bp.z;
   const dist = Math.hypot(dx, dz) || 1;
-  const speed = 15 + clamp(power, 0, 1) * 16; // 15..31 m/s
+  const speed = 11 + clamp(power, 0, 1) * 12; // 11..23 m/s — slower, watchable
   const lift = loft
     ? Math.min(10, 4.5 + dist * 0.13)
     : clamp(Math.max(hy, 0) * 1.3 + dist * 0.04, 0.3, 8);
