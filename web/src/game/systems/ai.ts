@@ -221,10 +221,11 @@ export function aiSystem(world: World, dt: number): void {
       }
     }
 
-    // set-piece practice between attempts (no ceremony yet): bystanders hold
-    // their shape instead of swarming the loose ball, so it never turns into a
-    // normal match. The keeper still plays (it must keep reacting to save).
-    if (store.practice >= 2 && info.role !== Role.GK && carrier !== e) {
+    // set-piece practice between attempts: while the ball is LOOSE (nobody has
+    // it after a shot) bystanders hold their shape instead of swarming it. But
+    // the moment someone is dribbling, normal play resumes so the defence
+    // actually closes him down and challenges — it never just stands frozen.
+    if (store.practice >= 2 && carrier === null && info.role !== Role.GK) {
       const a = e.get(HomePos)!;
       seek(e, a.x, a.z, dt, SPEEDS.walk);
       continue;
@@ -510,10 +511,12 @@ function defendPosition(
       // dangerous (near our goal) or during a pressing spell. The rest of the
       // time, CONTAIN — sit a few metres off, goal-side, and shepherd him.
       const carrierGoalDist = Math.hypot(ownGoalX - cp.x, cp.z);
-      const danger = clamp(1 - carrierGoalDist / 42, 0, 1);
+      const danger = clamp(1 - carrierGoalDist / 48, 0, 1);
       const spell = Math.sin(state.time * 0.5 + e.get(PlayerInfo)!.index * 2.6);
-      const pressTight = danger > 0.55 || spell > 0.4;
-      const off = pressTight ? 0.9 : 3.6; // engage vs stand off and contain
+      // press tight (right on top of him, to nick the ball) most of the time;
+      // only briefly drop off to contain so he's never left to stroll about
+      const pressTight = danger > 0.35 || spell > -0.15;
+      const off = pressTight ? 0.8 : 2.2; // engage vs stand off and contain
       // approach across a shoulder (alternating) rather than tailing his wake
       const side = Math.sin(state.time * 0.35 + e.get(PlayerInfo)!.index * 1.9);
       const lateral = side * 1.4;

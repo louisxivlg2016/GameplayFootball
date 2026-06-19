@@ -349,15 +349,29 @@ export function refereeFoul(
     award();
     return;
   }
-  // advantage: play on up to 3s while the victim's team keeps the ball
-  refState.advantage = {
-    foulerTeam,
-    victimTeam,
-    x: fp.x,
-    z: fp.z,
-    until: 3,
-    penalty: false,
-  };
+
+  // A minor foul only stops play if it's somewhere dangerous. A foul in midfield
+  // isn't worth a free kick — you just play on, the fouled player keeps the ball
+  // (whoever did NOT commit the foul). Deep in your own area the keeper collects.
+  const attGoalX = attackSign(victimTeam) * PITCH.halfLength; // victim's target goal
+  const ownGoalX = -attackSign(victimTeam) * PITCH.halfLength;
+  if (Math.abs(attGoalX - fp.x) < 28) {
+    // dangerous attacking spot: play advantage, free kick if it breaks down
+    refState.advantage = { foulerTeam, victimTeam, x: fp.x, z: fp.z, until: 3, penalty: false };
+    return;
+  }
+  if (Math.abs(ownGoalX - fp.x) < 20) {
+    whistle(2);
+    startGoalRestart(world, victimTeam); // your keeper collects and plays out
+    return;
+  }
+  // midfield: no whistle, no free kick — the fouled player simply plays on
+  const b = ballOf(world);
+  if (b && victim.isAlive()) {
+    b.bs.owner = victim;
+    b.bs.lastKicker = null;
+    b.bs.kickCooldown = 0;
+  }
 }
 
 /** Aliased for the cinematic system, which defers reds until after the replay. */
