@@ -356,20 +356,16 @@ export function refereeFoul(
 
   // A minor foul only stops play if it's somewhere dangerous. A foul in midfield
   // isn't worth a free kick — you just play on, the fouled player keeps the ball
-  // (whoever did NOT commit the foul). Deep in your own area the keeper collects.
+  // (whoever did NOT commit the foul).
   const attGoalX = attackSign(victimTeam) * PITCH.halfLength; // victim's target goal
-  const ownGoalX = -attackSign(victimTeam) * PITCH.halfLength;
   if (Math.abs(attGoalX - fp.x) < 28) {
     // dangerous attacking spot: play advantage, free kick if it breaks down
     refState.advantage = { foulerTeam, victimTeam, x: fp.x, z: fp.z, until: 3, penalty: false };
     return;
   }
-  if (Math.abs(ownGoalX - fp.x) < 20) {
-    whistle(2);
-    startGoalRestart(world, victimTeam); // your keeper collects and plays out
-    return;
-  }
-  // midfield: no whistle, no free kick — the fouled player simply plays on
+  // anywhere else (midfield, or down by your own goal) — no whistle, no free
+  // kick: the fouled team simply plays on with the ball. A foul on the AI in
+  // front of THEIR net just gives them the ball back, no pointless free kick.
   const b = ballOf(world);
   if (b && victim.isAlive()) {
     b.bs.owner = victim;

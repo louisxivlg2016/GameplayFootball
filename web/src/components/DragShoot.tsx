@@ -255,15 +255,19 @@ function screenOf(e: Entity): { x: number; y: number } | null {
   };
 }
 
-/** Fling the human keeper to a side. dir -1 = screen-left, +1 = screen-right
- *  (the broadcast/penalty camera's right axis is world +z). */
+/** Fling the human keeper to a side. dir -1 = screen-left, +1 = screen-right.
+ *  The camera sits behind the taker looking at the keeper's goal, so screen-right
+ *  is world +z when that goal is at +x but world -z when it's at -x — without
+ *  this the arrows are mirrored whenever you defend the other end. */
 function diveKeeper(dir: number): void {
   const gk = defendingKeeper();
   if (!gk || gk.has(KeeperDive)) return;
+  const ownGoalX = -attackSign(gk.get(Team)!.id) * PITCH.halfLength;
+  const worldDir = dir * Math.sign(ownGoalX || 1);
   gk.add(KeeperDive);
-  gk.set(KeeperDive, { t: 0, side: dir });
+  gk.set(KeeperDive, { t: 0, side: worldDir });
   const v = gk.get(Velocity)!;
-  v.z = dir * 10;
+  v.z = worldDir * 10;
   v.x = 0;
 }
 
