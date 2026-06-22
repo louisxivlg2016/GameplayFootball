@@ -217,22 +217,24 @@ export function cinematicSystem(world: World, dt: number): void {
     const h = cel.scorer.get(MeshRef)!;
     if (h.value && h.bones) {
       faceCamera(h.value, dt);
-      // applause: a happy little bounce while the hands clap together out front
-      const ramp = smooth01(cel.t / 0.3);
-      const bounce = Math.abs(Math.sin(cel.t * 4.5)) * 0.15 * ramp;
-      h.value.position.y = bounce;
+      // ONE celebratory beat: a single hop, the hands brought together once in
+      // applause and then held there — not a 50,000x loop of claps and bounces
+      const ramp = smooth01(cel.t / 0.4);
+      const hop = Math.sin(Math.min(cel.t / 0.55, 1) * Math.PI) * 0.18; // one hop
+      h.value.position.y = hop;
       animateRig(h, 0, 0, dt);
       // both arms up in front at chest height, elbows bent so the hands meet
-      const lift = 1.1 * ramp;
+      const lift = 1.15 * ramp;
       const bend = 1.3 * ramp;
       h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -lift));
       h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -lift));
       h.bones.left_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -bend));
       h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -bend));
-      // the clap itself: forearms swing together and apart across the midline
-      const open = (Math.sin(cel.t * 9) * 0.5 + 0.5) * 0.4 * ramp; // 0 = together
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.5 - open));
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, -(0.5 - open)));
+      // the forearms swing together ONCE (apart -> clasped), then stay there
+      const together = smooth01((cel.t - 0.35) / 0.4);
+      const spread = (1 - together) * 0.5 * ramp;
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, spread));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, -spread));
     }
     return;
   }
@@ -246,14 +248,10 @@ export function cinematicSystem(world: World, dt: number): void {
     if (h && h.value && h.bones) {
       faceCamera(h.value, dt);
       poseIdleRig(h);
-      // snap the card arm straight up and hold it dead high, fully extended,
-      // then a couple of emphatic little jabs of the card for good measure
+      // ONE crisp raise: snap the card straight up, hold it dead high and
+      // steady, fully extended — a single motion, no repeated jabbing
       const up = smooth01(card.t / 0.6);
-      const jab =
-        card.t > 0.6
-          ? Math.sin((card.t - 0.6) * 11) * 0.1 * Math.max(0, 1 - (card.t - 0.6) / 1.4)
-          : 0;
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -(2.75 * up + jab)));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -2.75 * up));
       h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.1 * up));
       // off arm thrust out to the side, pointing sternly at the offender
       h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.9 * up));
