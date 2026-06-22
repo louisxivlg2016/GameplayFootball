@@ -192,15 +192,15 @@ export function movementSystem(world: World, dt: number): void {
         h.value.position.set(p.x, air, p.z);
         h.value.rotation.set(0.08 * amt, heading, -dive.side * 1.35 * amt, "YZX");
       } else if (slide) {
-        // procedural slide tackle: forward drop, flat glide, then one get-up.
+        // procedural slide tackle: drop low and recline right back onto the
+        // turf along the lunge, lead leg shot out front, then climb back up.
         const down = smooth01(slide.t / 0.22);
         const up = slide.t < 1.05 ? 1 : smooth01(1 - (slide.t - 1.05) / 0.5);
         const amt = down * up;
-        const forwardDip = smooth01(slide.t / 0.18) * (slide.t < 0.95 ? 1 : smooth01(1 - (slide.t - 0.95) / 0.55));
-        // ride low along the lunge: hips near the turf, torso reclined right
-        // back, rolled a touch onto the sliding hip
-        h.value.position.set(p.x, 0.3 * amt, p.z);
-        h.value.rotation.set(-1.02 * amt + 0.06 * forwardDip, slide.yaw, 0.16 * amt, "YZX");
+        // recline the body almost flat to the grass (verified in the pose
+        // preview): at this lean the legs already point forward along the slide
+        h.value.position.set(p.x, 0.03 * amt, p.z);
+        h.value.rotation.set(-1.45 * amt, slide.yaw, 0, "YZX");
       } else if (trip) {
         // tripped: pitch forward over the clipped legs along the run line,
         // hit the grass, then climb back up (stumbles only dip partway)
@@ -264,15 +264,15 @@ export function movementSystem(world: World, dt: number): void {
       const amt =
         smooth01(slide.t / 0.22) *
         (slide.t < 1.05 ? 1 : smooth01(1 - (slide.t - 1.05) / 0.5));
-      // lead leg shoots right out, knee locked straight, reaching for the ball
-      h.bones.right_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.95 * amt));
-      h.bones.right_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.05 * amt));
-      // trailing leg folds right under him as he goes to ground
-      h.bones.left_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.5 * amt));
-      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 1.5 * amt));
-      // lead arm forward for balance, trailing arm flung back to brace on the turf
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.55 * amt));
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.25 * amt));
+      // lead leg shoots straight out forward, knee locked, skimming the turf
+      // toward the ball (a small down-tilt keeps the boot on the grass)
+      h.bones.right_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.15 * amt));
+      // trailing leg folds right up under him as he goes to ground
+      h.bones.left_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.15 * amt));
+      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 1.7 * amt));
+      // lead arm forward for balance, trailing arm flung out to brace on the turf
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.5 * amt));
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.3 * amt));
       h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.4 * amt));
     }
   }
