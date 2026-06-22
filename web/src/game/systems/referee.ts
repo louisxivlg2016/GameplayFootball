@@ -740,14 +740,25 @@ export function refereeSystem(world: World, dt: number): void {
   }
 
   // ---- goals & out of play ----
-  // a goal needs a FREE ball over the line. A ball glued to a carrier's feet
-  // (the dribble model keeps it ~0.55m ahead) is owned, so walking it into the
-  // net never scores; and possession refuses to "catch" a ball already inside
-  // the frame, so a real shot the keeper can't stop always counts.
+  // a goal needs a FREE ball over the line — a ball glued to a carrier's feet
+  // (the dribble model keeps it ~0.55m ahead) is owned, so you can't just walk
+  // it into the OPPONENT's net (that needs a shot). The ONE exception: dribbling
+  // it into your OWN net is still an own goal, and it counts.
   const R = PITCH.ballRadius;
   const lineX = PITCH.halfLength - R * 0.35;
-  const ballFree = b.bs.owner === null;
-  const crossedGoalLine = ballFree && Math.abs(bp.x) > lineX;
+  const owner = b.bs.owner;
+  const inGoalMouth =
+    Math.abs(bp.x) > lineX &&
+    Math.abs(bp.z) < PITCH.goalHalfWidth &&
+    bp.y < PITCH.goalHeight;
+  // carrier walking it into the net on HIS OWN side = own goal for the others
+  const ownGoalCarry =
+    owner !== null &&
+    inGoalMouth &&
+    (attackSign(0) * Math.sign(bp.x) > 0 ? 0 : 1) !== owner.get(Team)!.id;
+  if (ownGoalCarry) b.bs.lastKicker = owner; // credit the carrier (c.s.c.)
+  const ballFree = owner === null;
+  const crossedGoalLine = (ballFree && Math.abs(bp.x) > lineX) || ownGoalCarry;
   if (crossedGoalLine) {
     const side = Math.sign(bp.x);
     if (Math.abs(bp.z) < PITCH.goalHalfWidth && bp.y < PITCH.goalHeight) {
