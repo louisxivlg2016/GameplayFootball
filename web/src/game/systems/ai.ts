@@ -104,6 +104,12 @@ function offsideLine(world: World, team: number, ballX: number): number {
   return Math.max(second, ballX * s) * s;
 }
 
+/** True when the AI team is currently ahead on the scoreboard. */
+function aiInLead(): boolean {
+  const score = useStore.getState().score;
+  return (score[AI_TEAM] ?? 0) > (score[1 - AI_TEAM] ?? 0);
+}
+
 /** Dynamic possession/territory bias (teamAIcontroller.cpp:329-340). */
 function possessionBias(team: number): number {
   const pb = clamp(state.teams[team]!.fading, 0.3, 0.7);
@@ -627,8 +633,11 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
       return;
     }
 
+    // rubber-band rule: while the AI is leading it never passes — it must
+    // dribble or shoot, so the ball is far easier to win back off it.
+    const aiLeads = teamId === AI_TEAM && aiInLead();
     const choice = evaluateBestPass(world, e, 0, 0, state.carrierSeconds);
-    if (choice && (nearestOpp < 6 || choice.total > 0.22)) {
+    if (!aiLeads && choice && (nearestOpp < 6 || choice.total > 0.22)) {
       executePass(world, e, choice);
       return;
     }
@@ -727,7 +736,11 @@ function keeper(
     e.set(PlayerInfo, { aiTimer });
     if (aiTimer <= 0) {
       e.set(PlayerInfo, { aiTimer: 0.5 });
-      const choice = evaluateBestPass(world, e, 0, 0, state.carrierSeconds);
+      // while leading, the AI never passes — it just hoofs the ball clear
+      const choice =
+        teamId === AI_TEAM && aiInLead()
+          ? null
+          : evaluateBestPass(world, e, 0, 0, state.carrierSeconds);
       if (choice) executePass(world, e, choice);
       else panicClear(world, e);
     }
