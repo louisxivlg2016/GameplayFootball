@@ -300,6 +300,17 @@ export function refereeFoul(
     Math.abs(fp.z) < 20.15 &&
     Math.abs(fp.x - defGoalX) < 16.5 &&
     Math.sign(fp.x) === Math.sign(defGoalX);
+  const attGoalX = attackSign(victimTeam) * PITCH.halfLength; // victim's target goal
+  const dangerousSpot = Math.abs(attGoalX - fp.x) < 28;
+
+  const playOnWithVictim = (): void => {
+    const b = ballOf(world);
+    if (b && victim.isAlive()) {
+      b.bs.owner = victim;
+      b.bs.lastKicker = null;
+      b.bs.kickCooldown = 0;
+    }
+  };
 
   const award = (): void => {
     whistle(2);
@@ -323,7 +334,14 @@ export function refereeFoul(
     startSetPiece(world, "freekick", victimTeam, clamp(fp.x, -52, 52), clamp(fp.z, -33, 33));
   };
 
-  // a booking always stops play: card close-up + tackle replay, no advantage.
+  // In midfield, normal hard contacts should not stop everything for a fussy
+  // free kick/card cutscene. Let play continue unless it is dangerous or red.
+  if (foulType === 2 && !penalty && !dangerousSpot) {
+    playOnWithVictim();
+    return;
+  }
+
+  // a booking in a dangerous area always stops play: card close-up + replay.
   // The red-carded man leaves only after the replay (so he appears in it).
   if (foulType >= 2) {
     const info = fouler.get(PlayerInfo)!;
@@ -357,8 +375,7 @@ export function refereeFoul(
   // A minor foul only stops play if it's somewhere dangerous. A foul in midfield
   // isn't worth a free kick — you just play on, the fouled player keeps the ball
   // (whoever did NOT commit the foul).
-  const attGoalX = attackSign(victimTeam) * PITCH.halfLength; // victim's target goal
-  if (Math.abs(attGoalX - fp.x) < 28) {
+  if (dangerousSpot) {
     // dangerous attacking spot: play advantage, free kick if it breaks down
     refState.advantage = { foulerTeam, victimTeam, x: fp.x, z: fp.z, until: 3, penalty: false };
     return;
@@ -366,12 +383,7 @@ export function refereeFoul(
   // anywhere else (midfield, or down by your own goal) — no whistle, no free
   // kick: the fouled team simply plays on with the ball. A foul on the AI in
   // front of THEIR net just gives them the ball back, no pointless free kick.
-  const b = ballOf(world);
-  if (b && victim.isAlive()) {
-    b.bs.owner = victim;
-    b.bs.lastKicker = null;
-    b.bs.kickCooldown = 0;
-  }
+  playOnWithVictim();
 }
 
 /** Aliased for the cinematic system, which defers reds until after the replay. */
@@ -559,7 +571,7 @@ function penaltyDive(world: World, attackingTeam: number): void {
     e.add(KeeperDive);
     e.set(KeeperDive, { t: 0, side });
     const v = e.get(Velocity)!;
-    v.z = side * 6; // slow enough to clearly see the full dive
+    v.z = side * 2.8; // slow enough to clearly see the full dive
     v.x = 0;
   }
 }

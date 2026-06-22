@@ -44,9 +44,11 @@ let aiTimer = 0;
  * human's full rate — they hunt the carrier down instead of standing off.
  */
 const AI_TACKLE_EAGERNESS = 1.5;
+const AUTO_AI_TACKLES = true;
 
 export function tackleSystem(world: World, dt: number): void {
   const store = useStore.getState();
+  if (store.mode !== "play") return;
   const ball = world.queryFirst(IsBall);
   if (!ball) return;
   const bs = ball.get(BallState)!;
@@ -64,15 +66,15 @@ export function tackleSystem(world: World, dt: number): void {
   for (let slot = 0; slot < players; slot++) {
     if (consumePress(padFor(slot, players).tackle) && !refState.ceremony) {
       const sel = world.queryFirst(slot === 1 ? Selected2 : Selected);
-      if (sel && bs.owner !== sel && !slides.has(sel) && !cooldowns.has(sel)) {
-        startSlide(sel);
+      if (sel && bs.owner !== sel && !slides.has(sel) && !sel.has(SlideTackle) && !cooldowns.has(sel)) {
+        startSlide(sel, nearestOpponent(sel, world, 1.7));
       }
     }
   }
 
   // AI defenders slide when closing on the carrier
   aiTimer -= dt;
-  if (aiTimer <= 0 && !refState.ceremony) {
+  if (AUTO_AI_TACKLES && aiTimer <= 0 && !refState.ceremony) {
     aiTimer = 0.25;
     const carrier = bs.owner;
     if (carrier) {
@@ -88,6 +90,7 @@ export function tackleSystem(world: World, dt: number): void {
           e.has(Selected) ||
           e.has(Selected2) ||
           e.get(PlayerInfo)!.role === Role.GK ||
+          e.has(SlideTackle) ||
           slides.has(e) ||
           cooldowns.has(e)
         )
@@ -171,7 +174,8 @@ export function tackleSystem(world: World, dt: number): void {
           e.get(Team)!.id === carrierTeam ||
           e.has(Selected) ||
           e.has(Selected2) ||
-          e.get(PlayerInfo)!.role === Role.GK ||
+         e.get(PlayerInfo)!.role === Role.GK ||
+          e.has(SlideTackle) ||
           slides.has(e) ||
           cooldowns.has(e)
         )
@@ -206,20 +210,25 @@ export function tackleSystem(world: World, dt: number): void {
     }
     slide.t -= dt;
     const v = e.get(Velocity)!;
-    const boost = slide.t > 0.25 ? 9 : 4; // lunge then slow on the turf
+    const elapsed = 0.7 - slide.t;
+    const boost =
+      elapsed < 0.18 ? 7.2 : slide.t > 0.16 ? 6.4 : 1.6; // lunge, long slide, then scrub on the turf
     v.x = slide.dirX * boost;
     v.z = slide.dirZ * boost;
 
     const p = e.get(Position)!;
     const dBall = Math.hypot(bp.x - p.x, bp.z - p.z);
     const ownerBeforePoke = bs.owner;
+    const humanSlide = e.has(Selected) || e.has(Selected2);
+    const ballReach = humanSlide ? 1.25 : 0.8;
+    const playerReach = humanSlide ? 1.35 : 0.85;
     if (ownerBeforePoke && ownerBeforePoke.get(Team)!.id !== e.get(Team)!.id) {
       const op = ownerBeforePoke.get(Position)!;
       const oh = ownerBeforePoke.get(Heading)!.angle;
       const od = Math.hypot(p.x - op.x, p.z - op.z) || 1;
       const behindOwner =
         ((p.x - op.x) * Math.sin(oh) + (p.z - op.z) * Math.cos(oh)) / od;
-      if (behindOwner < -0.05 && dBall < 0.8 && bp.y < 0.8) {
+      if (behindOwner < -0.05 && dBall < ballReach && bp.y < 0.8) {
         // A slide through the carrier's back cannot poke the ball loose.
         slides.delete(e);
         cooldowns.set(e, 3.5);
@@ -227,7 +236,7 @@ export function tackleSystem(world: World, dt: number): void {
         continue;
       }
     }
-    if (dBall < 0.8 && bp.y < 0.8) {
+    if (dBall < ballReach && bp.y < 0.8) {
       // won the ball: poke it clear
       const owner = bs.owner;
       bs.owner = null;
@@ -248,7 +257,7 @@ export function tackleSystem(world: World, dt: number): void {
       }
       slides.delete(e);
       // humans recover fast (E/I stays responsive); the AI commits rarely
-      cooldowns.set(e, e.has(Selected) || e.has(Selected2) ? 1.2 : 2.5);
+      cooldowns.set(e, e.has(Selected) || e.has(Selected2) ? 1.8 : 2.5);
       continue;
     }
 
@@ -256,7 +265,7 @@ export function tackleSystem(world: World, dt: number): void {
     if (victim && victim.get(Team)!.id !== e.get(Team)!.id) {
       const vp = victim.get(Position)!;
       const dVictim = Math.hypot(vp.x - p.x, vp.z - p.z);
-      if (dVictim < 0.85) {
+      if (dVictim < playerReach) {
         // contact without the ball: foul, severity per referee.cpp:343-380
         const vh = victim.get(Heading)!.angle;
         const moveX = Math.sin(vh);
@@ -286,16 +295,39 @@ export function tackleSystem(world: World, dt: number): void {
 
     if (slide.t <= 0) {
       slides.delete(e);
-      cooldowns.set(e, e.has(Selected) || e.has(Selected2) ? 1.5 : 3);
+      cooldowns.set(e, e.has(Selected) || e.has(Selected2) ? 1.8 : 3);
     }
   }
 }
 
-function startSlide(e: Entity): void {
+function nearestOpponent(e: Entity, world: World, maxDist: number): Entity | null {
+  const ep = e.get(Position)!;
+  const team = e.get(Team)!.id;
+  let best: Entity | null = null;
+  let bestD = maxDist;
+  for (const o of world.query(IsPlayer)) {
+    if (o === e || o.get(Team)!.id === team || o.get(PlayerInfo)!.role === Role.GK) continue;
+    const op = o.get(Position)!;
+    const d = Math.hypot(op.x - ep.x, op.z - ep.z);
+    if (d < bestD) {
+      bestD = d;
+      best = o;
+    }
+  }
+  return best;
+}
+
+function startSlide(e: Entity, target: Entity | null = null): void {
+  if (e.has(SlideTackle) || slides.has(e) || cooldowns.has(e)) return;
   const h = e.get(Heading)!.angle;
-  slides.set(e, { t: 0.5, dirX: Math.sin(h), dirZ: Math.cos(h) });
+  const ep = e.get(Position)!;
+  const tp = target?.get(Position);
+  const dx = tp ? tp.x - ep.x : Math.sin(h);
+  const dz = tp ? tp.z - ep.z : Math.cos(h);
+  const d = Math.hypot(dx, dz) || 1;
+  slides.set(e, { t: 0.7, dirX: dx / d, dirZ: dz / d });
   // the visual pose lives in movementSystem and outlasts the physics window
   // (it includes the get-up), so it runs on its own timer
   e.add(SlideTackle);
-  e.set(SlideTackle, { t: 0, yaw: h });
+  e.set(SlideTackle, { t: 0, yaw: Math.atan2(dx, dz) });
 }
