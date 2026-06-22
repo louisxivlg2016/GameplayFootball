@@ -25,6 +25,18 @@ const normAngle = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const tmpQ = new THREE.Quaternion();
+const tmpV = new THREE.Vector3();
+// bones that may touch the turf while sliding — the body is lifted so the
+// lowest of these rests on the grass instead of sinking under the pitch
+const SLIDE_GROUND_BONES = [
+  "neck",
+  "body",
+  "middle",
+  "left_knee",
+  "right_knee",
+  "left_ankle",
+  "right_ankle",
+];
 
 const smooth01 = (v: number): number => {
   const x = clamp(v, 0, 1);
@@ -198,8 +210,10 @@ export function movementSystem(world: World, dt: number): void {
         const up = slide.t < 1.05 ? 1 : smooth01(1 - (slide.t - 1.05) / 0.5);
         const amt = down * up;
         // recline the body almost flat to the grass (verified in the pose
-        // preview): at this lean the legs already point forward along the slide
-        h.value.position.set(p.x, 0.03 * amt, p.z);
+        // preview): at this lean the legs already point forward along the slide.
+        // y is set by the grounding pass below (it pivots about the feet, which
+        // would otherwise bury half the body under the pitch).
+        h.value.position.set(p.x, 0, p.z);
         h.value.rotation.set(-1.45 * amt, slide.yaw, 0, "YZX");
       } else if (trip) {
         // tripped: pitch forward over the clipped legs along the run line,
@@ -264,16 +278,29 @@ export function movementSystem(world: World, dt: number): void {
       const amt =
         smooth01(slide.t / 0.22) *
         (slide.t < 1.05 ? 1 : smooth01(1 - (slide.t - 1.05) / 0.5));
-      // lead leg shoots straight out forward, knee locked, skimming the turf
-      // toward the ball (a small down-tilt keeps the boot on the grass)
+      // both legs extended forward along the slide toward the ball, only lightly
+      // bent so they lie along the turf (verified flat in the pose preview)
       h.bones.right_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.15 * amt));
-      // trailing leg folds right up under him as he goes to ground
       h.bones.left_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.15 * amt));
-      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 1.7 * amt));
+      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.5 * amt));
       // lead arm forward for balance, trailing arm flung out to brace on the turf
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.5 * amt));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.4 * amt));
       h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.3 * amt));
       h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.4 * amt));
+      // grounding pass: lift the whole body so its lowest limb rests on the
+      // grass. The recline pivots about the feet, which would otherwise bury
+      // half the body under the pitch (lowest bone Y ≈ 0.08 sits it on the turf).
+      if (h.value) {
+        h.value.updateMatrixWorld(true);
+        let lowest = Infinity;
+        for (const n of SLIDE_GROUND_BONES) {
+          const gb = h.bones[n];
+          if (!gb) continue;
+          gb.getWorldPosition(tmpV);
+          if (tmpV.y < lowest) lowest = tmpV.y;
+        }
+        if (lowest < 0.08) h.value.position.y = 0.08 - lowest;
+      }
     }
   }
 }
