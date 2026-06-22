@@ -197,8 +197,10 @@ export function movementSystem(world: World, dt: number): void {
         const up = slide.t < 1.05 ? 1 : smooth01(1 - (slide.t - 1.05) / 0.5);
         const amt = down * up;
         const forwardDip = smooth01(slide.t / 0.18) * (slide.t < 0.95 ? 1 : smooth01(1 - (slide.t - 0.95) / 0.55));
-        h.value.position.set(p.x, 0.34 * amt, p.z);
-        h.value.rotation.set(-0.85 * amt + 0.08 * forwardDip, slide.yaw, 0.02 * amt, "YZX");
+        // ride low along the lunge: hips near the turf, torso reclined right
+        // back, rolled a touch onto the sliding hip
+        h.value.position.set(p.x, 0.3 * amt, p.z);
+        h.value.rotation.set(-1.02 * amt + 0.06 * forwardDip, slide.yaw, 0.16 * amt, "YZX");
       } else if (trip) {
         // tripped: pitch forward over the clipped legs along the run line,
         // hit the grass, then climb back up (stumbles only dip partway)
@@ -263,13 +265,15 @@ export function movementSystem(world: World, dt: number): void {
         smooth01(slide.t / 0.22) *
         (slide.t < 1.05 ? 1 : smooth01(1 - (slide.t - 1.05) / 0.5));
       // lead leg shoots right out, knee locked straight, reaching for the ball
-      h.bones.right_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.6 * amt));
-      h.bones.right_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.2 * amt));
+      h.bones.right_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.95 * amt));
+      h.bones.right_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.05 * amt));
       // trailing leg folds right under him as he goes to ground
-      h.bones.left_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.35 * amt));
-      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 1.1 * amt));
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.3 * amt));
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.25 * amt));
+      h.bones.left_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.5 * amt));
+      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 1.5 * amt));
+      // lead arm forward for balance, trailing arm flung back to brace on the turf
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.55 * amt));
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.25 * amt));
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.4 * amt));
     }
   }
 }
