@@ -131,6 +131,43 @@ export function queueCardCinematic(red: boolean, sendOff: Entity | null): void {
   useStore.getState().setMode("cardScene");
 }
 
+/**
+ * Skip the running goal/booking cinematic (celebration, card raise, slow-mo
+ * replay or send-off) and resume play right away. A goal sequence jumps to the
+ * kickoff restart; a booking resumes the free kick/penalty already staged.
+ */
+export function skipCinematic(world: World): void {
+  const store = useStore.getState();
+  const mode = store.mode;
+  if (mode !== "goal" && mode !== "replay" && mode !== "cardScene") return;
+
+  // goal mode and goal-replays restart from the spot; bookings just resume the
+  // set piece that refereeFoul already staged when it blew up.
+  const goalSeq = mode === "goal" || cineState.replay?.after === "kickoff";
+  const pendingOff = cineState.sendOffScene?.player ?? cineState.sendOffAfter;
+
+  cineState.celebration = null;
+  cineState.card = null;
+  cineState.replay = null;
+  cineState.queued = null;
+  cineState.sendOffScene = null;
+  cineState.sendOffAfter = null;
+  // hide a raised card if we skipped mid-raise
+  const ref = world.queryFirst(IsReferee)?.get(MeshRef);
+  if (ref) {
+    const mesh = cardProps.get(ref);
+    if (mesh) mesh.visible = false;
+  }
+  store.setBanner("");
+
+  if (pendingOff && pendingOff.isAlive()) executeSendOff(world, pendingOff);
+  if (goalSeq) {
+    const team = world.queryFirst(Match)?.get(Match)!.pendingKickoffTeam ?? 0;
+    startGoalRestart(world, team);
+  }
+  store.setMode("play");
+}
+
 /** Goal celebration over: hand off to the replay. True if it took over. */
 export function startGoalReplay(): boolean {
   cineState.celebration = null;

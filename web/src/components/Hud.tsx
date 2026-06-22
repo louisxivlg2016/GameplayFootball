@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { TEAMS, useStore } from "../game/store";
 import { TouchControls } from "./TouchControls";
 import { DragShoot, KeeperArrows, humanSetPieceActive } from "./DragShoot";
+import { world } from "../game/world";
+import { skipCinematic } from "../game/systems/cinematic";
 
 const act = () => useStore.getState();
 
@@ -82,6 +84,29 @@ export function Hud(): React.ReactNode {
           aria-label="Pause"
         >
           ❚❚
+        </button>
+      )}
+      {(mode === "goal" || mode === "replay" || mode === "cardScene") && (
+        <button
+          onClick={() => skipCinematic(world)}
+          style={{
+            position: "absolute",
+            bottom: 24,
+            right: 24,
+            pointerEvents: "auto",
+            cursor: "pointer",
+            padding: "10px 20px",
+            borderRadius: 8,
+            border: "2px solid rgba(255,255,255,0.35)",
+            background: "rgba(8,12,24,0.6)",
+            color: "#fff",
+            fontSize: 16,
+            fontWeight: 800,
+            letterSpacing: 1,
+          }}
+          aria-label="Passer le replay"
+        >
+          PASSER ⏭
         </button>
       )}
       {mode === "goal" && <div className="banner">GOAL!</div>}
