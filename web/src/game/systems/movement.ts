@@ -26,6 +26,11 @@ const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const tmpQ = new THREE.Quaternion();
 
+const smooth01 = (v: number): number => {
+  const x = clamp(v, 0, 1);
+  return x * x * (3 - 2 * x);
+};
+
 function startLoop(
   h: { actions: Record<string, THREE.AnimationAction> | null; variant: string; bridging: string | null },
   name: string,
@@ -79,7 +84,7 @@ export function movementSystem(world: World, dt: number): void {
     let dive = e.get(KeeperDive);
     if (dive) {
       const t = dive.t + dt;
-      if (t > 1.75) {
+      if (t > 3.4) {
         e.remove(KeeperDive);
         dive = undefined;
       } else {
@@ -87,7 +92,7 @@ export function movementSystem(world: World, dt: number): void {
         dive = { ...dive, t };
         // fly committed for a long stretch (a slow, watchable dive), THEN the
         // turf scrubs the slide
-        if (t > 0.7) {
+        if (t > 1.85) {
           const f = Math.pow(0.06, dt);
           v.x *= f;
           v.z *= f;
@@ -95,16 +100,23 @@ export function movementSystem(world: World, dt: number): void {
       }
     }
 
-    // slide-tackle pose timer: 0.5s on the turf, then 0.5s getting back up
+    // slide-tackle pose timer: drop into the lunge, slide on the turf, then get back up
     let slide = e.get(SlideTackle);
     if (slide) {
       const t = slide.t + dt;
-      if (t > 1.0) {
+      if (t > 1.55) {
+        v.x = 0;
+        v.z = 0;
         e.remove(SlideTackle);
         slide = undefined;
       } else {
         e.set(SlideTackle, { t });
         slide = { ...slide, t };
+        if (t > 1.1) {
+          const f = Math.pow(0.005, dt);
+          v.x *= f;
+          v.z *= f;
+        }
       }
     }
 
@@ -169,24 +181,24 @@ export function movementSystem(world: World, dt: number): void {
       if (dive) {
         // procedural dive: roll horizontal toward the ball side, arms-first,
         // launch UP into an airborne arc, then settle (no clip exists for it).
-        const inK = Math.min(dive.t / 0.28, 1); // launch ramp (a touch slower)
-        const upK = dive.t < 1.0 ? 1 : Math.max(0, 1 - (dive.t - 1.0) / 0.75);
+        const inK = Math.min(dive.t / 1.15, 1); // very slow, readable launch ramp
+        const upK = dive.t < 2.05 ? 1 : Math.max(0, 1 - (dive.t - 2.05) / 1.35);
         const amt = inK * upK;
         // the rig pivots around its feet, so a body rolled flat would sink half
         // into the pitch — lift it by the roll amount so it always floats on the
         // grass, then add a long, slow arc so he leaps UP like a real keeper
-        const leap = Math.sin(Math.min(dive.t / 1.0, 1) * Math.PI) * 0.5;
-        const air = amt * 0.5 + leap;
+        const leap = Math.sin(Math.min(dive.t / 2.05, 1) * Math.PI) * 0.42;
+        const air = amt * 0.46 + leap;
         h.value.position.set(p.x, air, p.z);
-        h.value.rotation.set(0.3 * amt, heading, -dive.side * 1.4 * amt, "YZX");
+        h.value.rotation.set(0.08 * amt, heading, -dive.side * 1.35 * amt, "YZX");
       } else if (slide) {
-        // procedural slide tackle: recline low along the locked lunge yaw,
-        // ride the turf, then climb back to the feet
-        const inK = Math.min(slide.t / 0.1, 1);
-        const upK = slide.t < 0.5 ? 1 : Math.max(0, 1 - (slide.t - 0.5) / 0.5);
-        const amt = inK * upK;
-        h.value.position.set(p.x, -0.08 * amt, p.z);
-        h.value.rotation.set(-1.05 * amt, slide.yaw, 0.18 * amt, "YZX");
+        // procedural slide tackle: forward drop, flat glide, then one get-up.
+        const down = smooth01(slide.t / 0.22);
+        const up = slide.t < 1.05 ? 1 : smooth01(1 - (slide.t - 1.05) / 0.5);
+        const amt = down * up;
+        const forwardDip = smooth01(slide.t / 0.18) * (slide.t < 0.95 ? 1 : smooth01(1 - (slide.t - 0.95) / 0.55));
+        h.value.position.set(p.x, 0.34 * amt, p.z);
+        h.value.rotation.set(-0.85 * amt + 0.08 * forwardDip, slide.yaw, 0.02 * amt, "YZX");
       } else if (trip) {
         // tripped: pitch forward over the clipped legs along the run line,
         // hit the grass, then climb back up (stumbles only dip partway)
@@ -224,7 +236,7 @@ export function movementSystem(world: World, dt: number): void {
       }
     }
     if (h.tag) h.tag.visible = selected && !posed;
-    animateRig(h, posed ? 0.3 : speed, angleDiff, dt);
+    animateRig(h, slide || (speed < 1.2 && h.variant !== "idle") ? 0 : posed ? 0.3 : speed, angleDiff, dt);
     if (trip && trip.fall > 0.75 && h.bones) {
       // arms shoot forward to brace the fall
       const amt =
@@ -235,20 +247,29 @@ export function movementSystem(world: World, dt: number): void {
     }
     if (dive && h.bones) {
       // arms stretched out toward the ball, like the reference dive
-      const reach = Math.min(dive.t / 0.3, 1) * (dive.t < 0.95 ? 1 : Math.max(0, 1 - (dive.t - 0.95) / 0.6)) * 2.3;
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -reach));
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -reach));
+      const reach = Math.min(dive.t / 1.0, 1) * (dive.t < 2.05 ? 1 : Math.max(0, 1 - (dive.t - 2.05) / 1.0));
+      const armReach = reach * 2.35;
+      const legReach = reach * 0.45;
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -armReach));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -armReach));
+      h.bones.left_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, legReach));
+      h.bones.right_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, legReach * 0.75));
+      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -legReach * 0.45));
+      h.bones.right_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -legReach * 0.25));
     }
     if (slide && h.bones) {
       // lead leg shoots out along the lunge, trailing leg tucks under
       const amt =
-        Math.min(slide.t / 0.1, 1) *
-        (slide.t < 0.5 ? 1 : Math.max(0, 1 - (slide.t - 0.5) / 0.5));
-      h.bones.right_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -1.3 * amt));
-      h.bones.left_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.35 * amt));
-      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 1.4 * amt));
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.6 * amt));
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.6 * amt));
+        smooth01(slide.t / 0.22) *
+        (slide.t < 1.05 ? 1 : smooth01(1 - (slide.t - 1.05) / 0.5));
+      // lead leg shoots right out, knee locked straight, reaching for the ball
+      h.bones.right_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.6 * amt));
+      h.bones.right_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.2 * amt));
+      // trailing leg folds right under him as he goes to ground
+      h.bones.left_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.35 * amt));
+      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 1.1 * amt));
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.3 * amt));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.25 * amt));
     }
   }
 }
@@ -372,4 +393,19 @@ export function animateRig(
       }
     }
   }
+}
+
+export function poseIdleRig(h: RigHolder): void {
+  if (!h.mixer || !h.actions) return;
+  const idle = h.actions.idle;
+  if (!idle) return;
+  for (const action of Object.values(h.actions)) {
+    if (action !== idle) action.stop();
+  }
+  idle.reset().play();
+  idle.time = 0;
+  h.variant = "idle";
+  h.bridging = null;
+  h.pending = null;
+  h.mixer.update(0);
 }

@@ -14,7 +14,7 @@ import {
 } from "../traits";
 import { useStore } from "../store";
 import { PITCH } from "../levels";
-import { animateRig } from "./movement";
+import { animateRig, poseIdleRig } from "./movement";
 import type { RigHolder } from "./movement";
 // circular with referee.ts is safe: bindings are only touched inside functions
 import { executeSendOff, startGoalRestart } from "./referee";
@@ -43,7 +43,7 @@ const GOAL_REPLAY_FRAMES = 85; // ~2.8s before the ball crossed the line
 const CARD_REPLAY_FRAMES = 75; // ~2.5s before the whistle
 const MIN_REPLAY_FRAMES = 12;
 const REPLAY_SPEED = 0.5; // slow motion
-const CARD_SECONDS = 2.6;
+const CARD_SECONDS = 4.0;
 
 export const cineState = {
   ring: [] as Frame[],
@@ -64,6 +64,10 @@ export const cineState = {
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const tmpQ = new THREE.Quaternion();
+const smooth01 = (v: number): number => {
+  const x = Math.min(1, Math.max(0, v));
+  return x * x * (3 - 2 * x);
+};
 
 function resetCine(gen: number): void {
   cineState.gen = gen;
@@ -120,6 +124,7 @@ export function queueGoalCinematic(scorer: Entity | null, scoringTeam: number): 
  * of the tackle. For reds the send-off itself waits until the replay ends.
  */
 export function queueCardCinematic(red: boolean, sendOff: Entity | null): void {
+  if (cineState.card || cineState.replay || cineState.sendOffScene) return;
   cineState.card = { red, t: 0 };
   cineState.sendOffAfter = sendOff;
   cineState.queued = cineState.ring.slice(-CARD_REPLAY_FRAMES);
@@ -143,10 +148,10 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
   let mesh = cardProps.get(h);
   if (!mesh) {
     mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.13, 0.18),
+      new THREE.PlaneGeometry(0.19, 0.27), // bigger, reads clearly to the lens
       new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
     );
-    mesh.position.set(0, 0.38, 0.02); // in the hand, past the forearm
+    mesh.position.set(0, 0.42, 0.02); // in the hand, past the forearm
     bones.right_elbow?.add(mesh);
     cardProps.set(h, mesh);
   }
@@ -155,7 +160,7 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
 
 function faceCamera(group: THREE.Group, dt: number): void {
   // the broadcast camera sits on +z: turn the actor toward the lens
-  const k = Math.min(1, dt * 6);
+  const k = Math.min(1, dt * 2.2);
   group.rotation.set(0, group.rotation.y + (0 - group.rotation.y) * k, 0);
 }
 
@@ -201,7 +206,7 @@ export function cinematicSystem(world: World, dt: number): void {
     return;
   }
 
-  // ---- goal celebration: the scorer applauds into the close-up ----
+  // ---- goal celebration: one clean arms-up pose into the close-up ----
   const cel = cineState.celebration;
   if (store.mode === "goal" && cel) {
     if (!cel.scorer.isAlive()) {
@@ -212,14 +217,17 @@ export function cinematicSystem(world: World, dt: number): void {
     const h = cel.scorer.get(MeshRef)!;
     if (h.value && h.bones) {
       faceCamera(h.value, dt);
-      h.value.position.y = Math.abs(Math.sin(cel.t * 5.5)) * 0.12; // little hops
-      animateRig(h, 0.3, 0, dt);
-      const up = Math.min(cel.t / 0.3, 1) * 2.5; // arms overhead
-      const clap = 0.35 + Math.sin(cel.t * 9) * 0.3; // hands meet and part
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -up));
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -up));
-      h.bones.left_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, clap));
-      h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, -clap));
+      // an exuberant celebration: bounce on the spot, both fists thrown aloft
+      const ramp = smooth01(cel.t / 0.3);
+      const bounce = Math.abs(Math.sin(cel.t * 5.5)) * 0.18 * ramp;
+      h.value.position.y = bounce;
+      animateRig(h, 0, 0, dt);
+      const pump = (Math.sin(cel.t * 10) * 0.5 + 0.5) * 0.45; // fists pumping
+      const shoulder = (1.45 + pump) * ramp; // arms thrown right up overhead
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -shoulder));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -shoulder));
+      h.bones.left_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.3 * ramp));
+      h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, -0.3 * ramp));
     }
     return;
   }
@@ -232,10 +240,13 @@ export function cinematicSystem(world: World, dt: number): void {
     const h = referee?.get(MeshRef);
     if (h && h.value && h.bones) {
       faceCamera(h.value, dt);
-      animateRig(h, 0.3, 0, dt);
-      const up = Math.min(card.t / 0.25, 1); // arm straight up, card high
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -2.9 * up));
-      h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.5 * up));
+      poseIdleRig(h);
+      // thrust the card arm straight up and hold it high, arm fully extended
+      const up = smooth01(card.t / 0.9);
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -2.55 * up));
+      h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.15 * up));
+      // a stern step toward the offender: the off arm out, pointing
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.7 * up));
       const mesh = cardMesh(h, h.bones);
       (mesh.material as THREE.MeshBasicMaterial).color.set(card.red ? 0xe53935 : 0xffd60a);
       mesh.visible = true;
