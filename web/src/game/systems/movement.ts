@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { World } from "koota";
+import type { Entity, World } from "koota";
 import {
   BallState,
   Heading,
@@ -302,6 +302,50 @@ export function movementSystem(world: World, dt: number): void {
         if (lowest < 0.08) h.value.position.y = 0.08 - lowest;
       }
     }
+  }
+
+  // solid bodies: opponents can't merge into the ball carrier. Resolve overlaps
+  // so a defender shepherds/contains at arm's length instead of ghosting right
+  // inside you to block your run (he can still get close enough to tackle).
+  separatePlayers(world, owner);
+}
+
+/** Push overlapping players apart; the ball carrier holds his ground. */
+function separatePlayers(world: World, owner: Entity | null): void {
+  const BODY = 0.34; // shoulder radius; the min gap between two bodies is 2×
+  const MIN = BODY * 2;
+  const list: Entity[] = [];
+  for (const e of world.query(IsPlayer)) list.push(e);
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const a = list[i]!;
+      const b = list[j]!;
+      const pa = a.get(Position)!;
+      const pb = b.get(Position)!;
+      let dx = pb.x - pa.x;
+      let dz = pb.z - pa.z;
+      const d = Math.hypot(dx, dz);
+      if (d >= MIN || d < 1e-5) continue;
+      const overlap = MIN - d;
+      dx /= d;
+      dz /= d;
+      // the carrier holds his ground; everyone else yields around him, so a
+      // defender gets pushed off you rather than you being shoved off the ball
+      const aShare = a === owner ? 0 : b === owner ? 1 : 0.5;
+      const bShare = 1 - aShare;
+      pa.x = clamp(pa.x - dx * overlap * aShare, -58, 58);
+      pa.z = clamp(pa.z - dz * overlap * aShare, -39, 39);
+      pb.x = clamp(pb.x + dx * overlap * bShare, -58, 58);
+      pb.z = clamp(pb.z + dz * overlap * bShare, -39, 39);
+    }
+  }
+  // commit the resolved x/z to the meshes (the pose code above owns y)
+  for (const e of list) {
+    const h = e.get(MeshRef);
+    if (!h?.value) continue;
+    const p = e.get(Position)!;
+    h.value.position.x = p.x;
+    h.value.position.z = p.z;
   }
 }
 
