@@ -745,8 +745,8 @@ export function refereeSystem(world: World, dt: number): void {
         }
         if (humanSlotFor(c.team) !== null) {
           // free kick / corner / penalty: a deliberate set-piece you AIM by
-          // drawing a line (or with the buttons). Long window; rarely auto-fires.
-          c.kickDelay = refState.shootout ? 10 : 18;
+          // drawing a line (or with the buttons). 10s window before it auto-fires.
+          c.kickDelay = 10;
           banner("TRACE UN TRAIT POUR TIRER", 2.5);
         } else {
           c.kickDelay = 0.6 + Math.random() * 0.6;
