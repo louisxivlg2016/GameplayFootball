@@ -1153,9 +1153,9 @@ function offsideDrillTick(world: World, dt: number): void {
     if (refState.drillOffT >= 0.6) {
       refState.drillOffT = 0;
       // show "HORS-JEU" WITH the lines during the cutaway (yellow on the line,
-      // blue on you), not just afterwards
+      // blue on you). A clear static freeze on the lines — no flickery replay.
       banner("HORS-JEU !", 4);
-      queueOffsideCinematic(world, sel, line * s, 1, clamp(hp.x, -52, 52), clamp(hp.z, -33, 33));
+      queueOffsideCinematic(world, sel, line * s, 1, clamp(hp.x, -52, 52), clamp(hp.z, -33, 33), false);
     }
   } else {
     refState.drillOffT = 0;

@@ -77,7 +77,7 @@ export const cineState = {
   gen: -1,
 };
 
-const OFFSIDE_SECONDS = 2.8; // fallback hold when there's no footage to replay
+const OFFSIDE_SECONDS = 3.2; // static hold on the lines (drill, or no footage)
 const OFFSIDE_REPLAY_FRAMES = 65; // ~2.2s of lead-up before the flag
 const OFFSIDE_HOLD = 1.3; // beat held on the offside moment after the replay
 
@@ -163,6 +163,7 @@ export function queueOffsideCinematic(
   team: number,
   x: number,
   z: number,
+  replay = true,
 ): void {
   if (cineState.offside || cineState.replay || cineState.card) return;
   const rb = world.queryFirst(IsBall)?.get(BallRef)?.value;
@@ -174,7 +175,8 @@ export function queueOffsideCinematic(
     x,
     z,
     t: 0,
-    frames: cineState.ring.slice(-OFFSIDE_REPLAY_FRAMES), // the lead-up to replay
+    // a match replays the lead-up; the drill just freezes clearly on the lines
+    frames: replay ? cineState.ring.slice(-OFFSIDE_REPLAY_FRAMES) : [],
     i: 0,
   };
   useStore.getState().setOffsideLine(lineX);
