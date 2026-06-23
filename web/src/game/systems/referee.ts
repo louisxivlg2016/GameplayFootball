@@ -95,6 +95,9 @@ export const refState = {
   prevBallX: 0,
   /** set-piece practice: seconds until the next attempt is re-staged */
   practiceResetT: 0,
+  /** offside drill: how long the human has held an offside / onside position */
+  drillOffT: 0,
+  drillSafeT: 0,
   /** game-clock time of the next radio score reminder */
   nextChatter: 500,
   shootout: null as {
@@ -105,6 +108,8 @@ export const refState = {
     awaiting: number; // >0: outcome timer after a kick
     keeperFaced?: number; // kicks the AI keeper has faced
     keeperSaved?: boolean; // it must pull off at least one save
+    takerKicks?: number; // kicks the AI has taken
+    takerMissed?: boolean; // it must miss at least one
   } | null,
 };
 
@@ -523,10 +528,11 @@ export function ceremonyTarget(
         : { x: -sg * (PITCH.halfLength - 10), z: 0 }; // attacking keeper stays back
     }
     const idx = e.get(PlayerInfo)!.index;
-    const depth = 5 + (idx % 3) * 4; // three rows: 5 / 9 / 13 m off the goal line
+    // pack everyone TIGHT into the six-yard box, like a real corner
+    const depth = 2.5 + (idx % 3) * 2.3; // 2.5 / 4.8 / 7.1 m off the goal line
     const lane = ((idx * 2) % 7) - 3; // spread across the face of goal
-    const zoff = teamId === c.team ? 0 : 1.6; // defenders offset to mark, not overlap
-    return { x: gx - sg * depth, z: clamp(lane * 3.4 + zoff, -17, 17) };
+    const zoff = teamId === c.team ? 0 : 1.3; // defenders offset to mark, not overlap
+    return { x: gx - sg * depth, z: clamp(lane * 2.1 + zoff, -7.5, 7.5) };
   }
   // opponents otherwise retreat the regulation 9.15m from the ball
   if (teamId !== c.team) {
@@ -582,8 +588,14 @@ function aiTakeSetPiece(world: World, c: Ceremony): void {
     }
     case "penalty": {
       const side = Math.random() > 0.5 ? 1 : -1;
-      // ~22% of the time he drags it wide of the post (a real miss)
-      const wide = Math.random() < 0.22;
+      let wide = Math.random() < 0.32; // ~a third he drags wide of the post
+      // a shoot-out taker MUST miss at least one: force it by his third kick
+      const so = refState.shootout;
+      if (so) {
+        so.takerKicks = (so.takerKicks ?? 0) + 1;
+        if (!so.takerMissed && so.takerKicks >= 3) wide = true;
+        if (wide) so.takerMissed = true;
+      }
       const aim = side * (wide ? 4.4 + Math.random() * 1.6 : 2.2 + Math.random() * 0.9);
       shoot(world, taker, aim);
       break; // the keeper guesses in refereeOnKick, as the ball is struck
@@ -621,8 +633,8 @@ function penaltyDive(world: World, attackingTeam: number): void {
     e.add(KeeperDive);
     e.set(KeeperDive, { t: 0, side });
     const v = e.get(Velocity)!;
-    // dive hard at the ball for a real save; a slower guess otherwise
-    v.z = side * (save ? 8 : 2.8);
+    // dive at the ball for a real save; a slower guess otherwise
+    v.z = side * (save ? 6 : 2.6);
     v.x = 0;
   }
 }
@@ -1067,18 +1079,18 @@ function placePractice(world: World): void {
 }
 
 /**
- * Offside drill: you start with the ball and a flat defensive line ahead. Your
- * forwards make runs (their offside clamp is OFF in this mode — see ai.ts — so
- * they DO stray offside), and the point is to pick the onside pass and not play
- * a team-mate offside. A bad pass is flagged with the offside cutaway and the
- * scene resets.
+ * Offside drill: you are placed BEYOND a flat defensive line — offside. The
+ * point is to drop back onside (goal-side... no, your own side of the line). If
+ * you don't move out of the offside position, you're flagged at once and it
+ * resets. The AI is frozen in this mode (see Systems.tsx) so the line holds.
  */
 function stageOffsideDrill(world: World): void {
   const s = attackSign(0); // the human team (0) attacks +x
-  let pm: Entity | null = null; // the playmaker the human steers, on the ball
+  // randomise the line and how far offside you start, so every rep is different
+  const lineX = s * (16 + Math.random() * 10); // the back line, 16..26m out
+  const startX = lineX + s * (3 + Math.random() * 4); // you, 3..7m past it
+  let runner: Entity | null = null;
   let di = 0;
-  let mi = 0;
-  let fi = 0;
   for (const e of world.query(IsPlayer)) {
     const team = e.get(Team)!.id;
     const role = e.get(PlayerInfo)!.role;
@@ -1087,35 +1099,70 @@ function stageOffsideDrill(world: World): void {
     if (team === 1) {
       if (role === Role.GK) p.set(s * (PITCH.halfLength - 0.7), 0, 0);
       else if (role === Role.DEF) {
-        p.set(s * 26, 0, (di++ - 1.5) * 9); // a flat back line = the offside line
+        p.set(lineX, 0, (di++ - 1.5) * 8); // a flat back four = the offside line
         e.set(Heading, { angle: Math.atan2(-s, 0) });
-      } else p.set(s * 4, 0, (mi++ - 1.5) * 8); // their midfield presses
+      } else p.set(-s * 8, 0, ((e.get(PlayerInfo)!.index % 5) - 2) * 7); // out of the way
     } else {
       if (role === Role.GK) p.set(-s * (PITCH.halfLength - 6), 0, 0);
-      else if (role === Role.MID && !pm) {
-        pm = e; // first midfielder is the human's playmaker
-        p.set(s * 8, 0, 0);
-        e.set(Heading, { angle: Math.atan2(s, 0) });
-      } else if (role === Role.ATT) {
-        p.set(s * 21, 0, (fi++ - 1) * 11); // forwards just onside, ready to run
-        e.set(Heading, { angle: Math.atan2(s, 0) });
-      } else p.set(-s * 4, 0, ((e.get(PlayerInfo)!.index % 5) - 2) * 7);
+      else if (role === Role.ATT && !runner) {
+        runner = e; // the man you steer — placed offside
+        p.set(startX, 0, 0);
+        e.set(Heading, { angle: Math.atan2(-s, 0) }); // facing back, ready to drop
+      } else p.set(-s * 6, 0, ((e.get(PlayerInfo)!.index % 5) - 2) * 8);
     }
   }
   const b = ballOf(world);
-  if (b && pm) {
-    b.rb.setTranslation({ x: s * 8, y: PITCH.ballRadius, z: 0 }, true);
+  if (b) {
+    b.rb.setTranslation({ x: 0, y: PITCH.ballRadius, z: 0 }, true);
     b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    b.bs.owner = pm;
-    b.bs.lastKicker = null;
-    b.bs.kickCooldown = 0;
-    b.bs.recaptureBlocks = [];
+    b.bs.owner = null;
   }
   const slot = humanSlotFor(0);
-  if (slot !== null && pm) setSelected(world, pm, slot);
+  if (slot !== null && runner) setSelected(world, runner, slot);
   refState.ceremony = null;
   refState.flagged.clear();
-  banner("PAS DE HORS-JEU — TROUVE LA BONNE PASSE", 2.5);
+  refState.drillOffT = 0;
+  refState.drillSafeT = 0;
+  banner("REVIENS ! TU ES HORS-JEU", 2);
+}
+
+/** Per-frame offside drill: flag the human the moment he loiters offside. */
+function offsideDrillTick(world: World, dt: number): void {
+  const sel = world.queryFirst(Selected);
+  if (!sel) return;
+  const s = attackSign(0);
+  // offside line = second-deepest defender (team 1)
+  let deepest = -Infinity;
+  let second = -Infinity;
+  for (const e of world.query(IsPlayer)) {
+    if (e.get(Team)!.id !== 1) continue;
+    const d = e.get(Position)!.x * s;
+    if (d > deepest) {
+      second = deepest;
+      deepest = d;
+    } else if (d > second) second = d;
+  }
+  const line = second;
+  const hp = sel.get(Position)!;
+  const offside = hp.x * s > line && hp.x * s > 0;
+  if (offside) {
+    refState.drillSafeT = 0;
+    refState.drillOffT += dt;
+    // hang in an offside position and you're flagged at once (the cutaway runs,
+    // then practiceOffsideReset re-stages)
+    if (refState.drillOffT >= 0.6) {
+      refState.drillOffT = 0;
+      queueOffsideCinematic(world, sel, line * s, 1, clamp(hp.x, -52, 52), clamp(hp.z, -33, 33));
+    }
+  } else {
+    refState.drillOffT = 0;
+    refState.drillSafeT += dt;
+    if (refState.drillSafeT >= 2.2) {
+      // you stayed onside — well timed; line up the next rep
+      refState.drillSafeT = 0;
+      refState.practiceResetT = 0.01;
+    }
+  }
 }
 
 /** A drill offside resets the scenario instead of awarding a free kick. */
@@ -1137,6 +1184,10 @@ function practiceSystem(
       store.setBanner("");
       placePractice(world);
     }
+    return;
+  }
+  if (store.practice === 5) {
+    offsideDrillTick(world, dt);
     return;
   }
   const b = ballOf(world);
