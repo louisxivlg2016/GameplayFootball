@@ -475,7 +475,9 @@ function attackPosition(
   // when the ball is loose or in flight (carrier null) — otherwise attackers
   // drift past the line and camp in offside positions waiting for it. Only the
   // carrier himself is exempt (he can dribble beyond the line with the ball).
-  if (carrier !== e) {
+  // The offside DRILL (practice 5) turns this off on purpose, so the forwards
+  // do stray offside and you have to find the onside pass.
+  if (carrier !== e && useStore.getState().practice !== 5) {
     if (tx * s > offside * s - 0.2) tx = (offside * s - 0.2) * s;
   }
 

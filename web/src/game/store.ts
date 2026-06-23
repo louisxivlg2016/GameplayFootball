@@ -24,7 +24,7 @@ interface Store {
   difficulty: number;
   /** 1 = solo vs the AI, 2 = local versus on one keyboard (P2 steers BLU) */
   players: number;
-  /** game mode: 0 full match, 1 shoot-out, 2 free-kick, 3 corner, 4 penalty practice */
+  /** game mode: 0 match, 1 shoot-out, 2 free-kick, 3 corner, 4 penalty, 5 offside drill */
   practice: number;
   score: [number, number];
   /** game-time seconds (1 real second ≈ 7.7 game seconds, like the original) */
@@ -83,7 +83,7 @@ export const useStore = create<Store>((set) => ({
   toggleImportant: () => set((s) => ({ important: !s.important })),
   cycleDifficulty: () => set((s) => ({ difficulty: (s.difficulty + 1) % 3 })),
   togglePlayers: () => set((s) => ({ players: s.players === 1 ? 2 : 1 })),
-  cyclePractice: () => set((s) => ({ practice: (s.practice + 1) % 5 })),
+  cyclePractice: () => set((s) => ({ practice: (s.practice + 1) % 6 })),
   newMatch: (): void =>
     set((s) => ({
       mode: "play",

@@ -1058,10 +1058,70 @@ function placePractice(world: World): void {
   } else if (practice === 3) {
     // a corner, alternating flags
     startSetPiece(world, "corner", 0, s * 53.5, (Math.random() < 0.5 ? 1 : -1) * 34);
-  } else {
+  } else if (practice === 4) {
     // a penalty
     startSetPiece(world, "penalty", 0, s * 51, 0);
+  } else {
+    stageOffsideDrill(world);
   }
+}
+
+/**
+ * Offside drill: you start with the ball and a flat defensive line ahead. Your
+ * forwards make runs (their offside clamp is OFF in this mode — see ai.ts — so
+ * they DO stray offside), and the point is to pick the onside pass and not play
+ * a team-mate offside. A bad pass is flagged with the offside cutaway and the
+ * scene resets.
+ */
+function stageOffsideDrill(world: World): void {
+  const s = attackSign(0); // the human team (0) attacks +x
+  let pm: Entity | null = null; // the playmaker the human steers, on the ball
+  let di = 0;
+  let mi = 0;
+  let fi = 0;
+  for (const e of world.query(IsPlayer)) {
+    const team = e.get(Team)!.id;
+    const role = e.get(PlayerInfo)!.role;
+    const p = e.get(Position)!;
+    e.get(Velocity)!.set(0, 0, 0);
+    if (team === 1) {
+      if (role === Role.GK) p.set(s * (PITCH.halfLength - 0.7), 0, 0);
+      else if (role === Role.DEF) {
+        p.set(s * 26, 0, (di++ - 1.5) * 9); // a flat back line = the offside line
+        e.set(Heading, { angle: Math.atan2(-s, 0) });
+      } else p.set(s * 4, 0, (mi++ - 1.5) * 8); // their midfield presses
+    } else {
+      if (role === Role.GK) p.set(-s * (PITCH.halfLength - 6), 0, 0);
+      else if (role === Role.MID && !pm) {
+        pm = e; // first midfielder is the human's playmaker
+        p.set(s * 8, 0, 0);
+        e.set(Heading, { angle: Math.atan2(s, 0) });
+      } else if (role === Role.ATT) {
+        p.set(s * 21, 0, (fi++ - 1) * 11); // forwards just onside, ready to run
+        e.set(Heading, { angle: Math.atan2(s, 0) });
+      } else p.set(-s * 4, 0, ((e.get(PlayerInfo)!.index % 5) - 2) * 7);
+    }
+  }
+  const b = ballOf(world);
+  if (b && pm) {
+    b.rb.setTranslation({ x: s * 8, y: PITCH.ballRadius, z: 0 }, true);
+    b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    b.bs.owner = pm;
+    b.bs.lastKicker = null;
+    b.bs.kickCooldown = 0;
+    b.bs.recaptureBlocks = [];
+  }
+  const slot = humanSlotFor(0);
+  if (slot !== null && pm) setSelected(world, pm, slot);
+  refState.ceremony = null;
+  refState.flagged.clear();
+  banner("PAS DE HORS-JEU — TROUVE LA BONNE PASSE", 2.5);
+}
+
+/** A drill offside resets the scenario instead of awarding a free kick. */
+export function practiceOffsideReset(): void {
+  refState.practiceResetT = 1.2;
+  banner("HORS-JEU !", 1.5);
 }
 
 /** Set-piece practice loop: take an attempt, then re-stage it. */

@@ -263,7 +263,14 @@ function ShootoutBoard(): React.ReactNode {
   );
 }
 
-const PRACTICE_NAMES = ["MATCH", "TIRS AU BUT", "COUP FRANC", "CORNER", "PENALTY"];
+const PRACTICE_NAMES = [
+  "MATCH",
+  "TIRS AU BUT",
+  "COUP FRANC",
+  "CORNER",
+  "PENALTY",
+  "HORS-JEU",
+];
 
 function ModePicker(): React.ReactNode {
   const practice = useStore((s) => s.practice);

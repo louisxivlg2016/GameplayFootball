@@ -17,7 +17,12 @@ import { PITCH } from "../levels";
 import { animateRig, poseIdleRig } from "./movement";
 import type { RigHolder } from "./movement";
 // circular with referee.ts is safe: bindings are only touched inside functions
-import { executeSendOff, startGoalRestart, startSetPiece } from "./referee";
+import {
+  executeSendOff,
+  practiceOffsideReset,
+  startGoalRestart,
+  startSetPiece,
+} from "./referee";
 
 /**
  * Broadcast cinematics: a rolling recorder of the last ~4s of play feeds
@@ -169,7 +174,11 @@ function finishOffside(world: World): void {
   const store = useStore.getState();
   store.setOffsideLine(null);
   store.setBanner("");
-  if (off) startSetPiece(world, "freekick", off.team, off.x, off.z);
+  if (off) {
+    // in a drill, an offside just resets the scene; in a match it's a free kick
+    if (store.practice >= 2) practiceOffsideReset();
+    else startSetPiece(world, "freekick", off.team, off.x, off.z);
+  }
   store.setMode("play");
 }
 
