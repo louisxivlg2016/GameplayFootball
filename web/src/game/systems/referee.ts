@@ -1152,6 +1152,9 @@ function offsideDrillTick(world: World, dt: number): void {
     // then practiceOffsideReset re-stages)
     if (refState.drillOffT >= 0.6) {
       refState.drillOffT = 0;
+      // show "HORS-JEU" WITH the lines during the cutaway (yellow on the line,
+      // blue on you), not just afterwards
+      banner("HORS-JEU !", 4);
       queueOffsideCinematic(world, sel, line * s, 1, clamp(hp.x, -52, 52), clamp(hp.z, -33, 33));
     }
   } else {
