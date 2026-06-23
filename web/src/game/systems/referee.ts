@@ -1079,17 +1079,15 @@ function placePractice(world: World): void {
 }
 
 /**
- * Offside drill: you are placed BEYOND a flat defensive line — offside. The
- * point is to drop back onside (goal-side... no, your own side of the line). If
- * you don't move out of the offside position, you're flagged at once and it
- * resets. The AI is frozen in this mode (see Systems.tsx) so the line holds.
+ * Offside drill: you start ON the ball, well onside, with a flat defensive line
+ * ahead and your forwards making runs (their offside clamp is OFF in this mode,
+ * so they DO stray offside). Just play normally and pick the ONSIDE pass — feed
+ * a man who's beyond the line and it's flagged with the cutaway, then it resets.
  */
 function stageOffsideDrill(world: World): void {
   const s = attackSign(0); // the human team (0) attacks +x
-  // randomise the line and how far offside you start, so every rep is different
-  const lineX = s * (16 + Math.random() * 10); // the back line, 16..26m out
-  const startX = lineX + s * (3 + Math.random() * 4); // you, 3..7m past it
-  let runner: Entity | null = null;
+  const lineX = s * 24; // the defenders' line = the offside line
+  let pm: Entity | null = null; // your man, on the ball, well onside
   let di = 0;
   for (const e of world.query(IsPlayer)) {
     const team = e.get(Team)!.id;
@@ -1099,73 +1097,35 @@ function stageOffsideDrill(world: World): void {
     if (team === 1) {
       if (role === Role.GK) p.set(s * (PITCH.halfLength - 0.7), 0, 0);
       else if (role === Role.DEF) {
-        p.set(lineX, 0, (di++ - 1.5) * 8); // a flat back four = the offside line
+        p.set(lineX, 0, (di++ - 1.5) * 9); // flat back four = the offside line
         e.set(Heading, { angle: Math.atan2(-s, 0) });
-      } else p.set(-s * 8, 0, ((e.get(PlayerInfo)!.index % 5) - 2) * 7); // out of the way
+      } else p.set(s * 4, 0, ((e.get(PlayerInfo)!.index % 5) - 2) * 8); // their mids
     } else {
       if (role === Role.GK) p.set(-s * (PITCH.halfLength - 6), 0, 0);
-      else if (role === Role.ATT && !runner) {
-        runner = e; // the man you steer — placed offside
-        p.set(startX, 0, 0);
-        e.set(Heading, { angle: Math.atan2(-s, 0) }); // facing back, ready to drop
-      } else p.set(-s * 6, 0, ((e.get(PlayerInfo)!.index % 5) - 2) * 8);
+      else if (role === Role.MID && !pm) {
+        pm = e; // YOU — on the ball, well behind the line (onside)
+        p.set(s * 8, 0, 0);
+        e.set(Heading, { angle: Math.atan2(s, 0) });
+      } else if (role === Role.ATT) {
+        p.set(s * 18, 0, ((e.get(PlayerInfo)!.index % 3) - 1) * 12); // forwards near the line
+        e.set(Heading, { angle: Math.atan2(s, 0) });
+      } else p.set(-s * 2, 0, ((e.get(PlayerInfo)!.index % 5) - 2) * 9);
     }
   }
   const b = ballOf(world);
-  if (b) {
-    b.rb.setTranslation({ x: 0, y: PITCH.ballRadius, z: 0 }, true);
+  if (b && pm) {
+    b.rb.setTranslation({ x: s * 8, y: PITCH.ballRadius, z: 0 }, true);
     b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    b.bs.owner = null;
+    b.bs.owner = pm;
+    b.bs.lastKicker = null;
+    b.bs.kickCooldown = 0;
+    b.bs.recaptureBlocks = [];
   }
   const slot = humanSlotFor(0);
-  if (slot !== null && runner) setSelected(world, runner, slot);
+  if (slot !== null && pm) setSelected(world, pm, slot);
   refState.ceremony = null;
   refState.flagged.clear();
-  refState.drillOffT = 0;
-  refState.drillSafeT = 0;
-  banner("REVIENS ! TU ES HORS-JEU", 2);
-}
-
-/** Per-frame offside drill: flag the human the moment he loiters offside. */
-function offsideDrillTick(world: World, dt: number): void {
-  const sel = world.queryFirst(Selected);
-  if (!sel) return;
-  const s = attackSign(0);
-  // offside line = second-deepest defender (team 1)
-  let deepest = -Infinity;
-  let second = -Infinity;
-  for (const e of world.query(IsPlayer)) {
-    if (e.get(Team)!.id !== 1) continue;
-    const d = e.get(Position)!.x * s;
-    if (d > deepest) {
-      second = deepest;
-      deepest = d;
-    } else if (d > second) second = d;
-  }
-  const line = second;
-  const hp = sel.get(Position)!;
-  const offside = hp.x * s > line && hp.x * s > 0;
-  if (offside) {
-    refState.drillSafeT = 0;
-    refState.drillOffT += dt;
-    // hang in an offside position and you're flagged at once (the cutaway runs,
-    // then practiceOffsideReset re-stages)
-    if (refState.drillOffT >= 0.6) {
-      refState.drillOffT = 0;
-      // show "HORS-JEU" WITH the lines during the cutaway (yellow on the line,
-      // blue on you). A clear static freeze on the lines — no flickery replay.
-      banner("HORS-JEU !", 4);
-      queueOffsideCinematic(world, sel, line * s, 1, clamp(hp.x, -52, 52), clamp(hp.z, -33, 33), false);
-    }
-  } else {
-    refState.drillOffT = 0;
-    refState.drillSafeT += dt;
-    if (refState.drillSafeT >= 2.2) {
-      // you stayed onside — well timed; line up the next rep
-      refState.drillSafeT = 0;
-      refState.practiceResetT = 0.01;
-    }
-  }
+  banner("JOUE LA PASSE — PAS DE HORS-JEU", 2.5);
 }
 
 /** A drill offside resets the scenario instead of awarding a free kick. */
@@ -1187,10 +1147,6 @@ function practiceSystem(
       store.setBanner("");
       placePractice(world);
     }
-    return;
-  }
-  if (store.practice === 5) {
-    offsideDrillTick(world, dt);
     return;
   }
   const b = ballOf(world);
