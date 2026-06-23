@@ -6,6 +6,7 @@ import {
   Heading,
   IsBall,
   IsPlayer,
+  Jump,
   KeeperDive,
   Match,
   PlayerInfo,
@@ -181,14 +182,23 @@ function controlSlot(
 
   // an airborne ball (cross, bounce, clearance) is played with the HEAD/volley,
   // which the feet can't reach. Head with V (TÊTE button) or the shoot button;
-  // pass/lob become a headed flick.
+  // pass/lob become a headed flick. You LEAP for it — a proper jumping header,
+  // so a corner can be attacked in the air and headed at goal.
   const headable =
-    bp.y >= 1 && bp.y < 2.9 && bs.owner === null && dBall < 2 && bs.kickCooldown <= 0 && !penaltyTaker;
+    bp.y >= 1 && bp.y < 3.5 && bs.owner === null && dBall < 2.4 && bs.kickCooldown <= 0 && !penaltyTaker;
   if (headable) {
+    let headed = false;
     if (consumePress(pad.head) || consumePress(pad.shoot)) {
-      header(world, sel, dir.x, dir.z, true);
+      header(world, sel, dir.x, dir.z, true); // headed at goal
+      headed = true;
     } else if (consumePress(pad.pass) || consumePress(pad.lob)) {
-      header(world, sel, fx, fz, false);
+      header(world, sel, fx, fz, false); // headed flick / clearance
+      headed = true;
+    }
+    if (headed) {
+      // jump up to meet the ball (the leap pose lives in movementSystem)
+      if (!sel.has(Jump)) sel.add(Jump);
+      sel.set(Jump, { t: 0 });
     }
     return;
   }
