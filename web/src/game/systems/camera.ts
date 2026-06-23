@@ -98,11 +98,12 @@ export function cameraSystem(
     const gx = attackSign(c.team) * PITCH.halfLength;
     const s = Math.sign(gx || 1);
     if (c.type === "corner") {
-      // from behind & above the flag, ball low in frame, box + goal beyond
+      // behind & above the taker so his WHOLE body is in frame (feet included),
+      // with the packed box and goal beyond him (verified in the pose preview)
       const zside = Math.sign(c.z || 1);
-      desiredPos.set(c.x + s * 4, 7.5, c.z + zside * 8.5);
-      desiredLook.set(gx - s * 9, 1, c.z * 0.45);
-      desiredFov = 48;
+      desiredPos.set(c.x + s * 0.5, 9, c.z + zside * 10);
+      desiredLook.set(c.x - s * 4, 1.2, c.z * 0.65);
+      desiredFov = 52;
     } else {
       // free kick, TV style: sit behind the taker ALONG the ball→goal line (so
       // he stays centred in frame at any angle), a touch to the side and raised,
