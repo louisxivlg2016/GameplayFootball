@@ -103,6 +103,8 @@ export const refState = {
     outcomes: [string[], string[]]; // "g" / "m" per kick, for the HUD board
     turn: number;
     awaiting: number; // >0: outcome timer after a kick
+    keeperFaced?: number; // kicks the AI keeper has faced
+    keeperSaved?: boolean; // it must pull off at least one save
   } | null,
 };
 
@@ -509,6 +511,23 @@ export function ceremonyTarget(
       }
     }
   }
+  // corner: both teams crowd the box in front of the attacked goal, like a real
+  // corner (the taker stays out at the flag, handled at the top of this fn)
+  if (c.type === "corner") {
+    const role = e.get(PlayerInfo)!.role;
+    const gx = attackSign(c.team) * PITCH.halfLength; // goal under attack
+    const sg = Math.sign(gx) || 1;
+    if (role === Role.GK) {
+      return teamId !== c.team
+        ? { x: sg * (PITCH.halfLength - 0.6), z: 0 } // defending keeper on his line
+        : { x: -sg * (PITCH.halfLength - 10), z: 0 }; // attacking keeper stays back
+    }
+    const idx = e.get(PlayerInfo)!.index;
+    const depth = 5 + (idx % 3) * 4; // three rows: 5 / 9 / 13 m off the goal line
+    const lane = ((idx * 2) % 7) - 3; // spread across the face of goal
+    const zoff = teamId === c.team ? 0 : 1.6; // defenders offset to mark, not overlap
+    return { x: gx - sg * depth, z: clamp(lane * 3.4 + zoff, -17, 17) };
+  }
   // opponents otherwise retreat the regulation 9.15m from the ball
   if (teamId !== c.team) {
     const d = Math.hypot(p.x - c.x, p.z - c.z);
@@ -562,7 +581,11 @@ function aiTakeSetPiece(world: World, c: Ceremony): void {
       break;
     }
     case "penalty": {
-      shoot(world, taker, (Math.random() > 0.5 ? 1 : -1) * (2.2 + Math.random() * 0.9));
+      const side = Math.random() > 0.5 ? 1 : -1;
+      // ~22% of the time he drags it wide of the post (a real miss)
+      const wide = Math.random() < 0.22;
+      const aim = side * (wide ? 4.4 + Math.random() * 1.6 : 2.2 + Math.random() * 0.9);
+      shoot(world, taker, aim);
       break; // the keeper guesses in refereeOnKick, as the ball is struck
     }
   }
@@ -577,14 +600,29 @@ function aiTakeSetPiece(world: World, c: Ceremony): void {
 function penaltyDive(world: World, attackingTeam: number): void {
   const defending = 1 - attackingTeam;
   if (humanSlotFor(defending) !== null) return; // a human keeps this goal — he dives himself
+  // the ball has just been struck, so its z direction is known: the keeper can
+  // either guess (random side) or commit to a genuine save (dive at the ball)
+  const b = ballOf(world);
+  const vz = b ? b.rb.linvel().z : 0;
+  const shotSide = Math.sign(vz) || (Math.random() < 0.5 ? -1 : 1);
+  let save = Math.random() < 0.33; // a third of his kicks he reads right
+  // a shoot-out keeper MUST pull off at least one save: if he hasn't by his
+  // third kick faced, force the next one
+  const so = refState.shootout;
+  if (so) {
+    so.keeperFaced = (so.keeperFaced ?? 0) + 1;
+    if (!so.keeperSaved && so.keeperFaced >= 3) save = true;
+    if (save) so.keeperSaved = true;
+  }
   for (const e of world.query(IsPlayer)) {
     if (e.get(Team)!.id !== defending || e.get(PlayerInfo)!.role !== Role.GK) continue;
     if (e.has(KeeperDive)) continue;
-    const side = Math.random() < 0.5 ? -1 : 1; // a real guess: left OR right
+    const side = save ? shotSide : Math.random() < 0.5 ? -1 : 1;
     e.add(KeeperDive);
     e.set(KeeperDive, { t: 0, side });
     const v = e.get(Velocity)!;
-    v.z = side * 2.8; // slow enough to clearly see the full dive
+    // dive hard at the ball for a real save; a slower guess otherwise
+    v.z = side * (save ? 8 : 2.8);
     v.x = 0;
   }
 }
