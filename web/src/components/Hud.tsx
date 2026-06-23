@@ -86,7 +86,10 @@ export function Hud(): React.ReactNode {
           ❚❚
         </button>
       )}
-      {(mode === "goal" || mode === "replay" || mode === "cardScene") && (
+      {(mode === "goal" ||
+        mode === "replay" ||
+        mode === "cardScene" ||
+        mode === "offside") && (
         <button
           onClick={() => skipCinematic(world)}
           style={{

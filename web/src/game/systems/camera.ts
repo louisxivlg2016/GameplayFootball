@@ -50,8 +50,17 @@ export function cameraSystem(
   const sendOff = mode === "cardScene" ? cineState.sendOffScene : null;
   const refp =
     mode === "cardScene" && !sendOff ? world.queryFirst(IsReferee)?.get(Position) : undefined;
+  const offside = mode === "offside" ? cineState.offside : null;
 
-  if (celeb && celeb.scorer.isAlive()) {
+  if (offside && offside.player.isAlive()) {
+    // close TV cut centred between the offside line and the offending player,
+    // so both the line across the pitch and the man beyond it are clearly framed
+    const p = offside.player.get(Position)!;
+    const midX = (offside.lineX + p.x) / 2;
+    desiredPos.set(midX, 6, 26);
+    desiredLook.set(midX, 0.5, p.z * 0.5);
+    desiredFov = 34;
+  } else if (celeb && celeb.scorer.isAlive()) {
     // close-up: the scorer applauds straight into the lens
     const p = celeb.scorer.get(Position)!;
     desiredPos.set(p.x, 1.7, p.z + 5.2);

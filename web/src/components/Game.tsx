@@ -5,6 +5,7 @@ import { useStore } from "../game/store";
 import { Pitch } from "./Pitch";
 import { Ball } from "./Ball";
 import { Players, RefereeView } from "./Players";
+import { OffsideLine } from "./OffsideLine";
 import { Systems } from "./Systems";
 
 const g = globalThis as { __gpfLoadedMatchGen?: number };
@@ -23,6 +24,7 @@ export function Game(): React.ReactNode {
       <Ball />
       <Players />
       <RefereeView />
+      <OffsideLine />
       <Systems />
     </>
   );

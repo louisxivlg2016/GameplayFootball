@@ -17,7 +17,7 @@ import { PITCH } from "../levels";
 import { animateRig, poseIdleRig } from "./movement";
 import type { RigHolder } from "./movement";
 // circular with referee.ts is safe: bindings are only touched inside functions
-import { executeSendOff, startGoalRestart } from "./referee";
+import { executeSendOff, startGoalRestart, startSetPiece } from "./referee";
 
 /**
  * Broadcast cinematics: a rolling recorder of the last ~4s of play feeds
@@ -58,8 +58,19 @@ export const cineState = {
   } | null,
   /** red-carded player whose send-off waits until the replay has aired */
   sendOffAfter: null as Entity | null,
+  /** offside call: close-up on the line, then the free kick is taken */
+  offside: null as {
+    player: Entity;
+    lineX: number;
+    team: number;
+    x: number;
+    z: number;
+    t: number;
+  } | null,
   gen: -1,
 };
+
+const OFFSIDE_SECONDS = 2.8;
 
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -78,6 +89,7 @@ function resetCine(gen: number): void {
   cineState.queued = null;
   cineState.sendOffScene = null;
   cineState.sendOffAfter = null;
+  cineState.offside = null;
 }
 
 let recordAcc = 0;
@@ -132,6 +144,36 @@ export function queueCardCinematic(red: boolean, sendOff: Entity | null): void {
 }
 
 /**
+ * Offside flagged: freeze on a close-up of the offending player with the line
+ * drawn across the pitch, then take the free kick once the scene has aired.
+ */
+export function queueOffsideCinematic(
+  world: World,
+  player: Entity,
+  lineX: number,
+  team: number,
+  x: number,
+  z: number,
+): void {
+  if (cineState.offside || cineState.replay || cineState.card) return;
+  const rb = world.queryFirst(IsBall)?.get(BallRef)?.value;
+  if (rb) rb.setLinvel({ x: 0, y: 0, z: 0 }, true); // hold the scene still
+  cineState.offside = { player, lineX, team, x, z, t: 0 };
+  useStore.getState().setOffsideLine(lineX);
+  useStore.getState().setMode("offside");
+}
+
+function finishOffside(world: World): void {
+  const off = cineState.offside;
+  cineState.offside = null;
+  const store = useStore.getState();
+  store.setOffsideLine(null);
+  store.setBanner("");
+  if (off) startSetPiece(world, "freekick", off.team, off.x, off.z);
+  store.setMode("play");
+}
+
+/**
  * Skip the running goal/booking cinematic (celebration, card raise, slow-mo
  * replay or send-off) and resume play right away. A goal sequence jumps to the
  * kickoff restart; a booking resumes the free kick/penalty already staged.
@@ -139,6 +181,10 @@ export function queueCardCinematic(red: boolean, sendOff: Entity | null): void {
 export function skipCinematic(world: World): void {
   const store = useStore.getState();
   const mode = store.mode;
+  if (mode === "offside") {
+    finishOffside(world);
+    return;
+  }
   if (mode !== "goal" && mode !== "replay" && mode !== "cardScene") return;
 
   // goal mode and goal-replays restart from the spot; bookings just resume the
@@ -204,6 +250,14 @@ function faceCamera(group: THREE.Group, dt: number): void {
 export function cinematicSystem(world: World, dt: number): void {
   const store = useStore.getState();
   if (store.gen !== cineState.gen) resetCine(store.gen);
+
+  // ---- offside: hold a close-up with the line drawn, then the free kick ----
+  const off = cineState.offside;
+  if (store.mode === "offside" && off) {
+    off.t += dt;
+    if (off.t >= OFFSIDE_SECONDS) finishOffside(world);
+    return;
+  }
 
   // ---- red card send-off: show the player leaving the pitch ----
   const sendOff = cineState.sendOffScene;

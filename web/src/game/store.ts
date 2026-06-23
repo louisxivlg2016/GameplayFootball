@@ -1,6 +1,13 @@
 import { create } from "zustand";
 
-export type Mode = "menu" | "play" | "goal" | "pause" | "replay" | "cardScene";
+export type Mode =
+  | "menu"
+  | "play"
+  | "goal"
+  | "pause"
+  | "replay"
+  | "cardScene"
+  | "offside";
 
 export const TEAMS = [
   { name: "RED", color: "#d8342c", shorts: "#7a130e" },
@@ -34,6 +41,8 @@ interface Store {
   selectedName2: string;
   /** [x0,z0, x1,z1, ...] for 22 players then the ball; normalized to [-1,1] */
   radar: number[];
+  /** world-x of the offside line to draw during an offside call, or null */
+  offsideLineX: number | null;
   setMode: (mode: Mode) => void;
   toggleImportant: () => void;
   cycleDifficulty: () => void;
@@ -50,6 +59,7 @@ interface Store {
   setSelectedName: (selectedName: string) => void;
   setSelectedName2: (selectedName2: string) => void;
   setRadar: (radar: number[]) => void;
+  setOffsideLine: (offsideLineX: number | null) => void;
 }
 
 export const useStore = create<Store>((set) => ({
@@ -68,6 +78,7 @@ export const useStore = create<Store>((set) => ({
   selectedName: "",
   selectedName2: "",
   radar: [],
+  offsideLineX: null,
   setMode: (mode) => set({ mode }),
   toggleImportant: () => set((s) => ({ important: !s.important })),
   cycleDifficulty: () => set((s) => ({ difficulty: (s.difficulty + 1) % 3 })),
@@ -108,4 +119,5 @@ export const useStore = create<Store>((set) => ({
   setSelectedName2: (selectedName2) =>
     set((s) => (s.selectedName2 === selectedName2 ? s : { selectedName2 })),
   setRadar: (radar) => set({ radar }),
+  setOffsideLine: (offsideLineX) => set({ offsideLineX }),
 }));

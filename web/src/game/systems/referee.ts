@@ -35,6 +35,7 @@ import { evaluateBestPass, executePass, pass, releaseBall, shoot } from "./kicks
 import {
   queueCardCinematic,
   queueGoalCinematic,
+  queueOffsideCinematic,
   startGoalReplay,
 } from "./cinematic";
 
@@ -86,6 +87,8 @@ export const refState = {
   advantage: null as PendingFoul | null,
   flagged: new Map<Entity, { x: number; z: number }>(),
   flaggedTeam: -1,
+  /** world-x of the last offside line snapshot, for the offside cutaway */
+  flaggedLineX: 0,
   bannerT: 0,
   ended: false,
   /** last frame's free-ball x, to detect a genuine line crossing */
@@ -256,11 +259,12 @@ export function refereeOnKick(world: World, kicker: Entity): void {
     } else if (depth > second) second = depth;
   }
   const line = Math.max(second, bp.x * s);
+  refState.flaggedLineX = line * s; // world-x of the line, for the cutaway
   for (const e of world.query(IsPlayer)) {
     if (e === kicker || e.get(Team)!.id !== team) continue;
     const p = e.get(Position)!;
-    // 0.2 relaxation zone toward the attacker, like the original
-    if (p.x * s > line + 0.2 && p.x * s > 0) {
+    // flag tight on the line (no lenient buffer) so offside is called more often
+    if (p.x * s > line && p.x * s > 0) {
       refState.flagged.set(e, { x: p.x, z: p.z });
     }
   }
@@ -271,11 +275,13 @@ export function refereeOffside(world: World, player: Entity): boolean {
   const spot = refState.flagged.get(player);
   if (!spot || refState.flaggedTeam !== player.get(Team)!.id) return false;
   whistle(2);
-  banner("OFFSIDE");
+  banner("HORS-JEU", 4);
   radio("offside");
-  startSetPiece(
+  // hold a close-up with the line drawn, then the free kick is taken
+  queueOffsideCinematic(
     world,
-    "freekick",
+    player,
+    refState.flaggedLineX,
     1 - player.get(Team)!.id,
     clamp(spot.x, -52, 52),
     clamp(spot.z, -33, 33),

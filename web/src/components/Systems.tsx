@@ -38,7 +38,7 @@ export function Systems(): null {
       officialsSystem(world, dt);
       cinematicSystem(world, dt);
       radarSystem(world, dt);
-    } else if (mode === "replay" || mode === "cardScene") {
+    } else if (mode === "replay" || mode === "cardScene" || mode === "offside") {
       cinematicSystem(world, dt);
       radarSystem(world, dt);
     }
