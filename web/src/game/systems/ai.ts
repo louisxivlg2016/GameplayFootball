@@ -246,6 +246,19 @@ export function aiSystem(world: World, dt: number): void {
       continue;
     }
 
+    // a cross / corner in the air near a goal: nearby players from BOTH sides
+    // PILE IN on its landing spot instead of holding shape — so the ball is
+    // actually attacked (and your TÊTE button has men in the box to head it)
+    if (carrier === null && bp.y > 1.4 && info.role !== Role.GK) {
+      const lx = bp.x + bv.x * 0.35;
+      const lz = bp.z + bv.z * 0.35;
+      const p = e.get(Position)!;
+      if (Math.abs(lx) > PITCH.halfLength - 24 && Math.hypot(p.x - lx, p.z - lz) < 15) {
+        seek(e, lx, lz, dt, SPEEDS.sprint);
+        continue;
+      }
+    }
+
     const ts = state.teams[teamId]!;
     const teamHasBall = carrierTeam === teamId || (carrier === null && ts.fading > 0.6);
     if (teamHasBall) {
