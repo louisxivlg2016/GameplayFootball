@@ -29,7 +29,6 @@ import {
   swapSides,
 } from "../levels";
 import { useStore } from "../store";
-import { AI_TEAM } from "../difficulty";
 import { crowdRoar, setTension, whistle } from "../audio";
 import { radio, radioScore } from "../radio";
 import { evaluateBestPass, executePass, pass, releaseBall, shoot } from "./kicks";
@@ -295,10 +294,11 @@ export function refereeFoul(
   const victimTeam = victim.get(Team)!.id;
   const fp = fouler.get(Position)!;
   let foulType = severity <= 1.4 ? 1 : severity <= 2.0 ? 2 : 3;
-  // rubber-band rule: while the human is in the lead, any foul by the AI on him
-  // is a straight red card.
+  // rubber-band rule (both ways): fouling a player on the team that is currently
+  // in the lead is a straight red card — you get sent off for hacking down the
+  // leader whether the leader is you or the AI.
   const score = useStore.getState().score;
-  if (foulerTeam === AI_TEAM && (score[victimTeam] ?? 0) > (score[foulerTeam] ?? 0)) {
+  if ((score[victimTeam] ?? 0) > (score[foulerTeam] ?? 0)) {
     foulType = 3;
   }
 
