@@ -155,6 +155,12 @@ function controlSlot(
     // input is authoritative for the human's facing: at high fps a reversal sits
     // multiple frames in the low-speed band where velocity-derived heading stalls
     if (moving) sel.set(Heading, { angle: Math.atan2(dir.x, dir.z) });
+    // going up for a cross in the attacking half (corner/high ball): never
+    // back-pedal toward your own goal — attack the ball forwards
+    if (bp.y > 1.3 && dBall < 10 && !hasBall) {
+      const s = attackSign(sel.get(Team)!.id);
+      if (sp.x * s > 8 && vel.x * s < 0) vel.x = 0;
+    }
   }
 
   // human keeper: a long full-stretch dive (shoot or tackle button) flings him
@@ -185,7 +191,7 @@ function controlSlot(
   // pass/lob become a headed flick. You LEAP for it — a proper jumping header,
   // so a corner can be attacked in the air and headed at goal.
   const headable =
-    bp.y >= 1 && bp.y < 3.5 && bs.owner === null && dBall < 2.4 && bs.kickCooldown <= 0 && !penaltyTaker;
+    bp.y >= 0.8 && bp.y < 4.2 && bs.owner === null && dBall < 3.2 && bs.kickCooldown <= 0 && !penaltyTaker;
   if (headable) {
     let headed = false;
     if (consumePress(pad.head) || consumePress(pad.shoot)) {

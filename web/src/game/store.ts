@@ -43,6 +43,8 @@ interface Store {
   radar: number[];
   /** world-x of the offside line to draw during an offside call, or null */
   offsideLineX: number | null;
+  /** world-x of the offside player (the blue line: where you were ahead) */
+  offsidePlayerX: number | null;
   setMode: (mode: Mode) => void;
   toggleImportant: () => void;
   cycleDifficulty: () => void;
@@ -60,6 +62,7 @@ interface Store {
   setSelectedName2: (selectedName2: string) => void;
   setRadar: (radar: number[]) => void;
   setOffsideLine: (offsideLineX: number | null) => void;
+  setOffsidePlayer: (offsidePlayerX: number | null) => void;
 }
 
 export const useStore = create<Store>((set) => ({
@@ -79,6 +82,7 @@ export const useStore = create<Store>((set) => ({
   selectedName2: "",
   radar: [],
   offsideLineX: null,
+  offsidePlayerX: null,
   setMode: (mode) => set({ mode }),
   toggleImportant: () => set((s) => ({ important: !s.important })),
   cycleDifficulty: () => set((s) => ({ difficulty: (s.difficulty + 1) % 3 })),
@@ -120,4 +124,5 @@ export const useStore = create<Store>((set) => ({
     set((s) => (s.selectedName2 === selectedName2 ? s : { selectedName2 })),
   setRadar: (radar) => set({ radar }),
   setOffsideLine: (offsideLineX) => set({ offsideLineX }),
+  setOffsidePlayer: (offsidePlayerX) => set({ offsidePlayerX }),
 }));

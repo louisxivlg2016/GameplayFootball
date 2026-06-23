@@ -178,6 +178,7 @@ export function queueOffsideCinematic(
     i: 0,
   };
   useStore.getState().setOffsideLine(lineX);
+  useStore.getState().setOffsidePlayer(player.get(Position)?.x ?? x);
   useStore.getState().setMode("offside");
 }
 
@@ -186,6 +187,7 @@ function finishOffside(world: World): void {
   cineState.offside = null;
   const store = useStore.getState();
   store.setOffsideLine(null);
+  store.setOffsidePlayer(null);
   store.setBanner("");
   if (off) {
     // in a drill, an offside just resets the scene; in a match it's a free kick
