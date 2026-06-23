@@ -25,6 +25,7 @@ export function Systems(): null {
       controlSystem(world, dt);
       movementSystem(world, dt);
       refereeSystem(world, dt);
+      recordFrame(world, dt); // footage for the offside replay
       radarSystem(world, dt);
     } else if (mode === "play") {
       possessionSystem(world, dt);

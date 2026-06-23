@@ -63,7 +63,7 @@ export const cineState = {
   } | null,
   /** red-carded player whose send-off waits until the replay has aired */
   sendOffAfter: null as Entity | null,
-  /** offside call: close-up on the line, then the free kick is taken */
+  /** offside call: slow-mo of the lead-up with the line drawn, then the kick */
   offside: null as {
     player: Entity;
     lineX: number;
@@ -71,11 +71,15 @@ export const cineState = {
     x: number;
     z: number;
     t: number;
+    frames: Frame[];
+    i: number;
   } | null,
   gen: -1,
 };
 
-const OFFSIDE_SECONDS = 2.8;
+const OFFSIDE_SECONDS = 2.8; // fallback hold when there's no footage to replay
+const OFFSIDE_REPLAY_FRAMES = 65; // ~2.2s of lead-up before the flag
+const OFFSIDE_HOLD = 1.3; // beat held on the offside moment after the replay
 
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -163,7 +167,16 @@ export function queueOffsideCinematic(
   if (cineState.offside || cineState.replay || cineState.card) return;
   const rb = world.queryFirst(IsBall)?.get(BallRef)?.value;
   if (rb) rb.setLinvel({ x: 0, y: 0, z: 0 }, true); // hold the scene still
-  cineState.offside = { player, lineX, team, x, z, t: 0 };
+  cineState.offside = {
+    player,
+    lineX,
+    team,
+    x,
+    z,
+    t: 0,
+    frames: cineState.ring.slice(-OFFSIDE_REPLAY_FRAMES), // the lead-up to replay
+    i: 0,
+  };
   useStore.getState().setOffsideLine(lineX);
   useStore.getState().setMode("offside");
 }
@@ -260,11 +273,35 @@ export function cinematicSystem(world: World, dt: number): void {
   const store = useStore.getState();
   if (store.gen !== cineState.gen) resetCine(store.gen);
 
-  // ---- offside: hold a close-up with the line drawn, then the free kick ----
+  // ---- offside: replay the lead-up in slow-mo with the line drawn, showing
+  // exactly how it was offside, then take the free kick ----
   const off = cineState.offside;
   if (store.mode === "offside" && off) {
-    off.t += dt;
-    if (off.t >= OFFSIDE_SECONDS) finishOffside(world);
+    if (off.frames.length >= MIN_REPLAY_FRAMES) {
+      off.i += dt * RECORD_HZ * REPLAY_SPEED;
+      const fr = off.frames[Math.min(Math.floor(off.i), off.frames.length - 1)]!;
+      const rb = world.queryFirst(IsBall)?.get(BallRef)?.value;
+      if (rb) {
+        rb.setTranslation(fr.ball, true);
+        rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      }
+      for (const ps of fr.players) {
+        if (!ps.e.isAlive()) continue;
+        ps.e.get(Position)?.set(ps.x, 0, ps.z); // so the camera tracks the run
+        const h = ps.e.get(MeshRef);
+        if (!h?.value) continue;
+        h.value.position.set(ps.x, 0, ps.z);
+        h.value.rotation.set(0, ps.heading, 0);
+        animateRig(h, ps.speed, 0, dt);
+      }
+      if (off.i >= off.frames.length - 1) {
+        off.t += dt; // hold a beat on the offside moment
+        if (off.t >= OFFSIDE_HOLD) finishOffside(world);
+      }
+    } else {
+      off.t += dt; // no footage to replay (fresh play): just hold on the line
+      if (off.t >= OFFSIDE_SECONDS) finishOffside(world);
+    }
     return;
   }
 
