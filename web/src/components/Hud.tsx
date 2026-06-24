@@ -5,6 +5,7 @@ import { DragShoot, KeeperArrows, humanSetPieceActive } from "./DragShoot";
 import { world } from "../game/world";
 import { skipCinematic } from "../game/systems/cinematic";
 import playButtonUrl from "../assets/play-button.png";
+import trainingButtonUrl from "../assets/training-button.png";
 
 const act = () => useStore.getState();
 
@@ -253,6 +254,7 @@ export function Hud(): React.ReactNode {
                     kicker="EXERCICES"
                     title="ENTRAINEMENT"
                     note="Penalty, corner, coup franc, tirs au but"
+                    image={trainingButtonUrl}
                     onClick={() => setMenuTab("training")}
                   />
                   <MenuModeButton
