@@ -130,8 +130,8 @@
         gap: 14px;
         padding: 26px;
         background:
-          radial-gradient(circle at 50% 0, rgba(255, 233, 74, 0.2), transparent 32%),
-          linear-gradient(130deg, rgba(216, 52, 44, 0.76), rgba(14, 36, 31, 0.48) 44%, rgba(36, 89, 214, 0.76));
+          linear-gradient(180deg, rgba(5, 22, 15, 0.18), rgba(5, 22, 15, 0.62)),
+          url("https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1600&q=80") center 48% / cover;
         border: 2px solid rgba(255, 255, 255, 0.16);
         border-left: 8px solid #d8342c;
         border-right: 8px solid #2459d6;
@@ -146,13 +146,16 @@
         position: absolute;
         inset: 0;
         background:
-          linear-gradient(180deg, rgba(4, 7, 12, 0.02), rgba(4, 7, 12, 0.2)),
-          linear-gradient(90deg, rgba(216, 52, 44, 0.2), transparent 36%, transparent 64%, rgba(36, 89, 214, 0.22));
+          linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(2, 8, 7, 0.34)),
+          radial-gradient(circle at 50% 24%, rgba(255, 233, 74, 0.18), transparent 28%);
         pointer-events: none;
       }
       .menu-shell > * {
         position: relative;
         z-index: 1;
+      }
+      .menu-shell:has(.menu-hero-legends) {
+        min-height: min(650px, calc(100vh - 40px));
       }
       .pause-shell {
         width: min(520px, calc(100vw - 42px));
@@ -324,41 +327,41 @@
       }
       .menu-hero-legends {
         position: absolute;
-        inset: 78px 34px auto 34px;
+        inset: 88px 54px auto 54px;
         z-index: 0;
         width: auto;
-        height: 240px;
+        height: 310px;
         display: grid;
-        grid-template-columns: 0.92fr 1.16fr 1.12fr 0.96fr;
-        gap: 0;
+        grid-template-columns: 0.95fr 1.18fr 1.12fr 0.98fr;
+        gap: 8px;
         align-items: end;
-        opacity: 0.86;
+        opacity: 0.98;
         pointer-events: none;
       }
       .menu-hero-legends .legend-card {
-        min-height: 240px;
+        min-height: 310px;
         overflow: hidden;
       }
       .menu-hero-legends .legend-photo {
-        height: 240px;
+        height: 310px;
         object-fit: cover;
-        object-position: center 14%;
-        filter: saturate(1.08) contrast(1.05);
+        object-position: center 8%;
+        filter: saturate(1.08) contrast(1.05) drop-shadow(0 24px 18px rgba(0, 0, 0, 0.42));
       }
       .menu-hero-legends .legend-card:nth-child(1) {
-        transform: translateX(20px) scale(1.02);
+        transform: translateX(14px) scale(1.04);
         z-index: 1;
       }
       .menu-hero-legends .legend-card:nth-child(2) {
-        transform: translateX(6px) scale(1.12);
+        transform: translateX(0) scale(1.16);
         z-index: 3;
       }
       .menu-hero-legends .legend-card:nth-child(3) {
-        transform: translateX(-12px) scale(1.08);
+        transform: translateX(-4px) scale(1.1);
         z-index: 2;
       }
       .menu-hero-legends .legend-card:nth-child(4) {
-        transform: translateX(-28px) scale(1.02);
+        transform: translateX(-16px) scale(1.04);
         z-index: 1;
       }
       .legend-bust {
@@ -474,6 +477,12 @@
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
+      }
+      .menu-hero-legends + .menu-title-row + .menu-main-actions {
+        z-index: 2;
+      }
+      .menu-hero-legends + .menu-title-row + .menu-main-actions {
+        margin-top: auto;
       }
       .menu-mode-button {
         pointer-events: auto;
