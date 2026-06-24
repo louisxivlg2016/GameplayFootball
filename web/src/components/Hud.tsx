@@ -13,7 +13,7 @@ import trainingPenaltyUrl from "../assets/training-penalty.png";
 
 const act = () => useStore.getState();
 
-type MenuTab = "home" | "training" | "worldcup";
+type MenuTab = "home" | "training" | "worldcup" | "lineup";
 
 const TRAINING_OPTIONS = [
   { id: 2, title: "COUP FRANC", note: "Mur, ballon arrete, tir direct", image: trainingFreeKickUrl },
@@ -64,6 +64,97 @@ const MENU_LEGENDS = [
   },
 ];
 
+const LINEUP_PLAYERS = [
+  { id: 1, name: "Mike Maignan", pos: "GB", rating: 87, x: 50, y: 90 },
+  { id: 2, name: "Jules Koundé", pos: "DD", rating: 85, x: 18, y: 69 },
+  { id: 3, name: "William Saliba", pos: "DC", rating: 88, x: 38, y: 72 },
+  { id: 4, name: "Dayot Upamecano", pos: "DC", rating: 86, x: 62, y: 72 },
+  { id: 5, name: "Lucas Digne", pos: "DG", rating: 82, x: 82, y: 69 },
+  { id: 6, name: "Aurélien Tchouaméni", pos: "MDC", rating: 86, x: 34, y: 49 },
+  { id: 7, name: "N'Golo Kanté", pos: "MC", rating: 85, x: 66, y: 49 },
+  { id: 8, name: "Rayan Cherki", pos: "MOC", rating: 84, x: 50, y: 34 },
+  { id: 9, name: "Bradley Barcola", pos: "AG", rating: 84, x: 24, y: 18 },
+  { id: 10, name: "Kylian Mbappé", pos: "BU", rating: 92, x: 50, y: 12 },
+  { id: 11, name: "Ousmane Dembélé", pos: "AD", rating: 88, x: 76, y: 18 },
+  { id: 12, name: "Brice Samba", pos: "GB", rating: 81 },
+  { id: 13, name: "Robin Risser", pos: "GB", rating: 74 },
+  { id: 14, name: "Malo Gusto", pos: "DD", rating: 80 },
+  { id: 15, name: "Ibrahima Konaté", pos: "DC", rating: 86 },
+  { id: 16, name: "Théo Hernandez", pos: "DG", rating: 86 },
+  { id: 17, name: "Lucas Hernandez", pos: "DG", rating: 84 },
+  { id: 18, name: "Maxence Lacroix", pos: "DC", rating: 80 },
+  { id: 19, name: "Manu Koné", pos: "MC", rating: 82 },
+  { id: 20, name: "Adrien Rabiot", pos: "MC", rating: 83 },
+  { id: 21, name: "Warren Zaïre-Emery", pos: "MC", rating: 82 },
+  { id: 22, name: "Maghnes Akliouche", pos: "MOC", rating: 80 },
+  { id: 23, name: "Marcus Thuram", pos: "BU", rating: 84 },
+  { id: 24, name: "Michael Olise", pos: "AD", rating: 84 },
+  { id: 25, name: "Désiré Doué", pos: "AG", rating: 82 },
+  { id: 26, name: "Jean-Philippe Mateta", pos: "BU", rating: 81 },
+  { id: 27, name: "Lucas Chevalier", pos: "GB", rating: 80 },
+  { id: 28, name: "Benjamin Pavard", pos: "DC", rating: 82 },
+  { id: 29, name: "Loïc Badé", pos: "DC", rating: 80 },
+  { id: 30, name: "Clément Lenglet", pos: "DC", rating: 79 },
+  { id: 31, name: "Jonathan Clauss", pos: "DD", rating: 80 },
+  { id: 32, name: "Pierre Kalulu", pos: "DD", rating: 79 },
+  { id: 33, name: "Eduardo Camavinga", pos: "MC", rating: 84 },
+  { id: 34, name: "Mattéo Guendouzi", pos: "MC", rating: 80 },
+  { id: 35, name: "Khéphren Thuram", pos: "MC", rating: 81 },
+  { id: 36, name: "Florian Thauvin", pos: "AD", rating: 79 },
+  { id: 37, name: "Kingsley Coman", pos: "AG", rating: 84 },
+  { id: 38, name: "Randal Kolo Muani", pos: "BU", rating: 82 },
+  { id: 39, name: "Christopher Nkunku", pos: "MOC", rating: 83 },
+  { id: 40, name: "Hugo Ekitiké", pos: "BU", rating: 81 },
+];
+
+function playerInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+const wikiPhotoCache = new Map<string, string>();
+
+function PlayerHead({ name }: { name: string }): React.ReactNode {
+  const [photo, setPhoto] = useState(wikiPhotoCache.get(name) ?? "");
+
+  useEffect(() => {
+    if (photo) return;
+    const controller = new AbortController();
+    const url = new URL("https://en.wikipedia.org/w/api.php");
+    url.searchParams.set("action", "query");
+    url.searchParams.set("prop", "pageimages");
+    url.searchParams.set("format", "json");
+    url.searchParams.set("pithumbsize", "120");
+    url.searchParams.set("origin", "*");
+    url.searchParams.set("titles", `${name}|${name} footballer`);
+
+    fetch(url.toString(), { signal: controller.signal })
+      .then((response) => response.json())
+      .then((data: { query?: { pages?: Record<string, { thumbnail?: { source?: string } }> } }) => {
+        const pages = data.query?.pages ?? {};
+        const image = Object.values(pages).find((page) => page.thumbnail?.source)?.thumbnail?.source;
+        if (image) {
+          wikiPhotoCache.set(name, image);
+          setPhoto(image);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => controller.abort();
+  }, [name, photo]);
+
+  return (
+    <i className="player-head">
+      {photo ? <img src={photo} alt="" /> : playerInitials(name)}
+    </i>
+  );
+}
+
 export function Hud(): React.ReactNode {
   const mode = useStore((s) => s.mode);
   const score = useStore((s) => s.score);
@@ -76,6 +167,9 @@ export function Hud(): React.ReactNode {
   const players = useStore((s) => s.players);
   const practice = useStore((s) => s.practice);
   const [menuTab, setMenuTab] = useState<MenuTab>("home");
+  const [selectedLineup, setSelectedLineup] = useState<number[]>(
+    LINEUP_PLAYERS.slice(0, 11).map((player) => player.id),
+  );
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
 
@@ -249,7 +343,7 @@ export function Hud(): React.ReactNode {
                     title="JOUER"
                     note="Lance un vrai match direct"
                     image={playButtonUrl}
-                    onClick={() => startMatch(0)}
+                    onClick={() => setMenuTab("lineup")}
                   />
                   <MenuModeButton
                     tone="green"
@@ -302,6 +396,69 @@ export function Hud(): React.ReactNode {
                 </div>
               </div>
             )}
+            {menuTab === "lineup" && (
+              <div className="lineup-panel">
+                <div className="lineup-top">
+                  <div>
+                    <span>COMPOSITION</span>
+                    <b>Choisis tes joueurs avant le match</b>
+                  </div>
+                  <button className="lineup-start" onClick={() => startMatch(0)}>
+                    JOUER LE MATCH
+                  </button>
+                </div>
+                <div className="lineup-layout">
+                  <div className="lineup-pitch" aria-label="Formation">
+                    {LINEUP_PLAYERS.filter((player) => player.x !== undefined && player.y !== undefined).map(
+                      (player) => (
+                        <button
+                          key={player.id}
+                          className={`player-card player-card-${selectedLineup.includes(player.id) ? "selected" : "off"}`}
+                          style={{ left: `${player.x}%`, top: `${player.y}%` }}
+                          onClick={() =>
+                            setSelectedLineup((current) =>
+                              current.includes(player.id)
+                                ? current.filter((id) => id !== player.id)
+                                : current.length < 11
+                                  ? [...current, player.id]
+                                  : current,
+                            )
+                          }
+                        >
+                          <strong>{player.rating}</strong>
+                          <span>{player.pos}</span>
+                          <PlayerHead name={player.name} />
+                          <b>{player.name}</b>
+                        </button>
+                      ),
+                    )}
+                  </div>
+                  <div className="lineup-bench">
+                    <span>REMPLACANTS</span>
+                    {LINEUP_PLAYERS.filter((player) => player.x === undefined).map((player) => (
+                      <button
+                        key={player.id}
+                        className={`bench-card ${selectedLineup.includes(player.id) ? "selected" : ""}`}
+                        onClick={() =>
+                          setSelectedLineup((current) =>
+                            current.includes(player.id)
+                              ? current.filter((id) => id !== player.id)
+                              : current.length < 11
+                                ? [...current, player.id]
+                                : current,
+                          )
+                        }
+                      >
+                        <strong>{player.rating}</strong>
+                        <PlayerHead name={player.name} />
+                        <b>{player.name}</b>
+                        <em>{player.pos}</em>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
             {menuTab === "worldcup" && (
               <div className="menu-panel worldcup-panel">
                 <div className="menu-panel-head">
@@ -330,32 +487,34 @@ export function Hud(): React.ReactNode {
                 </div>
               </div>
             )}
-            {players === 1 ? (
-              <div className="controls">
-                <b>WASD / Arrows</b> move&ensp;<b>Shift</b> sprint
-                <br />
-                <b>Space</b> shoot&ensp;<b>X</b> pass&ensp;<b>C</b> lofted pass&ensp;
-                <b>V</b> header&ensp;<b>E</b> slide tackle
-                <br />
-                <b>Gardien</b> : tu le prends sur un tir/penalty —{" "}
-                <b>Espace/E</b> plonge du côté du joystick
-                <br />
-                <b>R</b> radio commentary&ensp;<b>Esc</b> pause
-              </div>
-            ) : (
-              <div className="controls">
-                <span style={{ color: TEAMS[0].color, fontWeight: 700 }}>J1 (RED)</span>
-                &ensp;<b>WASD</b> move&ensp;<b>Shift g.</b> sprint&ensp;
-                <b>Espace</b> tir&ensp;<b>X</b> passe&ensp;<b>C</b> lobée&ensp;
-                <b>E</b> tacle
-                <br />
-                <span style={{ color: "#4ad2ff", fontWeight: 700 }}>J2 (BLU)</span>
-                &ensp;<b>Flèches</b> move&ensp;<b>Shift d.</b> sprint&ensp;
-                <b>K</b> tir&ensp;<b>L</b> passe&ensp;<b>M</b> lobée&ensp;
-                <b>I</b> tacle
-                <br />
-                <b>R</b> radio&ensp;<b>Esc</b> pause
-              </div>
+            {menuTab === "home" && (
+              players === 1 ? (
+                <div className="controls">
+                  <b>WASD / Arrows</b> move&ensp;<b>Shift</b> sprint
+                  <br />
+                  <b>Space</b> shoot&ensp;<b>X</b> pass&ensp;<b>C</b> lofted pass&ensp;
+                  <b>V</b> header&ensp;<b>E</b> slide tackle
+                  <br />
+                  <b>Gardien</b> : tu le prends sur un tir/penalty —{" "}
+                  <b>Espace/E</b> plonge du côté du joystick
+                  <br />
+                  <b>R</b> radio commentary&ensp;<b>Esc</b> pause
+                </div>
+              ) : (
+                <div className="controls">
+                  <span style={{ color: TEAMS[0].color, fontWeight: 700 }}>J1 (RED)</span>
+                  &ensp;<b>WASD</b> move&ensp;<b>Shift g.</b> sprint&ensp;
+                  <b>Espace</b> tir&ensp;<b>X</b> passe&ensp;<b>C</b> lobée&ensp;
+                  <b>E</b> tacle
+                  <br />
+                  <span style={{ color: "#4ad2ff", fontWeight: 700 }}>J2 (BLU)</span>
+                  &ensp;<b>Flèches</b> move&ensp;<b>Shift d.</b> sprint&ensp;
+                  <b>K</b> tir&ensp;<b>L</b> passe&ensp;<b>M</b> lobée&ensp;
+                  <b>I</b> tacle
+                  <br />
+                  <b>R</b> radio&ensp;<b>Esc</b> pause
+                </div>
+              )
             )}
           </div>
         </div>
