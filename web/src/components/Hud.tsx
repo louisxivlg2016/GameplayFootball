@@ -189,6 +189,18 @@ export function Hud(): React.ReactNode {
           <div className="menu-shell pause-shell">
             <h1>PAUSE</h1>
             <BigButton label="REPRENDRE" onClick={() => act().setMode("play")} />
+            <button
+              className="menu-big-button"
+              style={{
+                background: "#d8342c",
+                borderColor: "#ff8a80",
+                color: "#fff",
+                boxShadow: "0 8px 0 #7a130e, 0 16px 26px rgba(0,0,0,0.5)",
+              }}
+              onClick={() => act().setMode("menu")}
+            >
+              QUITTER ▸ MENU
+            </button>
             <div className="prompt">ou appuie sur Échap</div>
           </div>
         </div>
