@@ -220,19 +220,6 @@ export function Hud(): React.ReactNode {
                 ))}
               </div>
             )}
-            {menuTab === "worldcup" && (
-              <div className="menu-field-art" aria-hidden="true">
-                <div className="field-line field-midline" />
-                <div className="field-circle" />
-                <div className="field-box left-box" />
-                <div className="field-box right-box" />
-                <div className="field-run run-red" />
-                <div className="field-run run-blue" />
-                <div className="field-player art-red-player" />
-                <div className="field-player art-blue-player" />
-                <div className="field-ball" />
-              </div>
-            )}
             <div className="menu-title-row">
               <h1>
                 GAMEPLAY <span>FOOTBALL</span>
