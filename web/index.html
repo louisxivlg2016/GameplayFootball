@@ -498,6 +498,23 @@
         margin-bottom: 0;
         transform: translateY(34px);
       }
+      .home-player-toggle {
+        position: absolute;
+        left: 50%;
+        bottom: 16px;
+        z-index: 3;
+        width: min(520px, 100%);
+        transform: translateX(-50%);
+      }
+      .home-player-toggle .menu-option {
+        min-height: 58px;
+        grid-template-columns: 38px 1fr;
+        background: rgba(5, 18, 12, 0.72);
+        backdrop-filter: blur(4px);
+      }
+      .home-player-toggle .menu-option-note {
+        display: none;
+      }
       .menu-mode-button {
         pointer-events: auto;
         cursor: pointer;

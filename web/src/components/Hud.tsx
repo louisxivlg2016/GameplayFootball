@@ -268,6 +268,9 @@ export function Hud(): React.ReactNode {
                     onClick={() => setMenuTab("worldcup")}
                   />
                 </div>
+                <div className="home-player-toggle">
+                  <PlayersToggle />
+                </div>
               </>
             )}
             {menuTab === "training" && (
