@@ -220,11 +220,9 @@ export function Hud(): React.ReactNode {
               </div>
             )}
             <div className="menu-title-row">
-              <div className="menu-team-mark red-mark">RED</div>
               <h1>
                 GAMEPLAY <span>FOOTBALL</span>
               </h1>
-              <div className="menu-team-mark blue-mark">BLU</div>
             </div>
             {menuTab !== "home" && (
               <button className="menu-back" onClick={() => setMenuTab("home")}>
