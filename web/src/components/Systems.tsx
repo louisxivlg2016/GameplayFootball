@@ -19,7 +19,15 @@ export function Systems(): null {
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
     const mode = useStore.getState().mode;
-    if (mode === "play") {
+    if (mode === "play" && useStore.getState().practice === 5) {
+      // offside drill: freeze the AI so the back line holds still while you
+      // steer your man back onside (referee runs the drill check)
+      controlSystem(world, dt);
+      movementSystem(world, dt);
+      refereeSystem(world, dt);
+      recordFrame(world, dt);
+      radarSystem(world, dt);
+    } else if (mode === "play") {
       possessionSystem(world, dt);
       controlSystem(world, dt);
       tackleSystem(world, dt);
