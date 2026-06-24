@@ -104,8 +104,21 @@ const LINEUP_PLAYERS = [
   { id: 37, name: "Kingsley Coman", pos: "AG", rating: 84 },
   { id: 38, name: "Randal Kolo Muani", pos: "BU", rating: 82 },
   { id: 39, name: "Christopher Nkunku", pos: "MOC", rating: 83 },
-  { id: 40, name: "Hugo Ekitiké", pos: "BU", rating: 81 },
+  {
+    id: 40,
+    name: "Hugo Ekitiké",
+    pos: "BU",
+    rating: 81,
+    photo:
+      "https://backend.liverpoolfc.com/sites/default/files/styles/xs/public/2026-06/hugo-ekitike-2026-27-body-shot_a170f152368cb434d055d6dd13698085.webp?itok=optavXDp",
+  },
 ];
+
+const LINEUP_SLOTS = LINEUP_PLAYERS.slice(0, 11).map((player) => ({
+  defaultId: player.id,
+  x: player.x!,
+  y: player.y!,
+}));
 
 function playerInitials(name: string): string {
   return name
@@ -119,11 +132,11 @@ function playerInitials(name: string): string {
 
 const wikiPhotoCache = new Map<string, string>();
 
-function PlayerHead({ name }: { name: string }): React.ReactNode {
-  const [photo, setPhoto] = useState(wikiPhotoCache.get(name) ?? "");
+function PlayerHead({ name, photoUrl = "" }: { name: string; photoUrl?: string }): React.ReactNode {
+  const [photo, setPhoto] = useState(photoUrl || wikiPhotoCache.get(name) || "");
 
   useEffect(() => {
-    if (photo) return;
+    if (photo || photoUrl) return;
     const controller = new AbortController();
     const url = new URL("https://en.wikipedia.org/w/api.php");
     url.searchParams.set("action", "query");
@@ -146,7 +159,7 @@ function PlayerHead({ name }: { name: string }): React.ReactNode {
       .catch(() => undefined);
 
     return () => controller.abort();
-  }, [name, photo]);
+  }, [name, photo, photoUrl]);
 
   return (
     <i className="player-head">
@@ -170,6 +183,7 @@ export function Hud(): React.ReactNode {
   const [selectedLineup, setSelectedLineup] = useState<number[]>(
     LINEUP_PLAYERS.slice(0, 11).map((player) => player.id),
   );
+  const [lineupFocus, setLineupFocus] = useState<number>(1);
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
 
@@ -409,29 +423,22 @@ export function Hud(): React.ReactNode {
                 </div>
                 <div className="lineup-layout">
                   <div className="lineup-pitch" aria-label="Formation">
-                    {LINEUP_PLAYERS.filter((player) => player.x !== undefined && player.y !== undefined).map(
-                      (player) => (
+                    {LINEUP_SLOTS.map((slot, index) => {
+                      const player = LINEUP_PLAYERS.find((candidate) => candidate.id === selectedLineup[index])!;
+                      return (
                         <button
-                          key={player.id}
-                          className={`player-card player-card-${selectedLineup.includes(player.id) ? "selected" : "off"}`}
-                          style={{ left: `${player.x}%`, top: `${player.y}%` }}
-                          onClick={() =>
-                            setSelectedLineup((current) =>
-                              current.includes(player.id)
-                                ? current.filter((id) => id !== player.id)
-                                : current.length < 11
-                                  ? [...current, player.id]
-                                  : current,
-                            )
-                          }
+                          key={`${slot.defaultId}-${player.id}`}
+                          className={`player-card ${lineupFocus === player.id ? "player-card-focused" : ""}`}
+                          style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+                          onClick={() => setLineupFocus(player.id)}
                         >
                           <strong>{player.rating}</strong>
                           <span>{player.pos}</span>
-                          <PlayerHead name={player.name} />
+                          <PlayerHead name={player.name} photoUrl={player.photo} />
                           <b>{player.name}</b>
                         </button>
-                      ),
-                    )}
+                      );
+                    })}
                   </div>
                   <div className="lineup-bench">
                     <span>REMPLACANTS</span>
@@ -439,18 +446,17 @@ export function Hud(): React.ReactNode {
                       <button
                         key={player.id}
                         className={`bench-card ${selectedLineup.includes(player.id) ? "selected" : ""}`}
-                        onClick={() =>
-                          setSelectedLineup((current) =>
-                            current.includes(player.id)
-                              ? current.filter((id) => id !== player.id)
-                              : current.length < 11
-                                ? [...current, player.id]
-                                : current,
-                          )
-                        }
+                        onClick={() => {
+                          setSelectedLineup((current) => {
+                            if (current.includes(player.id)) return current;
+                            const next = current.map((id) => (id === lineupFocus ? player.id : id));
+                            return next.includes(player.id) ? next : current;
+                          });
+                          setLineupFocus(player.id);
+                        }}
                       >
                         <strong>{player.rating}</strong>
-                        <PlayerHead name={player.name} />
+                        <PlayerHead name={player.name} photoUrl={player.photo} />
                         <b>{player.name}</b>
                         <em>{player.pos}</em>
                       </button>

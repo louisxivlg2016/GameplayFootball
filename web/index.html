@@ -862,7 +862,7 @@
       .lineup-layout {
         min-height: 0;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 260px;
+        grid-template-columns: minmax(0, 1fr) 320px;
         gap: 14px;
       }
       .lineup-pitch {
@@ -899,8 +899,8 @@
         position: absolute;
         pointer-events: auto;
         cursor: pointer;
-        width: 92px;
-        min-height: 112px;
+        width: 112px;
+        min-height: 134px;
         transform: translate(-50%, -50%);
         display: grid;
         grid-template-rows: auto auto 1fr auto;
@@ -916,7 +916,7 @@
       }
       .player-card strong {
         justify-self: start;
-        font-size: 20px;
+        font-size: 24px;
         font-weight: 900;
       }
       .player-card span {
@@ -926,16 +926,20 @@
         color: #fff;
         background: rgba(30, 105, 55, 0.92);
         border-radius: 4px;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 900;
       }
       .player-card b {
         align-self: end;
         max-width: 100%;
         color: #fff;
-        font-size: 12px;
+        font-size: 13px;
         text-align: center;
         text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+      }
+      .player-card-focused {
+        outline: 4px solid #6eff7c;
+        z-index: 5;
       }
       .player-card .player-head,
       .bench-card .player-head {
@@ -969,7 +973,7 @@
         min-height: 0;
         display: grid;
         align-content: start;
-        gap: 10px;
+        gap: 9px;
         padding: 12px;
         background: rgba(23, 82, 125, 0.72);
         border: 2px solid rgba(255, 255, 255, 0.16);
@@ -985,7 +989,7 @@
       .bench-card {
         pointer-events: auto;
         cursor: pointer;
-        min-height: 78px;
+        min-height: 68px;
         display: grid;
         grid-template-columns: 44px 40px 1fr;
         gap: 2px 9px;
