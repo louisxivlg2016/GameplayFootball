@@ -4,7 +4,6 @@ import { TouchControls } from "./TouchControls";
 import { DragShoot, KeeperArrows, humanSetPieceActive } from "./DragShoot";
 import { world } from "../game/world";
 import { skipCinematic } from "../game/systems/cinematic";
-import menuLogoUrl from "../assets/menu-logo.png";
 
 const act = () => useStore.getState();
 
@@ -221,7 +220,9 @@ export function Hud(): React.ReactNode {
               </div>
             )}
             <div className="menu-title-row">
-              <img className="menu-logo" src={menuLogoUrl} alt="Football 2026" />
+              <h1>
+                GAMEPLAY <span>FOOTBALL</span>
+              </h1>
             </div>
             {menuTab !== "home" && (
               <button className="menu-back" onClick={() => setMenuTab("home")}>
