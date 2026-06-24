@@ -13,7 +13,6 @@ const act = () => useStore.getState();
 type MenuTab = "home" | "training" | "worldcup";
 
 const TRAINING_OPTIONS = [
-  { id: 1, title: "TIRS AU BUT", note: "Duel gardien, serie de tirs" },
   { id: 2, title: "COUP FRANC", note: "Mur, ballon arrete, tir direct" },
   { id: 3, title: "CORNER", note: "Centre depuis le drapeau" },
   { id: 4, title: "PENALTY", note: "Face au gardien, plongeon" },
