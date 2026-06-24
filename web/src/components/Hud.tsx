@@ -284,7 +284,10 @@ export function Hud(): React.ReactNode {
                       onClick={() => startMatch(option.id)}
                     >
                       {option.image ? (
-                        <img src={option.image} alt={option.title} />
+                        <>
+                          <img src={option.image} alt="" />
+                          <span className="training-image-label">{option.title}</span>
+                        </>
                       ) : (
                         <>
                           <span>{option.title}</span>
