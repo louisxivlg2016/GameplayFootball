@@ -822,7 +822,9 @@ export function refereeSystem(world: World, dt: number): void {
   // it into the OPPONENT's net (that needs a shot). The ONE exception: dribbling
   // it into your OWN net is still an own goal, and it counts.
   const R = PITCH.ballRadius;
-  const lineX = PITCH.halfLength - R * 0.35;
+  // lenient line: a goal counts as soon as the ball's leading edge crosses the
+  // line — a ball that's even a tiny bit over counts
+  const lineX = PITCH.halfLength - R;
   const owner = b.bs.owner;
   const inGoalMouth =
     Math.abs(bp.x) > lineX &&
@@ -1023,7 +1025,7 @@ function shootoutSystem(
   so.awaiting -= dt;
 
   const goal =
-    bp.x > PITCH.halfLength + PITCH.ballRadius &&
+    bp.x > PITCH.halfLength - PITCH.ballRadius &&
     Math.abs(bp.z) < PITCH.goalHalfWidth &&
     bp.y < PITCH.goalHeight;
   // a miss is over the instant the ball settles — no waiting around for a
@@ -1216,7 +1218,7 @@ function practiceSystem(
   const free = b.bs.owner === null;
   const bv = b.rb.linvel();
   const speed = Math.hypot(bv.x, bv.y, bv.z);
-  const lineX = PITCH.halfLength - PITCH.ballRadius * 0.35;
+  const lineX = PITCH.halfLength - PITCH.ballRadius;
   const humanTeam = store.humanTeam;
   const goalSide = attackSign(humanTeam);
   const isGoal =

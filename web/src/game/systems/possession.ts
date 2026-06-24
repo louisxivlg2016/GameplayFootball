@@ -65,7 +65,7 @@ export function possessionSystem(world: World, dt: number): void {
   // Once the ball has crossed the goal plane inside the frame, no keeper
   // possession check should erase the goal before refereeSystem sees it.
   if (
-    Math.abs(bp.x) > PITCH.halfLength - PITCH.ballRadius * 0.35 &&
+    Math.abs(bp.x) > PITCH.halfLength - PITCH.ballRadius &&
     Math.abs(bp.z) < PITCH.goalHalfWidth &&
     bp.y < PITCH.goalHeight
   ) {
