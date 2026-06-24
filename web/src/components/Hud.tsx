@@ -208,7 +208,7 @@ export function Hud(): React.ReactNode {
                 ))}
               </div>
             )}
-            {menuTab !== "home" && (
+            {menuTab === "worldcup" && (
               <div className="menu-field-art" aria-hidden="true">
                 <div className="field-line field-midline" />
                 <div className="field-circle" />
@@ -231,7 +231,7 @@ export function Hud(): React.ReactNode {
                 RETOUR
               </button>
             )}
-            {menuTab !== "home" && (
+            {menuTab === "worldcup" && (
               <div className="menu-premium-strip">
                 <span>TACTIQUES RAPIDES</span>
                 <span>RADIO STADE</span>
