@@ -4,6 +4,7 @@ import { TouchControls } from "./TouchControls";
 import { DragShoot, KeeperArrows, humanSetPieceActive } from "./DragShoot";
 import { world } from "../game/world";
 import { skipCinematic } from "../game/systems/cinematic";
+import playButtonUrl from "../assets/play-button.png";
 
 const act = () => useStore.getState();
 
@@ -244,6 +245,7 @@ export function Hud(): React.ReactNode {
                     kicker="MATCH"
                     title="JOUER"
                     note="Lance un vrai match direct"
+                    image={playButtonUrl}
                     onClick={() => startMatch(0)}
                   />
                   <MenuModeButton
@@ -368,19 +370,27 @@ function MenuModeButton({
   kicker,
   title,
   note,
+  image,
   onClick,
 }: {
   tone: "yellow" | "green" | "blue";
   kicker: string;
   title: string;
   note: string;
+  image?: string;
   onClick: () => void;
 }): React.ReactNode {
   return (
-    <button className={`menu-mode-button mode-${tone}`} onClick={onClick}>
-      <span>{kicker}</span>
-      <b>{title}</b>
-      <em>{note}</em>
+    <button className={`menu-mode-button mode-${tone}${image ? " image-mode-button" : ""}`} onClick={onClick}>
+      {image ? (
+        <img src={image} alt={title} />
+      ) : (
+        <>
+          <span>{kicker}</span>
+          <b>{title}</b>
+          <em>{note}</em>
+        </>
+      )}
     </button>
   );
 }
