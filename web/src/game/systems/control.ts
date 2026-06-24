@@ -144,11 +144,13 @@ function controlSlot(
   // a penalty is a strike from the spot: the taker is rooted (no dribbling it
   // forward), direction only aims the corner. Same for either team.
   const penaltyTaker = ceremony?.type === "penalty" && ceremony.taker === sel;
-  // a corner taker is rooted too — you stand at the flag and AIM the cross
-  // (draw-to-shoot), you don't walk around with the dead ball.
-  const cornerTaker = ceremony?.type === "corner" && ceremony.taker === sel;
+  // a corner / free-kick taker is rooted too — you stand over the dead ball and
+  // AIM the kick (draw-to-shoot), you don't walk it around.
+  const rootedTaker =
+    (ceremony?.type === "corner" || ceremony?.type === "freekick") &&
+    ceremony.taker === sel;
   const isKeeper = sel.get(PlayerInfo)!.role === Role.GK;
-  if (penaltyTaker || cornerTaker) {
+  if (penaltyTaker || rootedTaker) {
     vel.x = 0;
     vel.z = 0;
   } else if (isKeeper && sel.has(KeeperDive)) {
