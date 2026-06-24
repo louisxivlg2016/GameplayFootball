@@ -871,7 +871,7 @@ export function refereeSystem(world: World, dt: number): void {
       const lastTouch = match.get(Match)!.lastTouchTeam;
       if (lastTouch === defending) {
         // you knocked it behind your own line → corner for the OTHER team
-        startSetPiece(world, "corner", 1 - defending, side * 53.5, Math.sign(bp.z) * 34);
+        startSetPiece(world, "corner", 1 - defending, side * 54.5, Math.sign(bp.z) * 35.4);
       } else {
         startSetPiece(world, "goalkick", defending, side * PITCH.halfLength * 0.92, 0);
       }
@@ -1072,7 +1072,7 @@ function placePractice(world: World): void {
     startSetPiece(world, "freekick", 0, s * (PITCH.halfLength - (18 + Math.random() * 5)), z);
   } else if (practice === 3) {
     // a corner, alternating flags
-    startSetPiece(world, "corner", 0, s * 53.5, (Math.random() < 0.5 ? 1 : -1) * 34);
+    startSetPiece(world, "corner", 0, s * 54.5, (Math.random() < 0.5 ? 1 : -1) * 35.4);
   } else if (practice === 4) {
     // a penalty
     startSetPiece(world, "penalty", 0, s * 51, 0);
