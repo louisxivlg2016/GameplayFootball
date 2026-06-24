@@ -7,15 +7,18 @@ import { skipCinematic } from "../game/systems/cinematic";
 import playButtonUrl from "../assets/play-button.png";
 import trainingButtonUrl from "../assets/training-button.png";
 import worldCupButtonUrl from "../assets/worldcup-button.png";
+import trainingCornerUrl from "../assets/training-corner.png";
+import trainingFreeKickUrl from "../assets/training-free-kick.png";
+import trainingPenaltyUrl from "../assets/training-penalty.png";
 
 const act = () => useStore.getState();
 
 type MenuTab = "home" | "training" | "worldcup";
 
 const TRAINING_OPTIONS = [
-  { id: 2, title: "COUP FRANC", note: "Mur, ballon arrete, tir direct" },
-  { id: 3, title: "CORNER", note: "Centre depuis le drapeau" },
-  { id: 4, title: "PENALTY", note: "Face au gardien, plongeon" },
+  { id: 2, title: "COUP FRANC", note: "Mur, ballon arrete, tir direct", image: trainingFreeKickUrl },
+  { id: 3, title: "CORNER", note: "Centre depuis le drapeau", image: trainingCornerUrl },
+  { id: 4, title: "PENALTY", note: "Face au gardien, plongeon", image: trainingPenaltyUrl },
   { id: 5, title: "HORS-JEU", note: "Apprendre le timing des passes" },
 ];
 
@@ -277,11 +280,17 @@ export function Hud(): React.ReactNode {
                   {TRAINING_OPTIONS.map((option) => (
                     <button
                       key={option.id}
-                      className="training-card"
+                      className={`training-card${option.image ? " training-image-card" : ""}`}
                       onClick={() => startMatch(option.id)}
                     >
-                      <span>{option.title}</span>
-                      <b>{option.note}</b>
+                      {option.image ? (
+                        <img src={option.image} alt={option.title} />
+                      ) : (
+                        <>
+                          <span>{option.title}</span>
+                          <b>{option.note}</b>
+                        </>
+                      )}
                     </button>
                   ))}
                 </div>
