@@ -37,10 +37,26 @@ const WORLD_CUP_FIXTURES = [
 ];
 
 const MENU_LEGENDS = [
-  { name: "Haaland", shirt: "#6ec7ff", hair: "#f2c96b", skin: "#f0b789" },
-  { name: "Mbappé", shirt: "#153b8f", hair: "#191919", skin: "#8d5839" },
-  { name: "Ronaldo", shirt: "#cf1f2a", hair: "#191919", skin: "#c68a62" },
-  { name: "Messi", shirt: "#77c8ff", hair: "#6b3d20", skin: "#d0a075" },
+  {
+    name: "Haaland",
+    image:
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Erling_Haaland_Morocco_v_Norway_7_June_2026-51.jpg/250px-Erling_Haaland_Morocco_v_Norway_7_June_2026-51.jpg",
+  },
+  {
+    name: "Mbappé",
+    image:
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Kylian_Mbappe_France_v_Senegal_16_June_2026-391_%28cropped%29.jpg/250px-Kylian_Mbappe_France_v_Senegal_16_June_2026-391_%28cropped%29.jpg",
+  },
+  {
+    name: "Ronaldo",
+    image:
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Cristiano_Ronaldo_2275_%28cropped%29.jpg/250px-Cristiano_Ronaldo_2275_%28cropped%29.jpg",
+  },
+  {
+    name: "Messi",
+    image:
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Lionel_Messi_NE_Revolution_Inter_Miami_7.9.25-178_%28cropped_2%29.jpg/250px-Lionel_Messi_NE_Revolution_Inter_Miami_7.9.25-178_%28cropped_2%29.jpg",
+  },
 ];
 
 export function Hud(): React.ReactNode {
@@ -201,19 +217,7 @@ export function Hud(): React.ReactNode {
             <div className="legend-strip" aria-hidden="true">
               {MENU_LEGENDS.map((legend) => (
                 <div className="legend-card" key={legend.name}>
-                  <div
-                    className="legend-bust"
-                    style={{
-                      "--shirt": legend.shirt,
-                      "--hair": legend.hair,
-                      "--skin": legend.skin,
-                    } as React.CSSProperties}
-                  >
-                    <span className="legend-head" />
-                    <span className="legend-body" />
-                    <span className="legend-arm legend-arm-left" />
-                    <span className="legend-arm legend-arm-right" />
-                  </div>
+                  <img className="legend-photo" src={legend.image} alt="" />
                   <b>{legend.name}</b>
                 </div>
               ))}
