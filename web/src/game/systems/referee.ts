@@ -1088,8 +1088,8 @@ function placePractice(world: World): void {
  */
 function stageOffsideDrill(world: World): void {
   const s = attackSign(0); // the human team (0) attacks +x
-  const lineX = s * (16 + Math.random() * 10); // the back line, 16..26m out
-  const startX = lineX + s * (3 + Math.random() * 4); // you, 3..7m past it (offside)
+  const lineX = s * (18 + Math.random() * 8); // the back line, 18..26m out
+  const startX = lineX + s * (2 + Math.random() * 2); // you, 2..4m past it (offside)
   let runner: Entity | null = null;
   let di = 0;
   for (const e of world.query(IsPlayer)) {
@@ -1114,7 +1114,8 @@ function stageOffsideDrill(world: World): void {
   }
   const b = ballOf(world);
   if (b) {
-    b.rb.setTranslation({ x: 0, y: PITCH.ballRadius, z: 0 }, true);
+    // keep the ball with YOU (not at the centre circle) so the scene reads clearly
+    b.rb.setTranslation({ x: startX, y: PITCH.ballRadius, z: 0 }, true);
     b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
     b.bs.owner = null;
   }
@@ -1126,7 +1127,6 @@ function stageOffsideDrill(world: World): void {
   refState.drillSafeT = 0;
   useStore.getState().setOffsideLine(lineX); // show the line to stay behind
   useStore.getState().setOffsidePlayer(null);
-  banner("REVIENS DERRIÈRE LA LIGNE — VITE !", 2.5);
 }
 
 /** Per-frame offside drill: a grace window to drop onside, else you're flagged. */
@@ -1150,6 +1150,7 @@ function offsideDrillTick(world: World, dt: number): void {
   const hp = sel.get(Position)!;
   const offside = hp.x * s > line && hp.x * s > 0;
   if (offside) {
+    banner("⚠ HORS-JEU — RECULE", 0.4); // live status
     refState.drillSafeT = 0;
     refState.drillOffT += dt;
     // you get ~2.5s to get back onside; loiter offside longer and you're flagged
@@ -1159,6 +1160,7 @@ function offsideDrillTick(world: World, dt: number): void {
       queueOffsideCinematic(world, sel, line * s, 1, clamp(hp.x, -52, 52), clamp(hp.z, -33, 33), false);
     }
   } else {
+    banner("✓ ONSIDE — BIEN !", 0.4); // live status
     refState.drillOffT = 0;
     refState.drillSafeT += dt;
     if (refState.drillSafeT >= 2.0) {

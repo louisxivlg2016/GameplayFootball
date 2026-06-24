@@ -117,6 +117,13 @@ export function cameraSystem(
       desiredLook.set(gx, 1.5, 0);
       desiredFov = 50;
     }
+  } else if (mode === "play" && useStore.getState().practice === 5) {
+    // offside drill: a clear tactical shot centred on YOUR man, side-on so the
+    // line and your position relative to it read at a glance
+    const sp = world.queryFirst(Selected)?.get(Position) ?? { x: 0, z: 0 };
+    desiredPos.set(sp.x, 12, sp.z + 22);
+    desiredLook.set(sp.x, 0.4, sp.z * 0.4);
+    desiredFov = 34;
   } else {
     const sp = world.queryFirst(Selected)?.get(Position);
     const fx = bp.x * (sp ? 0.75 : 1) + (sp ? sp.x * 0.25 : 0) + bv.x * 0.4;
