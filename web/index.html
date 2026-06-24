@@ -153,6 +153,12 @@
       .menu-shell:has(.menu-hero-legends) {
         min-height: calc(100vh - 32px);
       }
+      .menu-shell:has(.training-grid) {
+        width: calc(100vw - 32px);
+        min-height: calc(100vh - 32px);
+        max-height: calc(100vh - 32px);
+        align-items: stretch;
+      }
       .pause-shell {
         width: min(520px, calc(100vw - 42px));
       }
@@ -675,6 +681,10 @@
         flex-direction: column;
         gap: 12px;
       }
+      .menu-shell:has(.training-grid) .menu-panel {
+        flex: 1;
+        min-height: 0;
+      }
       .menu-panel-head {
         min-height: 54px;
         display: flex;
@@ -699,8 +709,11 @@
         text-align: right;
       }
       .training-grid {
+        flex: 1;
+        min-height: 0;
         display: grid;
         grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-auto-rows: minmax(0, 1fr);
         gap: 10px;
       }
       .training-card {
@@ -720,6 +733,11 @@
         border-top: 6px solid #ffe94a;
         border-radius: 4px;
         font-family: inherit;
+      }
+      .menu-shell:has(.training-grid) .training-card {
+        min-height: 0;
+        height: 100%;
+        padding: 24px 18px;
       }
       .training-card span {
         font-size: 16px;
