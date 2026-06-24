@@ -40,22 +40,22 @@ const MENU_LEGENDS = [
   {
     name: "Haaland",
     image:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Erling_Haaland_Morocco_v_Norway_7_June_2026-51.jpg/250px-Erling_Haaland_Morocco_v_Norway_7_June_2026-51.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Erling_Haaland_Morocco_v_Norway_7_June_2026-51.jpg/500px-Erling_Haaland_Morocco_v_Norway_7_June_2026-51.jpg",
   },
   {
     name: "Mbappé",
     image:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Kylian_Mbappe_France_v_Senegal_16_June_2026-391_%28cropped%29.jpg/250px-Kylian_Mbappe_France_v_Senegal_16_June_2026-391_%28cropped%29.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Kylian_Mbappe_France_v_Senegal_16_June_2026-391_%28cropped%29.jpg/500px-Kylian_Mbappe_France_v_Senegal_16_June_2026-391_%28cropped%29.jpg",
   },
   {
     name: "Ronaldo",
     image:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Cristiano_Ronaldo_2275_%28cropped%29.jpg/250px-Cristiano_Ronaldo_2275_%28cropped%29.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Cristiano_Ronaldo_2275_%28cropped%29.jpg/500px-Cristiano_Ronaldo_2275_%28cropped%29.jpg",
   },
   {
     name: "Messi",
     image:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Lionel_Messi_NE_Revolution_Inter_Miami_7.9.25-178_%28cropped_2%29.jpg/250px-Lionel_Messi_NE_Revolution_Inter_Miami_7.9.25-178_%28cropped_2%29.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Lionel_Messi_NE_Revolution_Inter_Miami_7.9.25-178_%28cropped_2%29.jpg/500px-Lionel_Messi_NE_Revolution_Inter_Miami_7.9.25-178_%28cropped_2%29.jpg",
   },
 ];
 
@@ -196,17 +196,29 @@ export function Hud(): React.ReactNode {
           <div className="menu-side menu-side-red" />
           <div className="menu-side menu-side-blue" />
           <div className="menu-shell">
-            <div className="menu-field-art" aria-hidden="true">
-              <div className="field-line field-midline" />
-              <div className="field-circle" />
-              <div className="field-box left-box" />
-              <div className="field-box right-box" />
-              <div className="field-run run-red" />
-              <div className="field-run run-blue" />
-              <div className="field-player art-red-player" />
-              <div className="field-player art-blue-player" />
-              <div className="field-ball" />
-            </div>
+            {menuTab === "home" && (
+              <div className="legend-strip menu-hero-legends" aria-hidden="true">
+                {MENU_LEGENDS.map((legend) => (
+                  <div className="legend-card" key={legend.name}>
+                    <img className="legend-photo" src={legend.image} alt="" />
+                    <b>{legend.name}</b>
+                  </div>
+                ))}
+              </div>
+            )}
+            {menuTab !== "home" && (
+              <div className="menu-field-art" aria-hidden="true">
+                <div className="field-line field-midline" />
+                <div className="field-circle" />
+                <div className="field-box left-box" />
+                <div className="field-box right-box" />
+                <div className="field-run run-red" />
+                <div className="field-run run-blue" />
+                <div className="field-player art-red-player" />
+                <div className="field-player art-blue-player" />
+                <div className="field-ball" />
+              </div>
+            )}
             <div className="menu-title-row">
               <div className="menu-team-mark red-mark">RED</div>
               <h1>
@@ -214,24 +226,18 @@ export function Hud(): React.ReactNode {
               </h1>
               <div className="menu-team-mark blue-mark">BLU</div>
             </div>
-            <div className="legend-strip" aria-hidden="true">
-              {MENU_LEGENDS.map((legend) => (
-                <div className="legend-card" key={legend.name}>
-                  <img className="legend-photo" src={legend.image} alt="" />
-                  <b>{legend.name}</b>
-                </div>
-              ))}
-            </div>
             {menuTab !== "home" && (
               <button className="menu-back" onClick={() => setMenuTab("home")}>
                 RETOUR
               </button>
             )}
-            <div className="menu-premium-strip">
-              <span>TACTIQUES RAPIDES</span>
-              <span>RADIO STADE</span>
-              <span>REPLAY & CARTONS</span>
-            </div>
+            {menuTab !== "home" && (
+              <div className="menu-premium-strip">
+                <span>TACTIQUES RAPIDES</span>
+                <span>RADIO STADE</span>
+                <span>REPLAY & CARTONS</span>
+              </div>
+            )}
             {menuTab === "home" && (
               <>
                 <div className="menu-main-actions">
