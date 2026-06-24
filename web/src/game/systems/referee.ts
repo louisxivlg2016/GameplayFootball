@@ -173,9 +173,20 @@ export function startSetPiece(
 
   if (taker) {
     const s = attackSign(team);
-    taker.get(Position)!.set(x - s * 0.8, 0, z);
+    if (type === "corner") {
+      // stand a step behind the ball toward the corner flag, lined up FACING the
+      // goal/box, ready to run onto it and whip the cross in
+      taker.get(Position)!.set(
+        clamp(x + s * 0.3, -54.7, 54.7),
+        0,
+        clamp(z + Math.sign(z) * 0.9, -35.7, 35.7),
+      );
+      taker.set(Heading, { angle: Math.atan2(s * PITCH.halfLength - x, 0 - z) });
+    } else {
+      taker.get(Position)!.set(x - s * 0.8, 0, z);
+      taker.set(Heading, { angle: Math.atan2(s, 0) });
+    }
     taker.get(Velocity)!.set(0, 0, 0);
-    taker.set(Heading, { angle: Math.atan2(s, 0) });
   }
 
   refState.ceremony = { type, team, x, z, t: 2, ready: false, kickDelay: 0.8, taker };
@@ -1060,22 +1071,22 @@ function shootoutSystem(
   startShootoutKick(world);
 }
 
-/** Stage the chosen set-piece practice scenario for the human team (team 0). */
+/** Stage the chosen set-piece practice scenario for the solo player's chosen team. */
 function placePractice(world: World): void {
-  const practice = useStore.getState().practice;
-  const s = attackSign(0); // the human team attacks +x
+  const { practice, humanTeam } = useStore.getState();
+  const s = attackSign(humanTeam);
   if (practice === 2) {
     // a dangerous free kick ~18-23m out: sometimes flat and central, sometimes
     // off to one side at an angle (with a proper wall, like a real one)
     const side = Math.random() < 0.5 ? -1 : 1;
     const z = Math.random() < 0.35 ? (Math.random() - 0.5) * 6 : side * (6 + Math.random() * 6);
-    startSetPiece(world, "freekick", 0, s * (PITCH.halfLength - (18 + Math.random() * 5)), z);
+    startSetPiece(world, "freekick", humanTeam, s * (PITCH.halfLength - (18 + Math.random() * 5)), z);
   } else if (practice === 3) {
     // a corner, alternating flags
-    startSetPiece(world, "corner", 0, s * 54.5, (Math.random() < 0.5 ? 1 : -1) * 35.4);
+    startSetPiece(world, "corner", humanTeam, s * 54.5, (Math.random() < 0.5 ? 1 : -1) * 35.4);
   } else if (practice === 4) {
     // a penalty
-    startSetPiece(world, "penalty", 0, s * 51, 0);
+    startSetPiece(world, "penalty", humanTeam, s * 51, 0);
   } else {
     stageOffsideDrill(world);
   }
@@ -1087,7 +1098,9 @@ function placePractice(world: World): void {
  * onside. Loiter offside too long and you're flagged (cutaway), then it resets.
  */
 function stageOffsideDrill(world: World): void {
-  const s = attackSign(0); // the human team (0) attacks +x
+  const humanTeam = useStore.getState().humanTeam;
+  const defendingTeam = 1 - humanTeam;
+  const s = attackSign(humanTeam);
   const lineX = s * (18 + Math.random() * 8); // the back line, 18..26m out
   const startX = lineX + s * (2 + Math.random() * 2); // you, 2..4m past it (offside)
   let runner: Entity | null = null;
@@ -1097,7 +1110,7 @@ function stageOffsideDrill(world: World): void {
     const role = e.get(PlayerInfo)!.role;
     const p = e.get(Position)!;
     e.get(Velocity)!.set(0, 0, 0);
-    if (team === 1) {
+    if (team === defendingTeam) {
       if (role === Role.GK) p.set(s * (PITCH.halfLength - 0.7), 0, 0);
       else if (role === Role.DEF) {
         p.set(lineX, 0, (di++ - 1.5) * 8); // flat back four = the offside line
@@ -1119,7 +1132,7 @@ function stageOffsideDrill(world: World): void {
     b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
     b.bs.owner = null;
   }
-  const slot = humanSlotFor(0);
+  const slot = humanSlotFor(humanTeam);
   if (slot !== null && runner) setSelected(world, runner, slot);
   refState.ceremony = null;
   refState.flagged.clear();
@@ -1133,12 +1146,14 @@ function stageOffsideDrill(world: World): void {
 function offsideDrillTick(world: World, dt: number): void {
   const sel = world.queryFirst(Selected);
   if (!sel) return;
-  const s = attackSign(0);
-  // offside line = second-deepest defender (team 1)
+  const humanTeam = useStore.getState().humanTeam;
+  const defendingTeam = 1 - humanTeam;
+  const s = attackSign(humanTeam);
+  // offside line = second-deepest defender
   let deepest = -Infinity;
   let second = -Infinity;
   for (const e of world.query(IsPlayer)) {
-    if (e.get(Team)!.id !== 1) continue;
+    if (e.get(Team)!.id !== defendingTeam) continue;
     const d = e.get(Position)!.x * s;
     if (d > deepest) {
       second = deepest;
@@ -1202,7 +1217,8 @@ function practiceSystem(
   const bv = b.rb.linvel();
   const speed = Math.hypot(bv.x, bv.y, bv.z);
   const lineX = PITCH.halfLength - PITCH.ballRadius * 0.35;
-  const goalSide = attackSign(0);
+  const humanTeam = store.humanTeam;
+  const goalSide = attackSign(humanTeam);
   const isGoal =
     free &&
     Math.sign(bp.x) === goalSide &&
@@ -1212,13 +1228,13 @@ function practiceSystem(
   const out =
     Math.abs(bp.x) > PITCH.halfLength + 0.6 ||
     Math.abs(bp.z) > PITCH.halfWidth + 0.6;
-  const gathered = b.bs.owner !== null && b.bs.owner.get(Team)!.id !== 0;
+  const gathered = b.bs.owner !== null && b.bs.owner.get(Team)!.id !== humanTeam;
   const idleFree = free && speed < 1.2 && Math.abs(bp.x) < PITCH.halfLength;
 
   if (isGoal) {
     crowdRoar();
     radio("penGoal");
-    store.addGoalQuiet(0);
+    store.addGoalQuiet(humanTeam);
     banner("BUT !", 1.4);
     b.bs.owner = null;
     refState.practiceResetT = 1.6;

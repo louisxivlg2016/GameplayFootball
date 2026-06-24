@@ -15,7 +15,7 @@ import {
 } from "../traits";
 import { refState, refereeOffside } from "./referee";
 import { radio } from "../radio";
-import { AI_TEAM, difficulty } from "../difficulty";
+import { aiTeam, difficulty } from "../difficulty";
 import { PITCH } from "../levels";
 
 const clamp = (v: number, lo: number, hi: number): number =>
@@ -200,7 +200,7 @@ export function possessionSystem(world: World, dt: number): void {
     // bulk of what they reach; only a hard, well-placed strike to the corner
     // beats or spills past them. The opponent AI keeper leaks a bit more than
     // the human's so the player can score; difficulty scales the AI one.
-    const isAIKeeper = best.get(Team)!.id === AI_TEAM;
+    const isAIKeeper = best.get(Team)!.id === aiTeam();
     const beatMul = isAIKeeper ? 0.6 / difficulty().keeperSave : 0.2;
     const parryMul = isAIKeeper ? 0.6 : 0.4;
     let hardness = pace * (0.04 + 0.45 * stretch) * beatMul;

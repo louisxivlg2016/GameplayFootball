@@ -28,12 +28,12 @@ import { refState } from "./referee";
 const switchState = { gen: -1, cd: [0, 0] as [number, number] };
 
 export function controlSystem(world: World, dt: number): void {
-  const { players, gen } = useStore.getState();
+  const { players, gen, humanTeam } = useStore.getState();
   if (gen !== switchState.gen) {
     switchState.gen = gen;
     switchState.cd = [0.5, 0.5];
   }
-  controlSlot(world, dt, 0, players);
+  controlSlot(world, dt, 0, players, players === 1 ? humanTeam : 0);
   if (players === 2) controlSlot(world, dt, 1, players);
 }
 
@@ -42,6 +42,7 @@ function controlSlot(
   dt: number,
   slot: number,
   players: number,
+  teamOverride?: number,
 ): void {
   const ball = world.queryFirst(IsBall);
   const match = world.queryFirst(Match);
@@ -51,7 +52,7 @@ function controlSlot(
   const bp = rb ? rb.translation() : { x: 0, y: 0, z: 0 };
   const bv = rb ? rb.linvel() : { x: 0, y: 0, z: 0 };
 
-  const team = slot; // slot 0 steers RED (team 0), slot 1 steers BLU (team 1)
+  const team = teamOverride ?? slot; // solo can choose side; versus keeps RED=P1 and BLU=P2
   const SelTrait = slot === 1 ? Selected2 : Selected;
   const pad = padFor(slot, players);
 
@@ -143,8 +144,11 @@ function controlSlot(
   // a penalty is a strike from the spot: the taker is rooted (no dribbling it
   // forward), direction only aims the corner. Same for either team.
   const penaltyTaker = ceremony?.type === "penalty" && ceremony.taker === sel;
+  // a corner taker is rooted too — you stand at the flag and AIM the cross
+  // (draw-to-shoot), you don't walk around with the dead ball.
+  const cornerTaker = ceremony?.type === "corner" && ceremony.taker === sel;
   const isKeeper = sel.get(PlayerInfo)!.role === Role.GK;
-  if (penaltyTaker) {
+  if (penaltyTaker || cornerTaker) {
     vel.x = 0;
     vel.z = 0;
   } else if (isKeeper && sel.has(KeeperDive)) {

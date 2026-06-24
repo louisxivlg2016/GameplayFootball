@@ -18,7 +18,7 @@ import { PITCH, SPEEDS, attackSign } from "../levels";
 import { kickSound } from "../audio";
 import { radio } from "../radio";
 import { refereeOnKick } from "./referee";
-import { AI_TEAM, difficulty } from "../difficulty";
+import { aiTeam, difficulty } from "../difficulty";
 
 /** AI_GetMindSet by role: defenders 0, mids 0.5, attackers 1 (AIfunctions.cpp). */
 export const MINDSET = [0, 0, 0.5, 1] as const;
@@ -184,7 +184,7 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
   // Human passes should go to the selected teammate's feet. Keep technical
   // scatter only for the AI, scaled by difficulty.
   const err =
-    kicker.get(Team)!.id === AI_TEAM
+    kicker.get(Team)!.id === aiTeam()
       ? (1 - kicker.get(Stats)!.shortpass) *
         0.015 *
         difficulty().aiErr *
@@ -307,7 +307,7 @@ export function shoot(world: World, kicker: Entity, aimZ: number): void {
   const bp = rb.translation();
   const goalX = attackSign(kicker.get(Team)!.id) * PITCH.halfLength;
   // technical_shot scatter: poor shooters spray wide and high
-  const shotDiffErr = kicker.get(Team)!.id === AI_TEAM ? difficulty().aiErr : 1;
+  const shotDiffErr = kicker.get(Team)!.id === aiTeam() ? difficulty().aiErr : 1;
   const scatter =
     (1 - kicker.get(Stats)!.shot) * 2.2 * shotDiffErr * (Math.random() - 0.5) * 2;
   const tz = clamp(aimZ + scatter, -PITCH.goalHalfWidth - 0.6, PITCH.goalHalfWidth + 0.6);

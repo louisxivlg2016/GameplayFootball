@@ -1,7 +1,11 @@
 import { useStore } from "./store";
 
-/** The AI-controlled opposition is team 1 (BLU). */
+/** Historical default: BLU is AI when solo player keeps RED. Prefer aiTeam() for live logic. */
 export const AI_TEAM = 1;
+export const aiTeam = (): 0 | 1 => {
+  const s = useStore.getState();
+  return s.players === 2 ? 1 : s.humanTeam === 0 ? 1 : 0;
+};
 
 export interface DifficultyPreset {
   name: string;

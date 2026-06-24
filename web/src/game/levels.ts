@@ -230,16 +230,13 @@ export function placeKickoff(world: World, kickingTeam: number): void {
     rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
   }
 
-  setSelected(
-    world,
-    kickingTeam === 0 ? (kicker ?? null) : nearestOutfield(world, 0, 0, 0),
-    0,
-  );
-  if (humanSlotFor(1) !== null) {
+  for (const team of [0, 1] as const) {
+    const slot = humanSlotFor(team);
+    if (slot === null) continue;
     setSelected(
       world,
-      kickingTeam === 1 ? (kicker ?? null) : nearestOutfield(world, 1, 0, 0),
-      1,
+      kickingTeam === team ? (kicker ?? null) : nearestOutfield(world, team, 0, 0),
+      slot,
     );
   }
   match.set(Match, {
@@ -250,10 +247,11 @@ export function placeKickoff(world: World, kickingTeam: number): void {
   });
 }
 
-/** Which control slot steers `team`: 0 = P1 (RED), 1 = P2 (BLU, two-player mode only). */
+/** Which control slot steers `team`: solo follows the chosen side, versus is RED=P1 and BLU=P2. */
 export function humanSlotFor(team: number): number | null {
-  if (team === 0) return 0;
-  return useStore.getState().players === 2 && team === 1 ? 1 : null;
+  const { players, humanTeam } = useStore.getState();
+  if (players === 2) return team === 0 ? 0 : team === 1 ? 1 : null;
+  return team === humanTeam ? 0 : null;
 }
 
 export function setSelected(

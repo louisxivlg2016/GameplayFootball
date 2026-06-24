@@ -24,6 +24,8 @@ interface Store {
   difficulty: number;
   /** 1 = solo vs the AI, 2 = local versus on one keyboard (P2 steers BLU) */
   players: number;
+  /** solo only: team controlled by player 1, 0 = RED, 1 = BLU */
+  humanTeam: 0 | 1;
   /** game mode: 0 match, 1 shoot-out, 2 free-kick, 3 corner, 4 penalty, 5 offside drill */
   practice: number;
   score: [number, number];
@@ -49,7 +51,10 @@ interface Store {
   toggleImportant: () => void;
   cycleDifficulty: () => void;
   togglePlayers: () => void;
+  toggleHumanTeam: () => void;
+  setHumanTeam: (team: 0 | 1) => void;
   cyclePractice: () => void;
+  setPractice: (practice: number) => void;
   newMatch: () => void;
   addGoal: (team: number) => void;
   addGoalQuiet: (team: number) => void;
@@ -71,6 +76,7 @@ export const useStore = create<Store>((set) => ({
   important: false,
   difficulty: 1,
   players: 1,
+  humanTeam: 0,
   practice: 0,
   score: [0, 0],
   clock: 0,
@@ -87,7 +93,10 @@ export const useStore = create<Store>((set) => ({
   toggleImportant: () => set((s) => ({ important: !s.important })),
   cycleDifficulty: () => set((s) => ({ difficulty: (s.difficulty + 1) % 3 })),
   togglePlayers: () => set((s) => ({ players: s.players === 1 ? 2 : 1 })),
+  toggleHumanTeam: () => set((s) => ({ humanTeam: s.humanTeam === 0 ? 1 : 0 })),
+  setHumanTeam: (humanTeam) => set({ humanTeam }),
   cyclePractice: () => set((s) => ({ practice: (s.practice + 1) % 6 })),
+  setPractice: (practice) => set({ practice }),
   newMatch: (): void =>
     set((s) => ({
       mode: "play",

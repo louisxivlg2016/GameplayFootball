@@ -21,7 +21,7 @@ import { consumePress, padFor } from "../input";
 import { useStore } from "../store";
 import { refState, refereeFoul } from "./referee";
 import { releaseBall } from "./kicks";
-import { AI_TEAM, difficulty } from "../difficulty";
+import { aiTeam, difficulty } from "../difficulty";
 
 /**
  * Slide tackles. A slide is a ~0.5s lunge along the heading; touching the ball
@@ -100,7 +100,7 @@ export function tackleSystem(world: World, dt: number): void {
         if (d > 1.05) continue;
         const chance =
           (0.09 + e.get(Stats)!.tackle * 0.16) *
-          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance * AI_TACKLE_EAGERNESS : 1);
+          (e.get(Team)!.id === aiTeam() ? difficulty().tackleChance * AI_TACKLE_EAGERNESS : 1);
         // the ball sits in FRONT of the carrier: a man straight behind him
         // can't play it without going through the player. Shoving through
         // the back is never a steal — it's a whistled foul (referee.cpp
@@ -193,7 +193,7 @@ export function tackleSystem(world: World, dt: number): void {
         // almost all of the defending
         const chance =
           (0.05 + e.get(Stats)!.tackle * 0.06) *
-          (e.get(Team)!.id === AI_TEAM ? difficulty().tackleChance * AI_TACKLE_EAGERNESS : 1);
+          (e.get(Team)!.id === aiTeam() ? difficulty().tackleChance * AI_TACKLE_EAGERNESS : 1);
         if (d > 1.2 && d < 2.6 && Math.random() < chance) {
           startSlide(e);
           break; // one new slide per tick

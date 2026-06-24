@@ -28,7 +28,7 @@ import {
   shotOdds,
 } from "./kicks";
 import { ceremonyTarget, refState } from "./referee";
-import { AI_TEAM, difficulty } from "../difficulty";
+import { aiTeam, difficulty } from "../difficulty";
 
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, v));
@@ -76,7 +76,7 @@ function seek(e: Entity, tx: number, tz: number, dt: number, maxSpeed: number = 
   const stats = e.get(Stats)!;
   // physical_velocity + stamina multipliers (playerbase.cpp:136-139)
   let top = maxSpeed * (0.9 + 0.1 * stats.velocity) * (0.75 + 0.25 * stats.energy);
-  if (e.get(Team)!.id === AI_TEAM) top *= difficulty().aiSpeed;
+  if (e.get(Team)!.id === aiTeam()) top *= difficulty().aiSpeed;
   const dx = tx - p.x;
   const dz = tz - p.z;
   const d = Math.hypot(dx, dz);
@@ -107,7 +107,8 @@ function offsideLine(world: World, team: number, ballX: number): number {
 /** True when the AI team is currently ahead on the scoreboard. */
 function aiInLead(): boolean {
   const score = useStore.getState().score;
-  return (score[AI_TEAM] ?? 0) > (score[1 - AI_TEAM] ?? 0);
+  const ai = aiTeam();
+  return (score[ai] ?? 0) > (score[1 - ai] ?? 0);
 }
 
 /** Dynamic possession/territory bias (teamAIcontroller.cpp:329-340). */
@@ -632,7 +633,7 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
     }
 
     const shot = shotOdds(world, e);
-    const eagerness = teamId === AI_TEAM ? difficulty().shootBoost : 0;
+    const eagerness = teamId === aiTeam() ? difficulty().shootBoost : 0;
     // the further from goal, the pickier the decision — speculative 30m
     // punts give way to carrying the ball closer first
     const farPenalty = Math.max(0, distGoal - 16) * 0.012;
@@ -648,7 +649,7 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
 
     // rubber-band rule: while the AI is leading it never passes — it must
     // dribble or shoot, so the ball is far easier to win back off it.
-    const aiLeads = teamId === AI_TEAM && aiInLead();
+    const aiLeads = teamId === aiTeam() && aiInLead();
     const choice = evaluateBestPass(world, e, 0, 0, state.carrierSeconds);
     if (!aiLeads && choice && (nearestOpp < 6 || choice.total > 0.22)) {
       executePass(world, e, choice);
@@ -711,7 +712,7 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
     0.82 *
     (0.9 + 0.1 * cStats.velocity) *
     (0.75 + 0.25 * cStats.energy) *
-    (teamId === AI_TEAM ? difficulty().aiSpeed : 1);
+    (teamId === aiTeam() ? difficulty().aiSpeed : 1);
   const speed =
     (cleanThrough
       ? SPEEDS.sprint
@@ -751,7 +752,7 @@ function keeper(
       e.set(PlayerInfo, { aiTimer: 0.5 });
       // while leading, the AI never passes — it just hoofs the ball clear
       const choice =
-        teamId === AI_TEAM && aiInLead()
+        teamId === aiTeam() && aiInLead()
           ? null
           : evaluateBestPass(world, e, 0, 0, state.carrierSeconds);
       if (choice) executePass(world, e, choice);

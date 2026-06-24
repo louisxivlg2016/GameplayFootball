@@ -7,6 +7,42 @@ import { skipCinematic } from "../game/systems/cinematic";
 
 const act = () => useStore.getState();
 
+type MenuTab = "home" | "training" | "worldcup";
+
+const TRAINING_OPTIONS = [
+  { id: 1, title: "TIRS AU BUT", note: "Duel gardien, serie de tirs" },
+  { id: 2, title: "COUP FRANC", note: "Mur, ballon arrete, tir direct" },
+  { id: 3, title: "CORNER", note: "Centre depuis le drapeau" },
+  { id: 4, title: "PENALTY", note: "Face au gardien, plongeon" },
+  { id: 5, title: "HORS-JEU", note: "Apprendre le timing des passes" },
+];
+
+const WORLD_CUP_FIXTURES = [
+  { date: "24 juin", time: "Jour 14", group: "Groupe A", home: "Czechia", away: "Mexico", venue: "Mexico City" },
+  { date: "24 juin", time: "Jour 14", group: "Groupe A", home: "South Africa", away: "Korea Republic", venue: "Monterrey" },
+  { date: "24 juin", time: "Jour 14", group: "Groupe B", home: "Switzerland", away: "Canada", venue: "Vancouver" },
+  { date: "24 juin", time: "Jour 14", group: "Groupe C", home: "Scotland", away: "Brazil", venue: "Miami" },
+  { date: "25 juin", time: "Jour 15", group: "Groupes D/E/F", home: "Ecuador", away: "Germany", venue: "New York/New Jersey" },
+  { date: "25 juin", time: "Jour 15", group: "Groupes D/E/F", home: "Turkiye", away: "USA", venue: "Los Angeles" },
+  { date: "26 juin", time: "Jour 16", group: "Groupes G/H/I", home: "Norway", away: "France", venue: "Boston" },
+  { date: "26 juin", time: "Jour 16", group: "Groupes G/H/I", home: "Uruguay", away: "Spain", venue: "Guadalajara" },
+  { date: "27 juin", time: "Jour 17", group: "Groupes J/K/L", home: "Colombia", away: "Portugal", venue: "Miami" },
+  { date: "27 juin", time: "Jour 17", group: "Groupes J/K/L", home: "Panama", away: "England", venue: "New York/New Jersey" },
+  { date: "28 juin - 3 juillet", time: "Elimination", group: "32es", home: "Qualifie", away: "Qualifie", venue: "Tableau final" },
+  { date: "4 - 7 juillet", time: "Elimination", group: "8es", home: "Qualifie", away: "Qualifie", venue: "Tableau final" },
+  { date: "9 - 11 juillet", time: "Elimination", group: "Quarts", home: "Qualifie", away: "Qualifie", venue: "Tableau final" },
+  { date: "14 - 15 juillet", time: "Elimination", group: "Demi-finales", home: "Qualifie", away: "Qualifie", venue: "Tableau final" },
+  { date: "18 juillet", time: "Finale 3e place", group: "Match 103", home: "Perdant demi", away: "Perdant demi", venue: "Miami" },
+  { date: "19 juillet", time: "Finale", group: "Match 104", home: "Finaliste", away: "Finaliste", venue: "New York/New Jersey" },
+];
+
+const MENU_LEGENDS = [
+  { name: "Haaland", shirt: "#6ec7ff", hair: "#f2c96b", skin: "#f0b789" },
+  { name: "Mbappé", shirt: "#153b8f", hair: "#191919", skin: "#8d5839" },
+  { name: "Ronaldo", shirt: "#cf1f2a", hair: "#191919", skin: "#c68a62" },
+  { name: "Messi", shirt: "#77c8ff", hair: "#6b3d20", skin: "#d0a075" },
+];
+
 export function Hud(): React.ReactNode {
   const mode = useStore((s) => s.mode);
   const score = useStore((s) => s.score);
@@ -18,8 +54,18 @@ export function Hud(): React.ReactNode {
   const selectedName2 = useStore((s) => s.selectedName2);
   const players = useStore((s) => s.players);
   const practice = useStore((s) => s.practice);
+  const [menuTab, setMenuTab] = useState<MenuTab>("home");
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
+
+  useEffect(() => {
+    if (mode !== "menu") setMenuTab("home");
+  }, [mode]);
+
+  const startMatch = (practiceId = 0): void => {
+    act().setPractice(practiceId);
+    act().newMatch();
+  };
 
   return (
     <div className="hud">
@@ -120,49 +166,177 @@ export function Hud(): React.ReactNode {
       )}
       {mode === "pause" && (
         <div className="menu">
-          <h1>PAUSE</h1>
-          <BigButton label="REPRENDRE" onClick={() => act().setMode("play")} />
-          <div className="prompt">ou appuie sur Échap</div>
+          <div className="menu-side menu-side-red" />
+          <div className="menu-side menu-side-blue" />
+          <div className="menu-shell pause-shell">
+            <h1>PAUSE</h1>
+            <BigButton label="REPRENDRE" onClick={() => act().setMode("play")} />
+            <div className="prompt">ou appuie sur Échap</div>
+          </div>
         </div>
       )}
       {mode === "menu" && (
         <div className="menu">
-          <h1>
-            GAMEPLAY <span>FOOTBALL</span>
-          </h1>
-          <BigButton label="▶ JOUER" onClick={() => act().newMatch()} />
-          <div className="prompt">ou appuie sur Entrée</div>
-          <ModePicker />
-          <PlayersToggle />
-          {players === 1 && <DifficultyPicker />}
-          {practice === 0 && <ImportantToggle />}
-          {players === 1 ? (
-            <div className="controls">
-              <b>WASD / Arrows</b> move&ensp;<b>Shift</b> sprint
-              <br />
-              <b>Space</b> shoot&ensp;<b>X</b> pass&ensp;<b>C</b> lofted pass&ensp;
-              <b>V</b> header&ensp;<b>E</b> slide tackle
-              <br />
-              <b>Gardien</b> : tu le prends sur un tir/penalty —{" "}
-              <b>Espace/E</b> plonge du côté du joystick
-              <br />
-              <b>R</b> radio commentary&ensp;<b>Esc</b> pause
+          <div className="menu-side menu-side-red" />
+          <div className="menu-side menu-side-blue" />
+          <div className="menu-shell">
+            <div className="menu-field-art" aria-hidden="true">
+              <div className="field-line field-midline" />
+              <div className="field-circle" />
+              <div className="field-box left-box" />
+              <div className="field-box right-box" />
+              <div className="field-run run-red" />
+              <div className="field-run run-blue" />
+              <div className="field-player art-red-player" />
+              <div className="field-player art-blue-player" />
+              <div className="field-ball" />
             </div>
-          ) : (
-            <div className="controls">
-              <span style={{ color: TEAMS[0].color, fontWeight: 700 }}>J1 (RED)</span>
-              &ensp;<b>WASD</b> move&ensp;<b>Shift g.</b> sprint&ensp;
-              <b>Espace</b> tir&ensp;<b>X</b> passe&ensp;<b>C</b> lobée&ensp;
-              <b>E</b> tacle
-              <br />
-              <span style={{ color: "#4ad2ff", fontWeight: 700 }}>J2 (BLU)</span>
-              &ensp;<b>Flèches</b> move&ensp;<b>Shift d.</b> sprint&ensp;
-              <b>K</b> tir&ensp;<b>L</b> passe&ensp;<b>M</b> lobée&ensp;
-              <b>I</b> tacle
-              <br />
-              <b>R</b> radio&ensp;<b>Esc</b> pause
+            <div className="menu-title-row">
+              <div className="menu-team-mark red-mark">RED</div>
+              <h1>
+                GAMEPLAY <span>FOOTBALL</span>
+              </h1>
+              <div className="menu-team-mark blue-mark">BLU</div>
             </div>
-          )}
+            <div className="legend-strip" aria-hidden="true">
+              {MENU_LEGENDS.map((legend) => (
+                <div className="legend-card" key={legend.name}>
+                  <div
+                    className="legend-bust"
+                    style={{
+                      "--shirt": legend.shirt,
+                      "--hair": legend.hair,
+                      "--skin": legend.skin,
+                    } as React.CSSProperties}
+                  >
+                    <span className="legend-head" />
+                    <span className="legend-body" />
+                    <span className="legend-arm legend-arm-left" />
+                    <span className="legend-arm legend-arm-right" />
+                  </div>
+                  <b>{legend.name}</b>
+                </div>
+              ))}
+            </div>
+            {menuTab !== "home" && (
+              <button className="menu-back" onClick={() => setMenuTab("home")}>
+                RETOUR
+              </button>
+            )}
+            <div className="menu-premium-strip">
+              <span>TACTIQUES RAPIDES</span>
+              <span>RADIO STADE</span>
+              <span>REPLAY & CARTONS</span>
+            </div>
+            {menuTab === "home" && (
+              <>
+                <div className="menu-main-actions">
+                  <MenuModeButton
+                    tone="yellow"
+                    kicker="MATCH"
+                    title="JOUER"
+                    note="Lance un vrai match direct"
+                    onClick={() => startMatch(0)}
+                  />
+                  <MenuModeButton
+                    tone="green"
+                    kicker="EXERCICES"
+                    title="ENTRAINEMENT"
+                    note="Penalty, corner, coup franc, tirs au but"
+                    onClick={() => setMenuTab("training")}
+                  />
+                  <MenuModeButton
+                    tone="blue"
+                    kicker="19 JUILLET"
+                    title="COUPE DU MONDE"
+                    note="Calendrier, groupes et finale"
+                    onClick={() => setMenuTab("worldcup")}
+                  />
+                </div>
+                <div className="menu-grid">
+                  <PlayersToggle />
+                  {players === 1 && <TeamChoice />}
+                  {players === 1 && <DifficultyPicker />}
+                  {practice === 0 && <ImportantToggle />}
+                </div>
+              </>
+            )}
+            {menuTab === "training" && (
+              <div className="menu-panel">
+                <div className="menu-panel-head">
+                  <span>ENTRAINEMENT</span>
+                  <b>Choisis ton exercice</b>
+                </div>
+                <div className="training-grid">
+                  {TRAINING_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      className="training-card"
+                      onClick={() => startMatch(option.id)}
+                    >
+                      <span>{option.title}</span>
+                      <b>{option.note}</b>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {menuTab === "worldcup" && (
+              <div className="menu-panel worldcup-panel">
+                <div className="menu-panel-head">
+                  <span>COUPE DU MONDE 2026</span>
+                  <b>Du 11 juin au 19 juillet, jouable quand tu veux</b>
+                </div>
+                <div className="worldcup-list">
+                  {WORLD_CUP_FIXTURES.map((fixture) => (
+                    <button
+                      key={`${fixture.date}-${fixture.group}-${fixture.home}-${fixture.away}`}
+                      className="fixture-row"
+                      onClick={() => startMatch(0)}
+                    >
+                      <span className="fixture-date">{fixture.date}</span>
+                      <span className="fixture-main">
+                        <b>{fixture.home}</b>
+                        <em>vs</em>
+                        <b>{fixture.away}</b>
+                      </span>
+                      <span className="fixture-meta">
+                        {fixture.group} · {fixture.time} · {fixture.venue}
+                      </span>
+                      <span className="fixture-play">JOUER</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {players === 1 ? (
+              <div className="controls">
+                <b>WASD / Arrows</b> move&ensp;<b>Shift</b> sprint
+                <br />
+                <b>Space</b> shoot&ensp;<b>X</b> pass&ensp;<b>C</b> lofted pass&ensp;
+                <b>V</b> header&ensp;<b>E</b> slide tackle
+                <br />
+                <b>Gardien</b> : tu le prends sur un tir/penalty —{" "}
+                <b>Espace/E</b> plonge du côté du joystick
+                <br />
+                <b>R</b> radio commentary&ensp;<b>Esc</b> pause
+              </div>
+            ) : (
+              <div className="controls">
+                <span style={{ color: TEAMS[0].color, fontWeight: 700 }}>J1 (RED)</span>
+                &ensp;<b>WASD</b> move&ensp;<b>Shift g.</b> sprint&ensp;
+                <b>Espace</b> tir&ensp;<b>X</b> passe&ensp;<b>C</b> lobée&ensp;
+                <b>E</b> tacle
+                <br />
+                <span style={{ color: "#4ad2ff", fontWeight: 700 }}>J2 (BLU)</span>
+                &ensp;<b>Flèches</b> move&ensp;<b>Shift d.</b> sprint&ensp;
+                <b>K</b> tir&ensp;<b>L</b> passe&ensp;<b>M</b> lobée&ensp;
+                <b>I</b> tacle
+                <br />
+                <b>R</b> radio&ensp;<b>Esc</b> pause
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -179,24 +353,32 @@ function BigButton({
 }): React.ReactNode {
   return (
     <button
+      className="menu-big-button"
       onClick={onClick}
-      style={{
-        pointerEvents: "auto",
-        cursor: "pointer",
-        margin: "10px 0",
-        padding: "14px 38px",
-        fontSize: 22,
-        fontWeight: 800,
-        letterSpacing: 1,
-        color: "#0b1a0b",
-        background: "#ffe94a",
-        border: "none",
-        borderRadius: 10,
-        boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-        fontFamily: "inherit",
-      }}
     >
       {label}
+    </button>
+  );
+}
+
+function MenuModeButton({
+  tone,
+  kicker,
+  title,
+  note,
+  onClick,
+}: {
+  tone: "yellow" | "green" | "blue";
+  kicker: string;
+  title: string;
+  note: string;
+  onClick: () => void;
+}): React.ReactNode {
+  return (
+    <button className={`menu-mode-button mode-${tone}`} onClick={onClick}>
+      <span>{kicker}</span>
+      <b>{title}</b>
+      <em>{note}</em>
     </button>
   );
 }
@@ -263,101 +445,45 @@ function ShootoutBoard(): React.ReactNode {
   );
 }
 
-const PRACTICE_NAMES = [
-  "MATCH",
-  "TIRS AU BUT",
-  "COUP FRANC",
-  "CORNER",
-  "PENALTY",
-  "HORS-JEU",
-];
-
-function ModePicker(): React.ReactNode {
-  const practice = useStore((s) => s.practice);
-  return (
-    <div
-      onClick={() => act().cyclePractice()}
-      style={{
-        textAlign: "center",
-        fontSize: 16,
-        color: "#e8e8e8",
-        pointerEvents: "auto",
-        cursor: "pointer",
-        padding: "4px 0",
-      }}
-    >
-      <span
-        style={{
-          background: "rgba(255,255,255,0.12)",
-          borderRadius: 4,
-          padding: "1px 7px",
-          color: "#fff",
-          fontWeight: 600,
-        }}
-      >
-        T
-      </span>{" "}
-      Mode :{" "}
-      <b style={{ color: practice === 0 ? "#7ddb5a" : "#ffe94a" }}>
-        {PRACTICE_NAMES[practice]}
-      </b>{" "}
-      <span style={{ opacity: 0.6 }}>▸</span>
-    </div>
-  );
-}
-
 function PlayersToggle(): React.ReactNode {
   const players = useStore((s) => s.players);
   return (
-    <div
+    <button
+      className="menu-option tile-blue"
       onClick={() => act().togglePlayers()}
-      style={{
-        textAlign: "center",
-        fontSize: 16,
-        color: "#e8e8e8",
-        pointerEvents: "auto",
-        cursor: "pointer",
-        padding: "4px 0",
-      }}
     >
-      <span
-        style={{
-          background: "rgba(255,255,255,0.12)",
-          borderRadius: 4,
-          padding: "1px 7px",
-          color: "#fff",
-          fontWeight: 600,
-        }}
-      >
-        J
-      </span>{" "}
-      Mode :{" "}
-      <span
-        style={{
-          margin: "0 4px",
-          fontWeight: players === 1 ? 800 : 400,
-          color: players === 1 ? "#ffe94a" : "#9fb89f",
-          opacity: players === 1 ? 1 : 0.6,
-        }}
-      >
-        1 JOUEUR
-      </span>
-      <span
-        style={{
-          margin: "0 4px",
-          fontWeight: players === 2 ? 800 : 400,
-          color: players === 2 ? "#4ad2ff" : "#9fb89f",
-          opacity: players === 2 ? 1 : 0.6,
-        }}
-      >
-        2 JOUEURS
+      <span className="menu-key">J</span>
+      <span className="menu-option-label">Joueurs</span>
+      <span className="menu-choice-line">
+        <span className={players === 1 ? "active-choice yellow-choice" : "muted-choice"}>1 JOUEUR</span>
+        <span className={players === 2 ? "active-choice blue-choice" : "muted-choice"}>2 JOUEURS</span>
       </span>
       {players === 2 && (
-        <div style={{ fontSize: 12, opacity: 0.8 }}>
+        <span className="menu-option-note">
           versus local : J1 dirige les ROUGES, J2 dirige les BLEUS
-        </div>
+        </span>
       )}
-    </div>
+    </button>
+  );
+}
+
+function TeamChoice(): React.ReactNode {
+  const humanTeam = useStore((s) => s.humanTeam);
+  return (
+    <button
+      className={`menu-option ${humanTeam === 0 ? "tile-red" : "tile-blue"}`}
+      onClick={() => act().toggleHumanTeam()}
+    >
+      <span className="menu-key">E</span>
+      <span className="menu-option-label">Equipe</span>
+      <span className="menu-choice-line">
+        <span className={humanTeam === 0 ? "active-choice red-choice" : "muted-choice"}>RED</span>
+        <span className={humanTeam === 1 ? "active-choice blue-choice" : "muted-choice"}>BLU</span>
+      </span>
+      <span className="menu-option-note">
+        tu joues {TEAMS[humanTeam].name}, l'autre equipe est l'IA
+      </span>
+    </button>
   );
 }
 
@@ -367,77 +493,44 @@ const DIFFICULTY_COLORS = ["#7ddb5a", "#ffe94a", "#ff6b4a"];
 function DifficultyPicker(): React.ReactNode {
   const difficulty = useStore((s) => s.difficulty);
   return (
-    <div
+    <button
+      className="menu-option tile-yellow"
       onClick={() => act().cycleDifficulty()}
-      style={{
-        textAlign: "center",
-        fontSize: 16,
-        color: "#e8e8e8",
-        pointerEvents: "auto",
-        cursor: "pointer",
-        padding: "4px 0",
-      }}
     >
-      <span
-        style={{
-          background: "rgba(255,255,255,0.12)",
-          borderRadius: 4,
-          padding: "1px 7px",
-          color: "#fff",
-          fontWeight: 600,
-        }}
-      >
-        D
-      </span>{" "}
-      Difficulté :{" "}
-      {DIFFICULTY_NAMES.map((name, i) => (
-        <span
-          key={name}
-          style={{
-            margin: "0 4px",
-            fontWeight: i === difficulty ? 800 : 400,
-            color: i === difficulty ? DIFFICULTY_COLORS[i] : "#9fb89f",
-            opacity: i === difficulty ? 1 : 0.6,
-          }}
-        >
-          {name}
-        </span>
-      ))}
-    </div>
+      <span className="menu-key">D</span>
+      <span className="menu-option-label">Difficulté</span>
+      <span className="menu-choice-line">
+        {DIFFICULTY_NAMES.map((name, i) => (
+          <span
+            key={name}
+            className={i === difficulty ? "active-choice" : "muted-choice"}
+            style={{ color: i === difficulty ? DIFFICULTY_COLORS[i] : undefined }}
+          >
+            {name}
+          </span>
+        ))}
+      </span>
+    </button>
   );
 }
 
 function ImportantToggle(): React.ReactNode {
   const important = useStore((s) => s.important);
   return (
-    <div
+    <button
+      className="menu-option tile-red"
       onClick={() => act().toggleImportant()}
-      style={{
-        textAlign: "center",
-        color: important ? "#ffe94a" : "#9fb89f",
-        fontSize: 16,
-        pointerEvents: "auto",
-        cursor: "pointer",
-        padding: "4px 0",
-      }}
     >
-      <span
-        style={{
-          background: "rgba(255,255,255,0.12)",
-          borderRadius: 4,
-          padding: "1px 7px",
-          color: "#fff",
-          fontWeight: 600,
-        }}
-      >
-        M
-      </span>{" "}
-      Match important : {important ? "OUI" : "NON"}
-      <div style={{ fontSize: 12, opacity: 0.8 }}>
+      <span className="menu-key">M</span>
+      <span className="menu-option-label">Match important</span>
+      <b className={important ? "active-choice yellow-choice" : "muted-choice"}>
+        {important ? "OUI" : "NON"}
+      </b>
+      <span className="menu-option-note">
         deux mi-temps, puis prolongation (deux mi-temps) et tirs au but si le
         score reste égal
-      </div>
-    </div>
+      </span>
+    </button>
   );
 }
 
