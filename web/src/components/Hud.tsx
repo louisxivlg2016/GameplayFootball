@@ -6,6 +6,7 @@ import { world } from "../game/world";
 import { skipCinematic } from "../game/systems/cinematic";
 import playButtonUrl from "../assets/play-button.png";
 import trainingButtonUrl from "../assets/training-button.png";
+import worldCupButtonUrl from "../assets/worldcup-button.png";
 
 const act = () => useStore.getState();
 
@@ -261,6 +262,7 @@ export function Hud(): React.ReactNode {
                     kicker="19 JUILLET"
                     title="COUPE DU MONDE"
                     note="Calendrier, groupes et finale"
+                    image={worldCupButtonUrl}
                     onClick={() => setMenuTab("worldcup")}
                   />
                 </div>
