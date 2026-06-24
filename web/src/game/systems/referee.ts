@@ -633,8 +633,9 @@ function penaltyDive(world: World, attackingTeam: number): void {
     e.add(KeeperDive);
     e.set(KeeperDive, { t: 0, side });
     const v = e.get(Velocity)!;
-    // dive at the ball for a real save; a slower guess otherwise
-    v.z = side * (save ? 6 : 2.6);
+    // a SLOW, watchable dive that reaches the post over its flight instead of
+    // fusing across the goal in a blink (the big catch radius makes the save)
+    v.z = side * (save ? 2.6 : 2);
     v.x = 0;
   }
 }

@@ -102,9 +102,9 @@ export function movementSystem(world: World, dt: number): void {
       } else {
         e.set(KeeperDive, { t });
         dive = { ...dive, t };
-        // fly committed for a long stretch (a slow, watchable dive), THEN the
-        // turf scrubs the slide
-        if (t > 1.85) {
+        // a short lunge to the ball, THEN he decelerates and holds the dive
+        // pose laid out (watchable) instead of sliding on across the goal
+        if (t > 0.9) {
           const f = Math.pow(0.06, dt);
           v.x *= f;
           v.z *= f;
@@ -252,7 +252,8 @@ export function movementSystem(world: World, dt: number): void {
       }
     }
     if (h.tag) h.tag.visible = selected && !posed;
-    animateRig(h, slide || (speed < 1.2 && h.variant !== "idle") ? 0 : posed ? 0.3 : speed, angleDiff, dt);
+    // a dive/slide holds a STATIC base (no running legs flailing under the pose)
+    animateRig(h, slide || dive || (speed < 1.2 && h.variant !== "idle") ? 0 : posed ? 0.3 : speed, angleDiff, dt);
     if (trip && trip.fall > 0.75 && h.bones) {
       // arms shoot forward to brace the fall
       const amt =
