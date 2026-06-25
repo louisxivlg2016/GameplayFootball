@@ -59,21 +59,10 @@ function controlSlot(
   let switchCooldown = Math.max(0, switchState.cd[slot]! - dt);
   let sel = world.queryFirst(SelTrait) ?? null;
 
-  // grab the gloves: when a shot is bearing down on your own goal, or the
-  // opponent is taking a penalty against you, control snaps to YOUR keeper so
-  // you choose where to dive (the AI no longer saves everything for you).
-  const ownGoalX = -attackSign(team) * PITCH.halfLength;
-  const tCross = bv.x !== 0 ? (ownGoalX - bp.x) / bv.x : -1;
-  const zAtGoal = bp.z + bv.z * tCross;
-  const incomingShot =
-    !bs.owner &&
-    Math.hypot(bv.x, bv.z) > 9 && // a real strike, not a slow roll / pass-back
-    tCross > 0 &&
-    tCross < 1.4 &&
-    Math.abs(zAtGoal) < 6.5;
+  // In open play your keeper saves AUTOMATICALLY (the AI handles it) — control
+  // no longer yanks to him on every shot. You only take the gloves for a
+  // penalty or a free kick the OPPONENT is taking against you, to dive yourself.
   const cer = refState.ceremony;
-  // a penalty OR a free kick the OPPONENT is taking against you → you defend in
-  // goal, ready to dive
   const defendingSetPiece =
     (cer?.type === "penalty" || cer?.type === "freekick") && cer.team !== team;
 
@@ -81,7 +70,7 @@ function controlSlot(
   // otherwise to the closest outfield teammate to the ball (with hysteresis).
   const humanOwner =
     bs.owner && bs.owner.get(Team)!.id === team ? bs.owner : null;
-  if (incomingShot || defendingSetPiece) {
+  if (defendingSetPiece) {
     let gk: Entity | null = null;
     for (const e of world.query(IsPlayer)) {
       if (e.get(Team)!.id === team && e.get(PlayerInfo)!.role === Role.GK) {
