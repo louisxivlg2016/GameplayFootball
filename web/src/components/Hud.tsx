@@ -119,6 +119,7 @@ const LINEUP_SLOTS = LINEUP_PLAYERS.slice(0, 11).map((player) => ({
   x: player.x!,
   y: player.y!,
 }));
+const LINEUP_PLAYER_BY_ID = new Map(LINEUP_PLAYERS.map((player) => [player.id, player]));
 
 function playerInitials(name: string): string {
   return name
@@ -185,6 +186,7 @@ export function Hud(): React.ReactNode {
   );
   const [lineupFocus, setLineupFocus] = useState<number>(1);
   const [draggedPlayer, setDraggedPlayer] = useState<number | null>(null);
+  const [matchSubOpen, setMatchSubOpen] = useState(false);
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
 
@@ -192,7 +194,15 @@ export function Hud(): React.ReactNode {
     if (mode !== "menu") setMenuTab("home");
   }, [mode]);
 
+  useEffect(() => {
+    if (mode !== "play") setMatchSubOpen(false);
+  }, [mode]);
+
+  const lineupPlayerNames = (): string[] =>
+    selectedLineup.map((id) => LINEUP_PLAYER_BY_ID.get(id)?.name ?? "");
+
   const startMatch = (practiceId = 0): void => {
+    act().setLineupNames(lineupPlayerNames());
     act().setPractice(practiceId);
     act().newMatch();
   };
@@ -246,6 +256,28 @@ export function Hud(): React.ReactNode {
       {mode !== "menu" && <DragShoot />}
       {mode !== "menu" && <KeeperArrows />}
       {mode === "play" && players === 1 && <TouchControls />}
+      {mode === "play" && players === 1 && (
+        <div className={`match-sub-prompt${matchSubOpen ? " open" : ""}`}>
+          <button className="match-sub-main" onClick={() => setMatchSubOpen((open) => !open)}>
+            CHANGER JOUEUR ?
+          </button>
+          {matchSubOpen && (
+            <div className="match-sub-card">
+              <span>Joueur actuel</span>
+              <b>{selectedName || "Aucun"}</b>
+              <button onClick={() => setMatchSubOpen(false)}>GARDER</button>
+              <button
+                onClick={() => {
+                  setMenuTab("lineup");
+                  act().setMode("menu");
+                }}
+              >
+                COMPOSITION
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {mode === "play" && (
         <button
           onClick={() => act().setMode("pause")}
@@ -432,7 +464,7 @@ export function Hud(): React.ReactNode {
                 <div className="lineup-layout">
                   <div className="lineup-pitch" aria-label="Formation">
                     {LINEUP_SLOTS.map((slot, index) => {
-                      const player = LINEUP_PLAYERS.find((candidate) => candidate.id === selectedLineup[index])!;
+                      const player = LINEUP_PLAYER_BY_ID.get(selectedLineup[index]!)!;
                       return (
                         <button
                           key={`${slot.defaultId}-${player.id}`}

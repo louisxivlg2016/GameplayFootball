@@ -103,6 +103,18 @@ function makeName(
   return { full: `Rémi ${last}`, short: `R. ${last}`, spoken: last };
 }
 
+function makeLineupName(full: string): { full: string; short: string; spoken: string } {
+  const clean = full.trim();
+  const parts = clean.split(/\s+/);
+  const first = parts[0] ?? clean;
+  const last = parts.length > 1 ? parts[parts.length - 1]! : clean;
+  return {
+    full: clean,
+    short: parts.length > 1 ? `${first[0]}. ${last}` : clean,
+    spoken: last,
+  };
+}
+
 export function loadMatch(world: World): void {
   for (const e of [...world.query(IsPlayer)]) e.destroy();
   for (const e of [...world.query(IsBall)]) e.destroy();
@@ -115,11 +127,13 @@ export function loadMatch(world: World): void {
   world.spawn(IsReferee, Position, Velocity, Heading, MeshRef);
 
   const takenNames = new Set<string>();
+  const lineupNames = useStore.getState().lineupNames;
   for (let team = 0; team < 2; team++) {
     for (let i = 0; i < FORMATION.length; i++) {
       const role = FORMATION[i]!.role;
       const seed = team * 31 + i;
-      const name = makeName(seed, takenNames);
+      const chosenName = team === 0 ? lineupNames[i] : "";
+      const name = chosenName ? makeLineupName(chosenName) : makeName(seed, takenNames);
       // role-flavored ratings: attackers shoot, defenders tackle, mids pass
       const r = (n: number): number => 0.3 + statRand(seed * 7 + n) * 0.6;
       world.spawn(

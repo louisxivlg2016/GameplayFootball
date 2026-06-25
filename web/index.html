@@ -86,6 +86,58 @@
           opacity: 1;
         }
       }
+      .match-sub-prompt {
+        position: absolute;
+        top: 72px;
+        right: 16px;
+        z-index: 7;
+        pointer-events: auto;
+        display: grid;
+        justify-items: end;
+        gap: 8px;
+      }
+      .match-sub-main,
+      .match-sub-card button {
+        cursor: pointer;
+        min-height: 38px;
+        padding: 0 14px;
+        color: #07100b;
+        background: #ffe94a;
+        border: 2px solid #fff3a6;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 900;
+        box-shadow: 0 5px 0 #ad8312, 0 10px 18px rgba(0, 0, 0, 0.34);
+      }
+      .match-sub-card {
+        width: 230px;
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        color: #fff;
+        background: rgba(8, 12, 24, 0.9);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        box-shadow: 0 16px 28px rgba(0, 0, 0, 0.44);
+      }
+      .match-sub-card span {
+        color: #b6c8ba;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.7px;
+        text-transform: uppercase;
+      }
+      .match-sub-card b {
+        color: #ffe94a;
+        font-size: 18px;
+      }
+      .match-sub-card button:last-child {
+        color: #fff;
+        background: #2459d6;
+        border-color: #7bb6ff;
+        box-shadow: 0 5px 0 #123078, 0 10px 18px rgba(0, 0, 0, 0.34);
+      }
       .menu {
         position: absolute;
         inset: 0;

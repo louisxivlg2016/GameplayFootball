@@ -26,6 +26,8 @@ interface Store {
   players: number;
   /** solo only: team controlled by player 1, 0 = RED, 1 = BLU */
   humanTeam: 0 | 1;
+  /** starting eleven names chosen from the lineup screen */
+  lineupNames: string[];
   /** game mode: 0 match, 1 shoot-out, 2 free-kick, 3 corner, 4 penalty, 5 offside drill */
   practice: number;
   score: [number, number];
@@ -53,6 +55,7 @@ interface Store {
   togglePlayers: () => void;
   toggleHumanTeam: () => void;
   setHumanTeam: (team: 0 | 1) => void;
+  setLineupNames: (lineupNames: string[]) => void;
   cyclePractice: () => void;
   setPractice: (practice: number) => void;
   newMatch: () => void;
@@ -77,6 +80,7 @@ export const useStore = create<Store>((set) => ({
   difficulty: 1,
   players: 1,
   humanTeam: 0,
+  lineupNames: [],
   practice: 0,
   score: [0, 0],
   clock: 0,
@@ -95,6 +99,7 @@ export const useStore = create<Store>((set) => ({
   togglePlayers: () => set((s) => ({ players: s.players === 1 ? 2 : 1 })),
   toggleHumanTeam: () => set((s) => ({ humanTeam: s.humanTeam === 0 ? 1 : 0 })),
   setHumanTeam: (humanTeam) => set({ humanTeam }),
+  setLineupNames: (lineupNames) => set({ lineupNames }),
   cyclePractice: () => set((s) => ({ practice: (s.practice + 1) % 6 })),
   setPractice: (practice) => set({ practice }),
   newMatch: (): void =>
