@@ -257,10 +257,13 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
   let mesh = cardProps.get(h);
   if (!mesh) {
     mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.19, 0.27), // bigger, reads clearly to the lens
+      new THREE.PlaneGeometry(0.26, 0.36), // big, reads clearly to the lens
       new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
     );
-    mesh.position.set(0, 0.42, 0.02); // in the hand, past the forearm
+    // up in the raised hand, turned flat to FACE the camera (verified in a
+    // render against the arm-straight-overhead pose below)
+    mesh.position.set(0.08, 0.6, 0.04);
+    mesh.rotation.x = Math.PI / 2;
     bones.right_elbow?.add(mesh);
     cardProps.set(h, mesh);
   }
@@ -389,14 +392,15 @@ export function cinematicSystem(world: World, dt: number): void {
     if (h && h.value && h.bones) {
       faceCamera(h.value, dt);
       poseIdleRig(h);
-      // ONE crisp raise: snap the card straight up, hold it dead high and
-      // steady, fully extended — a single motion, no repeated jabbing
+      // the real card-show: snap the card ARM dead straight up overhead and
+      // hold it there, card high and facing the crowd (verified in a render)
       const up = smooth01(card.t / 0.6);
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -2.75 * up));
-      h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.1 * up));
-      // off arm thrust out to the side, pointing sternly at the offender
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.9 * up));
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, -0.45 * up));
+      h.bones.body?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.05 * up));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -3.0 * up));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.05 * up));
+      h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.12 * up));
+      // off arm relaxed down at his side
+      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.3 * up));
       const mesh = cardMesh(h, h.bones);
       (mesh.material as THREE.MeshBasicMaterial).color.set(card.red ? 0xe53935 : 0xffd60a);
       mesh.visible = true;
