@@ -272,7 +272,7 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
     // correct — calibrated against the EXACT in-game card camera (pos y1.7 z+5,
     // look y1.35, fov30); an earlier guess used a different camera and the
     // parallax left the card floating beside the hand.
-    mesh.position.set(-1.15, 2.06, 0.06);
+    mesh.position.set(-1.1, 2.12, 0.1);
     mesh.rotation.x = Math.PI / 2;
     bones.right_elbow?.add(mesh);
     cardProps.set(h, mesh);
