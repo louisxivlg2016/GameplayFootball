@@ -129,6 +129,24 @@ const LINEUP_SLOTS = LINEUP_PLAYERS.slice(0, 11).map((player) => ({
   y: player.y!,
 }));
 const LINEUP_PLAYER_BY_ID = new Map(LINEUP_PLAYERS.map((player) => [player.id, player]));
+const DEFAULT_LINEUP = LINEUP_PLAYERS.slice(0, 11).map((player) => player.id);
+const LINEUP_STORAGE_KEY = "gpf-lineup-v1";
+
+function loadSavedLineup(): number[] {
+  if (typeof window === "undefined") return DEFAULT_LINEUP;
+  try {
+    const raw = window.localStorage.getItem(LINEUP_STORAGE_KEY);
+    if (!raw) return DEFAULT_LINEUP;
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved) || saved.length !== DEFAULT_LINEUP.length) return DEFAULT_LINEUP;
+    const ids = saved.map((value) => Number(value));
+    const unique = new Set(ids);
+    const validIds = ids.every((id) => LINEUP_PLAYER_BY_ID.has(id));
+    return validIds && unique.size === ids.length ? ids : DEFAULT_LINEUP;
+  } catch {
+    return DEFAULT_LINEUP;
+  }
+}
 
 function playerInitials(name: string): string {
   return name
@@ -190,10 +208,8 @@ export function Hud(): React.ReactNode {
   const players = useStore((s) => s.players);
   const practice = useStore((s) => s.practice);
   const [menuTab, setMenuTab] = useState<MenuTab>("home");
-  const [selectedLineup, setSelectedLineup] = useState<number[]>(
-    LINEUP_PLAYERS.slice(0, 11).map((player) => player.id),
-  );
-  const [lineupFocus, setLineupFocus] = useState<number>(1);
+  const [selectedLineup, setSelectedLineup] = useState<number[]>(() => loadSavedLineup());
+  const [lineupFocus, setLineupFocus] = useState<number>(() => loadSavedLineup()[0] ?? DEFAULT_LINEUP[0]!);
   const [lineupDrag, setLineupDrag] = useState<LineupDrag | null>(null);
   const [matchSubOpen, setMatchSubOpen] = useState(false);
   const suppressBenchClick = useRef(false);
@@ -207,6 +223,10 @@ export function Hud(): React.ReactNode {
   useEffect(() => {
     if (mode !== "play") setMatchSubOpen(false);
   }, [mode]);
+
+  useEffect(() => {
+    window.localStorage.setItem(LINEUP_STORAGE_KEY, JSON.stringify(selectedLineup));
+  }, [selectedLineup]);
 
   const lineupPlayerNames = (): string[] =>
     selectedLineup.map((id) => LINEUP_PLAYER_BY_ID.get(id)?.name ?? "");
