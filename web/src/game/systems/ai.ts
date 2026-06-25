@@ -228,6 +228,39 @@ export function aiSystem(world: World, dt: number): void {
       }
     }
 
+    const cornerDrillLive =
+      store.practice === 3 && carrier === null && Math.abs(bp.x) > PITCH.halfLength - 24;
+    if (cornerDrillLive && info.role !== Role.GK) {
+      const p = e.get(Position)!;
+      const attackingTeam = store.humanTeam;
+      const attackS = attackSign(attackingTeam);
+      const goalX = attackS * PITCH.halfLength;
+      const lx = bp.x + bv.x * 0.4;
+      const lz = bp.z + bv.z * 0.4;
+
+      if (teamId === attackingTeam) {
+        const targetDepth =
+          bp.y > 1.2 ? Math.max(lx * attackS, p.x * attackS + 1.3) : p.x * attackS + 2.4;
+        seek(
+          e,
+          clamp(targetDepth * attackS, -52, 52),
+          clamp(bp.y > 1.2 ? lz : p.z * 0.82, -10, 10),
+          dt,
+          SPEEDS.sprint,
+        );
+      } else {
+        const nearDrop = Math.hypot(p.x - lx, p.z - lz) < 14;
+        seek(
+          e,
+          clamp(nearDrop && bp.y > 1.2 ? lx : goalX - attackS * 4.5, -52, 52),
+          clamp(nearDrop && bp.y > 1.2 ? lz + Math.sign(p.z || 1) * 0.6 : p.z * 0.85, -10, 10),
+          dt,
+          nearDrop ? SPEEDS.sprint : SPEEDS.walk * 1.2,
+        );
+      }
+      continue;
+    }
+
     // set-piece practice between attempts: while the ball is LOOSE (nobody has
     // it after a shot) bystanders hold their shape instead of swarming it. But
     // the moment someone is dribbling, normal play resumes so the defence
