@@ -10,6 +10,7 @@ import worldCupButtonUrl from "../assets/worldcup-button.png";
 import trainingCornerUrl from "../assets/training-corner.png";
 import trainingFreeKickUrl from "../assets/training-free-kick.png";
 import trainingPenaltyUrl from "../assets/training-penalty.png";
+import menuThemeUrl from "../assets/audio/menu-theme.mp4";
 
 const act = () => useStore.getState();
 
@@ -225,8 +226,10 @@ export function Hud(): React.ReactNode {
   const [lineupDrag, setLineupDrag] = useState<LineupDrag | null>(null);
   const [matchSubOpen, setMatchSubOpen] = useState(false);
   const suppressBenchClick = useRef(false);
+  const menuMusicRef = useRef<HTMLAudioElement | null>(null);
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
+  const menuMusicActive = mode === "menu" && (menuTab === "home" || menuTab === "training");
 
   useEffect(() => {
     if (mode !== "menu") setMenuTab("home");
@@ -239,6 +242,30 @@ export function Hud(): React.ReactNode {
   useEffect(() => {
     window.localStorage.setItem(LINEUP_STORAGE_KEY, JSON.stringify(selectedLineup));
   }, [selectedLineup]);
+
+  useEffect(() => {
+    const audio = menuMusicRef.current;
+    if (!audio) return;
+    audio.volume = 0.42;
+    audio.loop = true;
+    if (!menuMusicActive) {
+      audio.pause();
+      audio.currentTime = 0;
+      return;
+    }
+
+    const tryPlay = (): void => {
+      void audio.play().catch(() => undefined);
+    };
+
+    tryPlay();
+    window.addEventListener("pointerdown", tryPlay);
+    window.addEventListener("keydown", tryPlay);
+    return () => {
+      window.removeEventListener("pointerdown", tryPlay);
+      window.removeEventListener("keydown", tryPlay);
+    };
+  }, [menuMusicActive]);
 
   const lineupPlayerNames = (): string[] =>
     selectedLineup.map((id) => LINEUP_PLAYER_BY_ID.get(id)?.name ?? "");
@@ -310,6 +337,7 @@ export function Hud(): React.ReactNode {
 
   return (
     <div className="hud">
+      <audio ref={menuMusicRef} src={menuThemeUrl} preload="auto" hidden />
       {mode !== "menu" && (
         <>
           <div className="scoreboard">
