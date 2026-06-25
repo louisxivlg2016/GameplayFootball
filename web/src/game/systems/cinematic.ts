@@ -264,7 +264,7 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
   let mesh = cardProps.get(h);
   if (!mesh) {
     mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.26, 0.36), // big, reads clearly to the lens
+      new THREE.PlaneGeometry(0.17, 0.24), // a card, not a billboard
       new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
     );
     // gripped in the raised hand, turned flat to FACE the camera. The forearm
