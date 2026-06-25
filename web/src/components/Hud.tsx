@@ -129,7 +129,19 @@ const LINEUP_SLOTS = LINEUP_PLAYERS.slice(0, 11).map((player) => ({
   y: player.y!,
 }));
 const LINEUP_PLAYER_BY_ID = new Map(LINEUP_PLAYERS.map((player) => [player.id, player]));
-const DEFAULT_LINEUP = LINEUP_PLAYERS.slice(0, 11).map((player) => player.id);
+const DEFAULT_LINEUP = [
+  "Mike Maignan",
+  "Michael Olise",
+  "Désiré Doué",
+  "Dayot Upamecano",
+  "Lucas Digne",
+  "Aurélien Tchouaméni",
+  "Adrien Rabiot",
+  "Rayan Cherki",
+  "Bradley Barcola",
+  "Kylian Mbappé",
+  "Ousmane Dembélé",
+].map((name) => LINEUP_PLAYERS.find((player) => player.name === name)!.id);
 const LINEUP_STORAGE_KEY = "gpf-lineup-v1";
 
 function loadSavedLineup(): number[] {
