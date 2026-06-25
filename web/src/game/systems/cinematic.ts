@@ -393,9 +393,10 @@ export function cinematicSystem(world: World, dt: number): void {
       faceCamera(h.value, dt);
       poseIdleRig(h);
       // the real card-show: snap the card ARM dead straight up overhead and
-      // hold it there, card high and facing the crowd (verified in a render)
+      // hold it there, card high and facing the crowd (verified in a render).
+      // NB: only touch bones the idle clip resets each frame (shoulders/elbow)
+      // — multiplying a non-reset bone (e.g. body) ACCUMULATES and spins the ref.
       const up = smooth01(card.t / 0.6);
-      h.bones.body?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.05 * up));
       h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -3.0 * up));
       h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.05 * up));
       h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.12 * up));
