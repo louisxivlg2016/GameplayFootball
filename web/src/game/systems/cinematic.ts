@@ -264,7 +264,7 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
   let mesh = cardProps.get(h);
   if (!mesh) {
     mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.1, 0.14), // hand-sized — a card, not a billboard
+      new THREE.PlaneGeometry(0.07, 0.1), // hand-sized — a card, not a billboard
       new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
     );
     // gripped in the raised hand, turned flat to FACE the camera. The forearm
@@ -272,7 +272,7 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
     // correct — calibrated against the EXACT in-game card camera (pos y1.7 z+5,
     // look y1.35, fov30); an earlier guess used a different camera and the
     // parallax left the card floating beside the hand.
-    mesh.position.set(-1.05, 1.95, 0.06);
+    mesh.position.set(-1.06, 1.86, 0.06);
     mesh.rotation.x = Math.PI / 2;
     bones.right_elbow?.add(mesh);
     cardProps.set(h, mesh);
