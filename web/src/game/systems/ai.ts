@@ -618,10 +618,14 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
   const mindset = MINDSET[info.role]!;
 
   let nearestOpp = Infinity;
+  // "le premier": is he ahead of EVERY outfield defender toward goal? If so he's
+  // clean away on the break.
+  let foremost = true;
   for (const o of world.query(IsPlayer)) {
     if (o.get(Team)!.id === teamId) continue;
     const op = o.get(Position)!;
     nearestOpp = Math.min(nearestOpp, Math.hypot(op.x - p.x, op.z - p.z));
+    if (o.get(PlayerInfo)!.role !== Role.GK && op.x * s > p.x * s) foremost = false;
   }
 
   const goalX = s * PITCH.halfLength;
@@ -735,6 +739,13 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
   fx += ((gx - p.x) / gd) * offense * 2;
   fz += ((gz - p.z) / gd) * offense * 2;
 
+  // le premier: clean away on the break — drop the jinking and drive STRAIGHT
+  // at the goal mouth, so he never backpedals into a recovering defender.
+  if (foremost) {
+    fx = gx - p.x;
+    fz = -p.z;
+  }
+
   const fl = Math.hypot(fx, fz) || 1;
   // clean through on goal: full sprint at the keeper before finishing.
   // The AI carrier obeys the SAME physics as the human: carrying costs
@@ -747,7 +758,7 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
     (0.75 + 0.25 * cStats.energy) *
     (teamId === aiTeam() ? difficulty().aiSpeed : 1);
   const speed =
-    (cleanThrough
+    (cleanThrough || foremost
       ? SPEEDS.sprint
       : nearestOpp < 4
         ? SPEEDS.sprint * 0.85
