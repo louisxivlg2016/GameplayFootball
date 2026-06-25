@@ -390,15 +390,18 @@ export function cinematicSystem(world: World, dt: number): void {
     const referee = world.queryFirst(IsReferee);
     const h = referee?.get(MeshRef);
     if (h && h.value && h.bones) {
-      faceCamera(h.value, dt);
+      // snap to face the lens INSTANTLY — no slow turn, so the raised arm is
+      // dead still and does not swing across the scene
+      h.value.rotation.set(0, 0, 0);
       poseIdleRig(h);
       // ONE clean raise: right arm straight up, card held high facing the crowd,
       // left arm relaxed down at his side. Calibrated against the idle@0 base
       // that poseIdleRig actually leaves each frame (verified in a MULTI-frame
       // render — a single-frame preview starts from the wrong base and misleads).
-      const up = smooth01(card.t / 0.6);
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -2.7 * up));
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.05 * up));
+      // arm PINNED straight up the whole scene — no ramp, no sway: it holds
+      // dead still, it does not move
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -2.7));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.05));
       const mesh = cardMesh(h, h.bones);
       (mesh.material as THREE.MeshBasicMaterial).color.set(card.red ? 0xe53935 : 0xffd60a);
       mesh.visible = true;
