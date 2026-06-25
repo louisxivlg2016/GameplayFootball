@@ -124,6 +124,10 @@ export function possessionSystem(world: World, dt: number): void {
     if (bs.kickCooldown > 0 && e === bs.lastKicker) continue;
     if (bs.recaptureBlocks.some((block) => block.player === e)) continue;
     if (bs.owner && e.get(Team)!.id === ownerTeam) continue; // no stealing from teammates
+    // you can't rob a keeper who has GATHERED the ball — it's safe in his hands
+    // until HE releases it (goal kick / throw-out / punt). Opponents reaching
+    // here are already not his teammates, so this only blocks a steal.
+    if (bs.owner && bs.owner.get(PlayerInfo)!.role === Role.GK) continue;
     const p = e.get(Position)!;
     if (
       bs.passProtected &&

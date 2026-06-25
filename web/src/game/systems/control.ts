@@ -68,8 +68,14 @@ function controlSlot(
 
   // Mirrors team.cpp:360-394 — control snaps to the teammate in possession,
   // otherwise to the closest outfield teammate to the ball (with hysteresis).
+  // …but NOT your keeper: when he gathers the ball he plays it out himself (the
+  // AI distributes), so control never yanks onto him — you keep your outfielder.
   const humanOwner =
-    bs.owner && bs.owner.get(Team)!.id === team ? bs.owner : null;
+    bs.owner &&
+    bs.owner.get(Team)!.id === team &&
+    bs.owner.get(PlayerInfo)!.role !== Role.GK
+      ? bs.owner
+      : null;
   if (defendingSetPiece) {
     let gk: Entity | null = null;
     for (const e of world.query(IsPlayer)) {
