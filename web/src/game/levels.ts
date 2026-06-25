@@ -111,7 +111,7 @@ function makeLineupName(full: string): { full: string; short: string; spoken: st
   return {
     full: clean,
     short: parts.length > 1 ? `${first[0]}. ${last}` : clean,
-    spoken: last,
+    spoken: clean,
   };
 }
 
