@@ -30,6 +30,7 @@ const TRAINING_OPTIONS = [
   { id: 3, title: "CORNER", note: "Centre depuis le drapeau", image: trainingCornerUrl },
   { id: 4, title: "PENALTY", note: "Face au gardien, plongeon", image: trainingPenaltyUrl },
   { id: 5, title: "HORS-JEU", note: "Apprendre le timing des passes" },
+  { id: 6, title: "TACLE", note: "Si tu restes immobile, l'IA te tacle et l'arbitre peut sortir un carton" },
 ];
 
 const WORLD_CUP_FIXTURES = [

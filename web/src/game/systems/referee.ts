@@ -1,10 +1,12 @@
 import type { Entity, World } from "koota";
 import {
+  HomePos,
   BallRef,
   BallState,
   Heading,
   IsBall,
   IsPlayer,
+  IsReferee,
   Jump,
   KeeperDive,
   Match,
@@ -22,6 +24,7 @@ import {
 } from "../traits";
 import {
   PITCH,
+  SPEEDS,
   attackSign,
   humanSlotFor,
   placeKickoff,
@@ -29,6 +32,7 @@ import {
   swapSides,
 } from "../levels";
 import { useStore } from "../store";
+import { hasMoveInputFor } from "../input";
 import { crowdRoar, setTension, whistle } from "../audio";
 import { radio, radioScore } from "../radio";
 import { evaluateBestPass, executePass, pass, releaseBall, shoot } from "./kicks";
@@ -98,6 +102,13 @@ export const refState = {
   /** offside drill: how long the human has held an offside / onside position */
   drillOffT: 0,
   drillSafeT: 0,
+  tackleDrill: null as {
+    runner: Entity | null;
+    defender: Entity | null;
+    idleT: number;
+    escapeT: number;
+    fouled: boolean;
+  } | null,
   /** game-clock time of the next radio score reminder */
   nextChatter: 500,
   shootout: null as {
@@ -116,6 +127,19 @@ export const refState = {
 function banner(text: string, seconds = 2.5): void {
   useStore.getState().setBanner(text);
   refState.bannerT = seconds;
+}
+
+function steerTo(e: Entity, tx: number, tz: number, dt: number, maxSpeed: number): void {
+  const p = e.get(Position)!;
+  const v = e.get(Velocity)!;
+  const dx = tx - p.x;
+  const dz = tz - p.z;
+  const d = Math.hypot(dx, dz);
+  const speed = d < 0.15 ? 0 : Math.min(d * 2.8, maxSpeed);
+  const k = Math.min(1, dt * 7);
+  v.x += ((d > 0 ? (dx / d) * speed : 0) - v.x) * k;
+  v.z += ((d > 0 ? (dz / d) * speed : 0) - v.z) * k;
+  if (d > 0.05) e.set(Heading, { angle: Math.atan2(dx, dz) });
 }
 
 function ballOf(world: World): { rb: NonNullable<ReturnType<typeof getRb>>; bs: ReturnType<typeof getBs> } | null {
@@ -1089,9 +1113,91 @@ function placePractice(world: World): void {
   } else if (practice === 4) {
     // a penalty
     startSetPiece(world, "penalty", humanTeam, s * 51, 0);
+  } else if (practice === 6) {
+    stageTackleDrill(world);
   } else {
     stageOffsideDrill(world);
   }
+}
+
+function stageTackleDrill(world: World): void {
+  const store = useStore.getState();
+  const humanTeam = store.humanTeam;
+  const defendingTeam = 1 - humanTeam;
+  const s = attackSign(humanTeam);
+  const runX = s * (PITCH.halfLength - 24);
+  let runner: Entity | null = null;
+  let defender: Entity | null = null;
+  let attackLane = -1;
+  let defendLane = -1;
+
+  for (const e of world.query(IsPlayer)) {
+    const team = e.get(Team)!.id;
+    const role = e.get(PlayerInfo)!.role;
+    const p = e.get(Position)!;
+    const v = e.get(Velocity)!;
+    v.set(0, 0, 0);
+    if (e.has(SlideTackle)) e.remove(SlideTackle);
+    if (e.has(Tripped)) e.remove(Tripped);
+
+    if (team === humanTeam) {
+      if (!runner && role === Role.ATT) {
+        runner = e;
+        p.set(runX, 0, 0);
+        e.set(Heading, { angle: Math.atan2(s, 0) });
+      } else if (role === Role.GK) {
+        p.set(-s * (PITCH.halfLength - 6), 0, 0);
+      } else {
+        p.set(runX - s * 10, 0, (++attackLane - 1.5) * 7);
+        e.set(Heading, { angle: Math.atan2(s, 0) });
+      }
+    } else {
+      if (!defender && role === Role.DEF) {
+        defender = e;
+        p.set(runX - s * 3.4, 0, 0.9);
+        e.set(Heading, { angle: Math.atan2(s, -0.1) });
+      } else if (role === Role.GK) {
+        p.set(s * (PITCH.halfLength - 0.8), 0, 0);
+      } else {
+        p.set(runX + s * 8, 0, (++defendLane - 1.5) * 7);
+        e.set(Heading, { angle: Math.atan2(-s, 0) });
+      }
+    }
+    e.get(HomePos)!.set(p.x, 0, p.z);
+  }
+
+  const b = ballOf(world);
+  if (b && runner) {
+    const rp = runner.get(Position)!;
+    b.rb.setTranslation({ x: rp.x, y: PITCH.ballRadius, z: rp.z }, true);
+    b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    b.bs.owner = runner;
+    b.bs.lastKicker = null;
+    b.bs.kickCooldown = 0;
+  }
+
+  const ref = world.queryFirst(IsReferee);
+  if (ref) {
+    ref.get(Position)!.set(runX - s * 6.5, 0, -6.5);
+    ref.get(Velocity)!.set(0, 0, 0);
+    ref.set(Heading, { angle: Math.atan2(s, 6.5) });
+  }
+
+  const slot = humanSlotFor(humanTeam);
+  if (slot !== null && runner) setSelected(world, runner, slot);
+  refState.ceremony = null;
+  refState.flagged.clear();
+  refState.practiceResetT = 0;
+  refState.tackleDrill = {
+    runner,
+    defender,
+    idleT: 0,
+    escapeT: 0,
+    fouled: false,
+  };
+  store.setBanner("NE RESTE PAS IMMOBILE");
+  store.setOffsideLine(null);
+  store.setOffsidePlayer(null);
 }
 
 /**
@@ -1188,6 +1294,80 @@ function offsideDrillTick(world: World, dt: number): void {
   }
 }
 
+function tackleDrillTick(world: World, dt: number): void {
+  const store = useStore.getState();
+  const drill = refState.tackleDrill;
+  if (!drill || !drill.runner?.isAlive() || !drill.defender?.isAlive()) {
+    stageTackleDrill(world);
+    return;
+  }
+
+  const runner = drill.runner;
+  const defender = drill.defender;
+  const slot = humanSlotFor(store.humanTeam);
+  const still = slot === null ? true : !hasMoveInputFor(slot, store.players);
+  const rp = runner.get(Position)!;
+  const dp = defender.get(Position)!;
+  const rv = runner.get(Velocity)!;
+  const dv = defender.get(Velocity)!;
+  const s = attackSign(store.humanTeam);
+  const d = Math.hypot(rp.x - dp.x, rp.z - dp.z);
+
+  if (!drill.fouled) {
+    if (still && Math.hypot(rv.x, rv.z) < 1) drill.idleT += dt;
+    else drill.idleT = 0;
+
+    if (drill.idleT < 0.8) {
+      banner("GARDE LE BALLON EN BOUGEANT", 0.3);
+      steerTo(defender, rp.x - s * 3.4, rp.z + 0.9, dt, SPEEDS.walk * 0.9);
+      drill.escapeT = 0;
+      return;
+    }
+
+    banner("TROP STATIQUE = TACLE", 0.35);
+    steerTo(defender, rp.x - s * 0.55, rp.z, dt, SPEEDS.sprint * 0.96);
+
+    if (!defender.has(SlideTackle) && d < 1.7) {
+      defender.add(SlideTackle);
+      defender.set(SlideTackle, { t: 0, yaw: Math.atan2(rp.x - dp.x, rp.z - dp.z) });
+      const dd = d || 1;
+      dv.x = ((rp.x - dp.x) / dd) * 7.4;
+      dv.z = ((rp.z - dp.z) / dd) * 7.4;
+    }
+
+    if (defender.has(SlideTackle) && d < 1.05) {
+      drill.fouled = true;
+      rv.set(0, 0, 0);
+      if (!runner.has(Tripped)) runner.add(Tripped);
+      runner.set(Tripped, { t: 0, yaw: runner.get(Heading)!.angle, fall: 1 });
+      const b = ballOf(world);
+      if (b) {
+        b.bs.owner = runner;
+        b.bs.lastKicker = null;
+        b.bs.kickCooldown = 0;
+        b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      }
+      whistle(2);
+      banner("YELLOW CARD", 3);
+      radio("yellow", { player: defender.get(Name)?.spoken ?? "" });
+      refState.practiceResetT = 2.2;
+      queueCardCinematic(false, null);
+      return;
+    }
+  }
+
+  if (!still && !drill.fouled) {
+    drill.escapeT += dt;
+    if (drill.escapeT > 1.2 && d > 3.8) {
+      banner("BIEN JOUE !", 1);
+      refState.practiceResetT = 0.9;
+      refState.tackleDrill = null;
+    }
+  } else {
+    drill.escapeT = 0;
+  }
+}
+
 /** A drill offside resets the scenario instead of awarding a free kick. */
 export function practiceOffsideReset(): void {
   refState.practiceResetT = 1.2;
@@ -1211,6 +1391,10 @@ function practiceSystem(
   }
   if (store.practice === 5) {
     offsideDrillTick(world, dt);
+    return;
+  }
+  if (store.practice === 6) {
+    tackleDrillTick(world, dt);
     return;
   }
   const b = ballOf(world);
