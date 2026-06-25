@@ -261,8 +261,8 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
       new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
     );
     // up in the raised hand, turned flat to FACE the camera (verified in a
-    // render against the arm-straight-overhead pose below)
-    mesh.position.set(0.08, 0.6, 0.04);
+    // render against the arm-raised pose below)
+    mesh.position.set(0, 0.5, 0.04);
     mesh.rotation.x = Math.PI / 2;
     bones.right_elbow?.add(mesh);
     cardProps.set(h, mesh);
@@ -392,16 +392,13 @@ export function cinematicSystem(world: World, dt: number): void {
     if (h && h.value && h.bones) {
       faceCamera(h.value, dt);
       poseIdleRig(h);
-      // the real card-show: snap the card ARM dead straight up overhead and
-      // hold it there, card high and facing the crowd (verified in a render).
-      // NB: only touch bones the idle clip resets each frame (shoulders/elbow)
-      // — multiplying a non-reset bone (e.g. body) ACCUMULATES and spins the ref.
+      // ONE clean raise: right arm straight up, card held high facing the crowd,
+      // left arm relaxed down at his side. Calibrated against the idle@0 base
+      // that poseIdleRig actually leaves each frame (verified in a MULTI-frame
+      // render — a single-frame preview starts from the wrong base and misleads).
       const up = smooth01(card.t / 0.6);
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -3.0 * up));
+      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -2.7 * up));
       h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.05 * up));
-      h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.12 * up));
-      // off arm relaxed down at his side
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.3 * up));
       const mesh = cardMesh(h, h.bones);
       (mesh.material as THREE.MeshBasicMaterial).color.set(card.red ? 0xe53935 : 0xffd60a);
       mesh.visible = true;
