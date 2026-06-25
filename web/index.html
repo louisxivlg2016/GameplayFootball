@@ -993,6 +993,12 @@
         outline: 3px solid #6eff7c;
         z-index: 5;
       }
+      .player-card-drop-target {
+        outline: 4px solid #ffe94a;
+        z-index: 8;
+        transform: translate(-50%, -50%) scale(1.08);
+        box-shadow: 0 0 0 6px rgba(255, 233, 74, 0.18), 0 14px 24px rgba(0, 0, 0, 0.46);
+      }
       .player-card .player-head,
       .bench-card .player-head {
         width: 34px;
@@ -1041,6 +1047,7 @@
       .bench-card {
         pointer-events: auto;
         cursor: grab;
+        touch-action: none;
         min-height: 68px;
         display: grid;
         grid-template-columns: 44px 40px 1fr;
@@ -1080,6 +1087,52 @@
       }
       .bench-card.selected {
         outline: 3px solid #6eff7c;
+      }
+      .lineup-drag-ghost {
+        position: fixed;
+        z-index: 50;
+        pointer-events: none;
+        width: 128px;
+        min-height: 78px;
+        transform: translate(-50%, -50%) rotate(-2deg);
+        display: grid;
+        grid-template-columns: 40px 1fr;
+        gap: 2px 8px;
+        align-items: center;
+        padding: 9px;
+        color: #fff;
+        background: linear-gradient(160deg, #ffc069, #c95b28);
+        border: 3px solid #ffe94a;
+        border-radius: 9px;
+        box-shadow: 0 18px 34px rgba(0, 0, 0, 0.55);
+        font-family: inherit;
+      }
+      .lineup-drag-ghost strong {
+        grid-row: span 2;
+        color: #1b1205;
+        font-size: 22px;
+        font-weight: 900;
+      }
+      .lineup-drag-ghost .player-head {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #d9b188;
+        border: 2px solid rgba(255, 255, 255, 0.78);
+        border-radius: 50%;
+        overflow: hidden;
+      }
+      .lineup-drag-ghost b {
+        font-size: 12px;
+        line-height: 1.05;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+      }
+      .lineup-drag-ghost em {
+        color: rgba(255, 255, 255, 0.82);
+        font-style: normal;
+        font-weight: 900;
       }
       .worldcup-list {
         max-height: min(300px, 34vh);

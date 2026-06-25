@@ -14,6 +14,15 @@ import trainingPenaltyUrl from "../assets/training-penalty.png";
 const act = () => useStore.getState();
 
 type MenuTab = "home" | "training" | "worldcup" | "lineup";
+type LineupDrag = {
+  playerId: number;
+  x: number;
+  y: number;
+  startX: number;
+  startY: number;
+  targetSlot: number | null;
+  moved: boolean;
+};
 
 const TRAINING_OPTIONS = [
   { id: 2, title: "COUP FRANC", note: "Mur, ballon arrete, tir direct", image: trainingFreeKickUrl },
@@ -185,8 +194,9 @@ export function Hud(): React.ReactNode {
     LINEUP_PLAYERS.slice(0, 11).map((player) => player.id),
   );
   const [lineupFocus, setLineupFocus] = useState<number>(1);
-  const [draggedPlayer, setDraggedPlayer] = useState<number | null>(null);
+  const [lineupDrag, setLineupDrag] = useState<LineupDrag | null>(null);
   const [matchSubOpen, setMatchSubOpen] = useState(false);
+  const suppressBenchClick = useRef(false);
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
 
@@ -211,8 +221,60 @@ export function Hud(): React.ReactNode {
     if (selectedLineup.includes(playerId)) return;
     setSelectedLineup((current) => current.map((id, index) => (index === slotIndex ? playerId : id)));
     setLineupFocus(playerId);
-    setDraggedPlayer(null);
   };
+
+  const lineupSlotAt = (x: number, y: number): number | null => {
+    const slotElement = document
+      .elementsFromPoint(x, y)
+      .find(
+        (element): element is HTMLElement =>
+          element instanceof HTMLElement && element.dataset.lineupSlot !== undefined,
+      );
+    if (!slotElement) return null;
+    const slot = Number(slotElement.dataset.lineupSlot);
+    return Number.isFinite(slot) ? slot : null;
+  };
+
+  useEffect(() => {
+    if (!lineupDrag) return;
+
+    const onPointerMove = (event: PointerEvent): void => {
+      event.preventDefault();
+      const distance = Math.hypot(event.clientX - lineupDrag.startX, event.clientY - lineupDrag.startY);
+      setLineupDrag((current) =>
+        current
+          ? {
+              ...current,
+              x: event.clientX,
+              y: event.clientY,
+              targetSlot: lineupSlotAt(event.clientX, event.clientY),
+              moved: current.moved || distance > 5,
+            }
+          : current,
+      );
+    };
+
+    const finishDrag = (event: PointerEvent): void => {
+      event.preventDefault();
+      const targetSlot = lineupSlotAt(event.clientX, event.clientY);
+      if (targetSlot !== null) replaceLineupSlot(targetSlot, lineupDrag.playerId);
+      suppressBenchClick.current = lineupDrag.moved || targetSlot !== null;
+      setLineupDrag(null);
+      window.setTimeout(() => {
+        suppressBenchClick.current = false;
+      }, 0);
+    };
+
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
+    window.addEventListener("pointerup", finishDrag, { passive: false });
+    window.addEventListener("pointercancel", finishDrag, { passive: false });
+
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", finishDrag);
+    };
+  }, [lineupDrag]);
 
   return (
     <div className="hud">
@@ -468,18 +530,10 @@ export function Hud(): React.ReactNode {
                       return (
                         <button
                           key={`${slot.defaultId}-${player.id}`}
-                          className={`player-card ${lineupFocus === player.id ? "player-card-focused" : ""}`}
+                          data-lineup-slot={index}
+                          className={`player-card ${lineupFocus === player.id ? "player-card-focused" : ""}${lineupDrag?.targetSlot === index ? " player-card-drop-target" : ""}`}
                           style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
                           onClick={() => setLineupFocus(player.id)}
-                          onDragOver={(event) => event.preventDefault()}
-                          onPointerUp={() => {
-                            if (draggedPlayer) replaceLineupSlot(index, draggedPlayer);
-                          }}
-                          onDrop={(event) => {
-                            event.preventDefault();
-                            const droppedId = Number(event.dataTransfer.getData("text/plain")) || draggedPlayer;
-                            if (droppedId) replaceLineupSlot(index, droppedId);
-                          }}
                         >
                           <strong>{player.rating}</strong>
                           <span>{player.pos}</span>
@@ -495,15 +549,23 @@ export function Hud(): React.ReactNode {
                       <button
                         key={player.id}
                         className={`bench-card ${selectedLineup.includes(player.id) ? "selected" : ""}`}
-                        draggable={!selectedLineup.includes(player.id)}
-                        onPointerDown={() => setDraggedPlayer(player.id)}
-                        onDragStart={(event) => {
-                          event.dataTransfer.effectAllowed = "move";
-                          event.dataTransfer.setData("text/plain", String(player.id));
-                          setDraggedPlayer(player.id);
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          setLineupDrag({
+                            playerId: player.id,
+                            x: event.clientX,
+                            y: event.clientY,
+                            startX: event.clientX,
+                            startY: event.clientY,
+                            targetSlot: null,
+                            moved: false,
+                          });
                         }}
-                        onDragEnd={() => setDraggedPlayer(null)}
-                        onClick={() => {
+                        onClick={(event) => {
+                          if (suppressBenchClick.current) {
+                            event.preventDefault();
+                            return;
+                          }
                           setSelectedLineup((current) => {
                             if (current.includes(player.id)) return current;
                             const next = current.map((id) => (id === lineupFocus ? player.id : id));
@@ -520,6 +582,27 @@ export function Hud(): React.ReactNode {
                     ))}
                   </div>
                 </div>
+                {lineupDrag && (
+                  <div
+                    className="lineup-drag-ghost"
+                    style={{
+                      left: lineupDrag.x,
+                      top: lineupDrag.y,
+                    }}
+                  >
+                    {(() => {
+                      const player = LINEUP_PLAYER_BY_ID.get(lineupDrag.playerId)!;
+                      return (
+                        <>
+                          <strong>{player.rating}</strong>
+                          <PlayerHead name={player.name} photoUrl={player.photo} />
+                          <b>{player.name}</b>
+                          <em>{player.pos}</em>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             )}
             {menuTab === "worldcup" && (
