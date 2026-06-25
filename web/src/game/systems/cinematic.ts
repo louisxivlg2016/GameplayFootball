@@ -267,9 +267,10 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
       new THREE.PlaneGeometry(0.26, 0.36), // big, reads clearly to the lens
       new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
     );
-    // up in the raised hand, turned flat to FACE the camera (verified in a
-    // render against the arm-raised pose below)
-    mesh.position.set(0.08, 0.6, 0.04);
+    // gripped in the raised hand (the forearm tip), turned flat to FACE the
+    // camera. The big local offset is right: the elbow bone's local frame puts
+    // the fist here — verified in a render (card sits in the hand, not floating)
+    mesh.position.set(-0.5, 1.45, 0.06);
     mesh.rotation.x = Math.PI / 2;
     bones.right_elbow?.add(mesh);
     cardProps.set(h, mesh);
