@@ -53,7 +53,14 @@ const CARD_SECONDS = 4.0;
 export const cineState = {
   ring: [] as Frame[],
   celebration: null as { scorer: Entity; t: number } | null,
-  card: null as { red: boolean; t: number } | null,
+  card: null as {
+    red: boolean;
+    t: number;
+    // idle@0 snapshot of the posed bones, captured once so the card pose can be
+    // SET absolutely each frame (mixer.update(0) won't re-apply on repeat, so
+    // multiplying every frame would accumulate and spin the arm)
+    base?: { rs: THREE.Quaternion; re: THREE.Quaternion; ls: THREE.Quaternion };
+  } | null,
   replay: null as { frames: Frame[]; i: number; after: "kickoff" | "resume" } | null,
   queued: null as Frame[] | null,
   sendOffScene: null as {
@@ -262,7 +269,7 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
     );
     // up in the raised hand, turned flat to FACE the camera (verified in a
     // render against the arm-raised pose below)
-    mesh.position.set(0, 0.5, 0.04);
+    mesh.position.set(0.08, 0.6, 0.04);
     mesh.rotation.x = Math.PI / 2;
     bones.right_elbow?.add(mesh);
     cardProps.set(h, mesh);
@@ -393,15 +400,34 @@ export function cinematicSystem(world: World, dt: number): void {
       // snap to face the lens INSTANTLY — no slow turn, so the raised arm is
       // dead still and does not swing across the scene
       h.value.rotation.set(0, 0, 0);
-      poseIdleRig(h);
-      // ONE clean raise: right arm straight up, card held high facing the crowd,
-      // left arm relaxed down at his side. Calibrated against the idle@0 base
-      // that poseIdleRig actually leaves each frame (verified in a MULTI-frame
-      // render — a single-frame preview starts from the wrong base and misleads).
-      // arm PINNED straight up the whole scene — no ramp, no sway: it holds
-      // dead still, it does not move
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -2.7));
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.05));
+      const rs = h.bones.right_shoulder;
+      const re = h.bones.right_elbow;
+      const ls = h.bones.left_shoulder;
+      // capture a clean idle@0 base ONCE. poseIdleRig's mixer.update(0) does NOT
+      // re-apply on repeat calls, so multiplying the pose every frame would
+      // accumulate and spin the arm. Snapshot once, then SET absolutely each
+      // frame → the arm is provably motionless (verified over 200 frames).
+      if (!card.base && rs && re && ls) {
+        poseIdleRig(h);
+        card.base = {
+          rs: rs.quaternion.clone(),
+          re: re.quaternion.clone(),
+          ls: ls.quaternion.clone(),
+        };
+      }
+      if (card.base) {
+        // right arm straight up, card held high facing the crowd; left arm down
+        rs?.quaternion
+          .copy(card.base.rs)
+          .multiply(tmpQ.setFromAxisAngle(X_AXIS, -3.0))
+          .multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.05));
+        re?.quaternion
+          .copy(card.base.re)
+          .multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.12));
+        ls?.quaternion
+          .copy(card.base.ls)
+          .multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.3));
+      }
       const mesh = cardMesh(h, h.bones);
       (mesh.material as THREE.MeshBasicMaterial).color.set(card.red ? 0xe53935 : 0xffd60a);
       mesh.visible = true;
