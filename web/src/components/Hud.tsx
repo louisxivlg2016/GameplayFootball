@@ -72,9 +72,9 @@ const LINEUP_PLAYERS = [
   { id: 5, name: "Lucas Digne", pos: "DG", rating: 82, x: 82, y: 69 },
   { id: 6, name: "Aurélien Tchouaméni", pos: "MDC", rating: 86, x: 34, y: 49 },
   { id: 7, name: "N'Golo Kanté", pos: "MC", rating: 85, x: 66, y: 49 },
-  { id: 8, name: "Rayan Cherki", pos: "MOC", rating: 84, x: 50, y: 34 },
+  { id: 8, name: "Rayan Cherki", pos: "MOC", rating: 84, x: 50, y: 42 },
   { id: 9, name: "Bradley Barcola", pos: "AG", rating: 84, x: 24, y: 18 },
-  { id: 10, name: "Kylian Mbappé", pos: "BU", rating: 92, x: 50, y: 12 },
+  { id: 10, name: "Kylian Mbappé", pos: "BU", rating: 92, x: 50, y: 9 },
   { id: 11, name: "Ousmane Dembélé", pos: "AD", rating: 88, x: 76, y: 18 },
   { id: 12, name: "Brice Samba", pos: "GB", rating: 81 },
   { id: 13, name: "Robin Risser", pos: "GB", rating: 74 },
@@ -184,6 +184,7 @@ export function Hud(): React.ReactNode {
     LINEUP_PLAYERS.slice(0, 11).map((player) => player.id),
   );
   const [lineupFocus, setLineupFocus] = useState<number>(1);
+  const [draggedPlayer, setDraggedPlayer] = useState<number | null>(null);
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
 
@@ -194,6 +195,13 @@ export function Hud(): React.ReactNode {
   const startMatch = (practiceId = 0): void => {
     act().setPractice(practiceId);
     act().newMatch();
+  };
+
+  const replaceLineupSlot = (slotIndex: number, playerId: number): void => {
+    if (selectedLineup.includes(playerId)) return;
+    setSelectedLineup((current) => current.map((id, index) => (index === slotIndex ? playerId : id)));
+    setLineupFocus(playerId);
+    setDraggedPlayer(null);
   };
 
   return (
@@ -431,6 +439,15 @@ export function Hud(): React.ReactNode {
                           className={`player-card ${lineupFocus === player.id ? "player-card-focused" : ""}`}
                           style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
                           onClick={() => setLineupFocus(player.id)}
+                          onDragOver={(event) => event.preventDefault()}
+                          onPointerUp={() => {
+                            if (draggedPlayer) replaceLineupSlot(index, draggedPlayer);
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            const droppedId = Number(event.dataTransfer.getData("text/plain")) || draggedPlayer;
+                            if (droppedId) replaceLineupSlot(index, droppedId);
+                          }}
                         >
                           <strong>{player.rating}</strong>
                           <span>{player.pos}</span>
@@ -442,10 +459,18 @@ export function Hud(): React.ReactNode {
                   </div>
                   <div className="lineup-bench">
                     <span>REMPLACANTS</span>
-                    {LINEUP_PLAYERS.filter((player) => player.x === undefined).map((player) => (
+                    {LINEUP_PLAYERS.filter((player) => !selectedLineup.includes(player.id)).map((player) => (
                       <button
                         key={player.id}
                         className={`bench-card ${selectedLineup.includes(player.id) ? "selected" : ""}`}
+                        draggable={!selectedLineup.includes(player.id)}
+                        onPointerDown={() => setDraggedPlayer(player.id)}
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", String(player.id));
+                          setDraggedPlayer(player.id);
+                        }}
+                        onDragEnd={() => setDraggedPlayer(null)}
                         onClick={() => {
                           setSelectedLineup((current) => {
                             if (current.includes(player.id)) return current;
