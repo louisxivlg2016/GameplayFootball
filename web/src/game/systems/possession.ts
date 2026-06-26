@@ -16,7 +16,7 @@ import {
 import { refState, refereeOffside } from "./referee";
 import { radio } from "../radio";
 import { aiTeam, difficulty } from "../difficulty";
-import { PITCH } from "../levels";
+import { PITCH, attackSign } from "../levels";
 
 const clamp = (v: number, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, v));
@@ -35,6 +35,20 @@ function segDist(
   const len2 = dx * dx + dz * dz;
   const t = len2 > 0 ? clamp(((px - ax) * dx + (pz - az) * dz) / len2, 0, 1) : 0;
   return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+}
+
+function keeperFrontPressure(keeper: Entity, shooter: Entity): number {
+  const kp = keeper.get(Position);
+  const sp = shooter.get(Position);
+  if (!kp || !sp) return 0;
+  const goalX = -attackSign(keeper.get(Team)!.id) * PITCH.halfLength;
+  const keeperToGoal = Math.abs(goalX - kp.x);
+  const shooterToGoal = Math.abs(goalX - sp.x);
+  if (keeperToGoal >= shooterToGoal) return 0;
+  const separation = Math.hypot(kp.x - sp.x, kp.z - sp.z);
+  const close = clamp(1 - separation / 6.5, 0, 1);
+  const headOn = clamp(1 - Math.abs(kp.z - sp.z) / 2.4, 0, 1);
+  return close * (0.35 + 0.65 * headOn);
 }
 
 const CAPTURE_RADIUS = 0.9;
@@ -162,12 +176,21 @@ export function possessionSystem(world: World, dt: number): void {
     }
     // reach scales with ball control (technical_ballcontrol bonus, humanoidbase.cpp:2108);
     // a diving keeper covers extra ground with his outstretched arms
-    const radius =
+    let radius =
       (bs.owner ? STEAL_RADIUS : CAPTURE_RADIUS) *
       (0.85 + 0.3 * e.get(Stats)!.ballcontrol) *
       (isKeeper ? 1.4 : 1) * // a keeper covers more ground, but not the whole goal
       (e.has(KeeperDive) ? 1.3 : 1) * // arms outstretched mid-dive (beatable to the corners)
       (intended ? 0.85 : 1); // the intended receiver traps it at his feet
+    if (
+      isKeeper &&
+      ballSpeed > TRAP_SPEED &&
+      bs.lastKicker &&
+      bs.lastKicker.isAlive() &&
+      bs.lastKicker.get(Team)!.id !== e.get(Team)!.id
+    ) {
+      radius *= 1 - 0.18 * keeperFrontPressure(e, bs.lastKicker);
+    }
     if (d < radius && d < bestD) {
       bestD = d;
       best = e;
@@ -194,6 +217,7 @@ export function possessionSystem(world: World, dt: number): void {
     bs.lastKicker.isAlive() &&
     bs.lastKicker.get(Team)!.id !== best.get(Team)!.id
   ) {
+    const frontPressure = keeperFrontPressure(best, bs.lastKicker);
     // a much sharper keeper: only a hard shot he has to fully stretch for can
     // beat him, and even then he often gets a hand to it. Pace ramps slowly,
     // stretch matters less, and the ceiling is far below a sure thing.
@@ -205,10 +229,11 @@ export function possessionSystem(world: World, dt: number): void {
     // beats or spills past them. The opponent AI keeper leaks a bit more than
     // the human's so the player can score; difficulty scales the AI one.
     const isAIKeeper = best.get(Team)!.id === aiTeam();
-    const beatMul = isAIKeeper ? 0.6 / difficulty().keeperSave : 0.2;
-    const parryMul = isAIKeeper ? 0.6 : 0.4;
+    const beatMul = isAIKeeper ? 0.42 / difficulty().keeperSave : 0.13;
+    const parryMul = isAIKeeper ? 0.45 : 0.3;
     let hardness = pace * (0.04 + 0.45 * stretch) * beatMul;
-    hardness = clamp(hardness, 0, isAIKeeper ? 0.55 : 0.4);
+    hardness += frontPressure * pace * (isAIKeeper ? 0.09 : 0.05);
+    hardness = clamp(hardness, 0, isAIKeeper ? 0.42 : 0.26);
     const roll = Math.random();
     if (roll < hardness) {
       // beaten: the ball flies past — but he still hurls himself at it
@@ -224,7 +249,9 @@ export function possessionSystem(world: World, dt: number): void {
     // a hard shot he reaches isn't always HELD: often he can only parry it
     // away, spilling a rebound rather than catching cleanly. Tame shots are
     // still gathered; only pace + stretch produce spills.
-    const parry = clamp(pace * (0.18 + 0.5 * stretch) * parryMul, 0, 0.55);
+    let parry = pace * (0.18 + 0.5 * stretch) * parryMul;
+    parry += frontPressure * (0.04 + pace * (isAIKeeper ? 0.08 : 0.05));
+    parry = clamp(parry, 0, isAIKeeper ? 0.46 : 0.36);
     if (roll < hardness + parry) {
       const kp = best.get(Position)!;
       if (!best.has(KeeperDive)) {

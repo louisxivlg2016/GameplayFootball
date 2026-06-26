@@ -820,8 +820,9 @@ function keeper(
         if (!read || state.time > read.until) {
           const shotSpeed = Math.hypot(bv.x, bv.z);
           const spread =
-            (0.35 + shotSpeed * 0.05) * (1.2 - 0.5 * e.get(Stats)!.ballcontrol);
-          const wrongChance = clamp((shotSpeed - 10) * 0.038, 0, 0.5);
+            (0.22 + shotSpeed * 0.03) * (1.2 - 0.5 * e.get(Stats)!.ballcontrol);
+          // only a genuinely fierce strike wrong-foots him, and even then rarely
+          const wrongChance = clamp((shotSpeed - 15) * 0.02, 0, 0.22);
           read = {
             until: state.time + tCross + 0.2,
             off:
@@ -865,14 +866,15 @@ function keeper(
     // point-blank: an opponent has the ball right on top of the goal. The
     // angle-narrowing below would drift him toward a post while the striker
     // is dead centre — instead charge straight at the ball to smother it.
-    if (oppGoalDist < 9) {
-      // sprint onto the ball, a touch goal-side, to block/smother it
+    if (oppGoalDist < 6.5) {
+      // close him down, but stay a step goal-side so a point-blank shot is
+      // still a finish, not an automatic chest-trap every time.
       seek(
         e,
-        bp.x + Math.sign(gx - bp.x) * 0.3,
-        clamp(bp.z, -3.5, 3.5),
+        bp.x + Math.sign(gx - bp.x) * 0.85,
+        clamp(bp.z * 0.75, -3.1, 3.1),
         dt,
-        SPEEDS.sprint,
+        SPEEDS.sprint * 0.92,
       );
       return;
     }
