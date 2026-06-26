@@ -108,6 +108,9 @@ export const refState = {
     idleT: number;
     escapeT: number;
     fouled: boolean;
+    humanAttacks: boolean;
+    /** he nicked it off you — now YOU chase and tackle to win it back */
+    recovering: boolean;
   } | null,
   /** game-clock time of the next radio score reminder */
   nextChatter: 500,
@@ -357,6 +360,7 @@ export function refereeFoul(
     Math.sign(fp.x) === Math.sign(defGoalX);
   const attGoalX = attackSign(victimTeam) * PITCH.halfLength; // victim's target goal
   const dangerousSpot = Math.abs(attGoalX - fp.x) < 28;
+  const tacklePractice = useStore.getState().practice === 6;
 
   const playOnWithVictim = (): void => {
     const b = ballOf(world);
@@ -388,6 +392,28 @@ export function refereeFoul(
     radio("foul", { team: victimTeam });
     startSetPiece(world, "freekick", victimTeam, clamp(fp.x, -52, 52), clamp(fp.z, -33, 33));
   };
+
+  if (tacklePractice) {
+    const info = fouler.get(PlayerInfo)!;
+    const nm = fouler.get(Name);
+    const foulerName = nm?.short ?? "";
+    const foulerSpoken = nm?.spoken ?? "";
+    whistle(2);
+    if (foulType >= 2) {
+      banner("YELLOW CARD" + (foulerName ? ` — ${foulerName}` : ""), 2.5);
+      radio("yellow", { player: foulerSpoken });
+      fouler.set(PlayerInfo, { yellows: info.yellows + 1 });
+      queueCardCinematic(false, null);
+      refState.practiceResetT = Math.max(refState.practiceResetT, 2.2);
+    } else {
+      banner("FAUTE" + (foulerName ? ` — ${foulerName}` : ""), 1.6);
+      radio("foul", { team: victimTeam });
+      refState.practiceResetT = Math.max(refState.practiceResetT, 1.2);
+    }
+    playOnWithVictim();
+    refState.tackleDrill = null;
+    return;
+  }
 
   // In midfield, normal hard contacts should not stop everything for a fussy
   // free kick/card cutscene. Let play continue unless it is dangerous or red.
@@ -1124,44 +1150,52 @@ function stageTackleDrill(world: World): void {
   const store = useStore.getState();
   const humanTeam = store.humanTeam;
   const defendingTeam = 1 - humanTeam;
-  const s = attackSign(humanTeam);
-  const runX = s * (PITCH.halfLength - 24);
-  let runner: Entity | null = null;
-  let defender: Entity | null = null;
-  let attackLane = -1;
-  let defendLane = -1;
+  const allPlayers = [...world.query(IsPlayer)];
+  const humanPool = allPlayers.filter(
+    (e) => e.get(Team)!.id === humanTeam && e.get(PlayerInfo)!.role !== Role.GK,
+  );
+  const opponentPool = allPlayers.filter(
+    (e) => e.get(Team)!.id === defendingTeam && e.get(PlayerInfo)!.role !== Role.GK,
+  );
+  const humanPlayer =
+    humanPool.find((e) => e.get(PlayerInfo)!.role === Role.ATT) ??
+    humanPool.find((e) => e.get(PlayerInfo)!.role === Role.MID) ??
+    humanPool[0] ??
+    null;
+  const opponentPlayer =
+    opponentPool.find((e) => e.get(PlayerInfo)!.role === Role.DEF) ??
+    opponentPool.find((e) => e.get(PlayerInfo)!.role === Role.MID) ??
+    opponentPool[0] ??
+    null;
+  if (!humanPlayer || !opponentPlayer) return;
 
-  for (const e of world.query(IsPlayer)) {
-    const team = e.get(Team)!.id;
-    const role = e.get(PlayerInfo)!.role;
+  for (const e of allPlayers) {
+    if (e !== humanPlayer && e !== opponentPlayer) e.destroy();
+  }
+
+  // continuous 1v1 battle: you always start on the ball, then it's a scrap —
+  // he tackles to win it, you tackle to win it back, over and over (no reset)
+  const humanAttacks = true;
+  const runner = humanAttacks ? humanPlayer : opponentPlayer;
+  const defender = humanAttacks ? opponentPlayer : humanPlayer;
+  const attackDir = attackSign(runner.get(Team)!.id);
+  const runX = attackDir * (PITCH.halfLength - 24);
+
+  for (const e of [humanPlayer, opponentPlayer]) {
     const p = e.get(Position)!;
     const v = e.get(Velocity)!;
     v.set(0, 0, 0);
     if (e.has(SlideTackle)) e.remove(SlideTackle);
     if (e.has(Tripped)) e.remove(Tripped);
-
-    if (team === humanTeam) {
-      if (!runner && role === Role.ATT) {
-        runner = e;
-        p.set(runX, 0, 0);
-        e.set(Heading, { angle: Math.atan2(s, 0) });
-      } else if (role === Role.GK) {
-        p.set(-s * (PITCH.halfLength - 6), 0, 0);
-      } else {
-        p.set(runX - s * 10, 0, (++attackLane - 1.5) * 7);
-        e.set(Heading, { angle: Math.atan2(s, 0) });
-      }
+    if (e === runner) {
+      p.set(runX, 0, 0);
+      e.set(Heading, { angle: Math.atan2(attackDir, 0) });
+    } else if (humanAttacks) {
+      p.set(runX - attackDir * 3.2, 0, 0.9);
+      e.set(Heading, { angle: Math.atan2(attackDir, -0.1) });
     } else {
-      if (!defender && role === Role.DEF) {
-        defender = e;
-        p.set(runX - s * 3.4, 0, 0.9);
-        e.set(Heading, { angle: Math.atan2(s, -0.1) });
-      } else if (role === Role.GK) {
-        p.set(s * (PITCH.halfLength - 0.8), 0, 0);
-      } else {
-        p.set(runX + s * 8, 0, (++defendLane - 1.5) * 7);
-        e.set(Heading, { angle: Math.atan2(-s, 0) });
-      }
+      p.set(runX + attackDir * 1.45, 0, 0.55);
+      e.set(Heading, { angle: Math.atan2(-attackDir, 0) });
     }
     e.get(HomePos)!.set(p.x, 0, p.z);
   }
@@ -1178,13 +1212,13 @@ function stageTackleDrill(world: World): void {
 
   const ref = world.queryFirst(IsReferee);
   if (ref) {
-    ref.get(Position)!.set(runX - s * 6.5, 0, -6.5);
+    ref.get(Position)!.set(runX - attackDir * 6.5, 0, -6.5);
     ref.get(Velocity)!.set(0, 0, 0);
-    ref.set(Heading, { angle: Math.atan2(s, 6.5) });
+    ref.set(Heading, { angle: Math.atan2(attackDir, 6.5) });
   }
 
   const slot = humanSlotFor(humanTeam);
-  if (slot !== null && runner) setSelected(world, runner, slot);
+  if (slot !== null) setSelected(world, humanPlayer, slot);
   refState.ceremony = null;
   refState.flagged.clear();
   refState.practiceResetT = 0;
@@ -1194,8 +1228,10 @@ function stageTackleDrill(world: World): void {
     idleT: 0,
     escapeT: 0,
     fouled: false,
+    humanAttacks,
+    recovering: false,
   };
-  store.setBanner("NE RESTE PAS IMMOBILE");
+  store.setBanner("BATAILLE POUR LE BALLON !");
   store.setOffsideLine(null);
   store.setOffsidePlayer(null);
 }
@@ -1295,75 +1331,50 @@ function offsideDrillTick(world: World, dt: number): void {
 }
 
 function tackleDrillTick(world: World, dt: number): void {
-  const store = useStore.getState();
   const drill = refState.tackleDrill;
   if (!drill || !drill.runner?.isAlive() || !drill.defender?.isAlive()) {
     stageTackleDrill(world);
     return;
   }
 
-  const runner = drill.runner;
-  const defender = drill.defender;
-  const slot = humanSlotFor(store.humanTeam);
-  const still = slot === null ? true : !hasMoveInputFor(slot, store.players);
-  const rp = runner.get(Position)!;
-  const dp = defender.get(Position)!;
-  const rv = runner.get(Velocity)!;
-  const dv = defender.get(Velocity)!;
-  const s = attackSign(store.humanTeam);
-  const d = Math.hypot(rp.x - dp.x, rp.z - dp.z);
+  // continuous 1v1 scrap for the ball — no reset. Whoever has it is hunted by
+  // the other; in this drill a clean slide simply WINS the ball (tackle.ts),
+  // so the ball changes feet over and over until you walk away via the menu.
+  const human = drill.runner; // you — you start on the ball
+  const ai = drill.defender; // the opponent
+  const hp = human.get(Position)!;
+  const ap = ai.get(Position)!;
+  const hv = human.get(Velocity)!;
+  const av = ai.get(Velocity)!;
+  const d = Math.hypot(hp.x - ap.x, hp.z - ap.z);
+  const b = ballOf(world);
+  const carrier = b ? b.bs.owner : null;
+  const bp = b ? b.rb.translation() : hp;
+  const cs = attackSign(ai.get(Team)!.id);
 
-  if (!drill.fouled) {
-    if (still && Math.hypot(rv.x, rv.z) < 1) drill.idleT += dt;
-    else drill.idleT = 0;
+  drill.escapeT += dt; // also doubles as the AI's between-tackles cooldown
 
-    if (drill.idleT < 0.8) {
-      banner("GARDE LE BALLON EN BOUGEANT", 0.3);
-      steerTo(defender, rp.x - s * 3.4, rp.z + 0.9, dt, SPEEDS.walk * 0.9);
-      drill.escapeT = 0;
-      return;
-    }
-
-    banner("TROP STATIQUE = TACLE", 0.35);
-    steerTo(defender, rp.x - s * 0.55, rp.z, dt, SPEEDS.sprint * 0.96);
-
-    if (!defender.has(SlideTackle) && d < 1.7) {
-      defender.add(SlideTackle);
-      defender.set(SlideTackle, { t: 0, yaw: Math.atan2(rp.x - dp.x, rp.z - dp.z) });
-      const dd = d || 1;
-      dv.x = ((rp.x - dp.x) / dd) * 7.4;
-      dv.z = ((rp.z - dp.z) / dd) * 7.4;
-    }
-
-    if (defender.has(SlideTackle) && d < 1.05) {
-      drill.fouled = true;
-      rv.set(0, 0, 0);
-      if (!runner.has(Tripped)) runner.add(Tripped);
-      runner.set(Tripped, { t: 0, yaw: runner.get(Heading)!.angle, fall: 1 });
-      const b = ballOf(world);
-      if (b) {
-        b.bs.owner = runner;
-        b.bs.lastKicker = null;
-        b.bs.kickCooldown = 0;
-        b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      }
-      whistle(2);
-      banner("YELLOW CARD", 3);
-      radio("yellow", { player: defender.get(Name)?.spoken ?? "" });
-      refState.practiceResetT = 2.2;
-      queueCardCinematic(false, null);
-      return;
-    }
+  if (carrier === ai) {
+    // he nicked it — he drives away; YOU chase him down and tackle to win it back
+    drill.recovering = true;
+    banner("REPRENDS-LUI LE BALLON EN TACLANT !", 0.3);
+    const tx = Math.max(-PITCH.halfLength + 8, Math.min(PITCH.halfLength - 8, ap.x + cs * 6));
+    const tz = Math.max(-26, Math.min(26, ap.z + (ap.z >= 0 ? -1 : 1) * 2.5));
+    steerTo(ai, tx, tz, dt, SPEEDS.dribble * 0.9);
+    return;
   }
 
-  if (!still && !drill.fouled) {
-    drill.escapeT += dt;
-    if (drill.escapeT > 1.2 && d > 3.8) {
-      banner("BIEN JOUE !", 1);
-      refState.practiceResetT = 0.9;
-      refState.tackleDrill = null;
-    }
-  } else {
+  // you have it (or it's loose): he hunts the ball and slides in to win it
+  // whenever he gets the chance — keep it moving to shake him.
+  drill.recovering = false;
+  banner("GARDE LE BALLON, IL VA TACLER !", 0.3);
+  steerTo(ai, bp.x + hv.x * 0.25, bp.z + hv.z * 0.25, dt, SPEEDS.sprint * 0.95);
+  if (carrier === human && !ai.has(SlideTackle) && d < 1.8 && drill.escapeT > 1.3) {
+    ai.add(SlideTackle);
+    ai.set(SlideTackle, { t: 0, yaw: Math.atan2(hp.x - ap.x, hp.z - ap.z) });
+    const dd = d || 1;
+    av.x = ((hp.x - ap.x) / dd) * 7.4;
+    av.z = ((hp.z - ap.z) / dd) * 7.4;
     drill.escapeT = 0;
   }
 }
