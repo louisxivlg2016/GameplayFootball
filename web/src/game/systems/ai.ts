@@ -42,6 +42,8 @@ interface TeamState {
   support: Entity | null;
   supportT: number;
   presser: Entity | null;
+  /** second-nearest defender: covers goal-side so one dribble can't break us */
+  presser2: Entity | null;
   marks: Map<Entity, Entity>;
   assignT: number;
 }
@@ -51,6 +53,7 @@ const newTeam = (): TeamState => ({
   support: null,
   supportT: 0,
   presser: null,
+  presser2: null,
   marks: new Map(),
   assignT: 0,
 });
@@ -318,6 +321,7 @@ function updateAssignments(
     if (ts.assignT > 0) continue;
     ts.assignT = 0.3;
     ts.presser = null;
+    ts.presser2 = null;
     ts.marks.clear();
 
     const defendersGoalX = -attackSign(t) * PITCH.halfLength;
@@ -329,18 +333,28 @@ function updateAssignments(
         !e.has(Selected2),
     );
 
-    // presser: nearest to the ball / carrier
+    // presser + cover: the two nearest defenders to the ball / carrier
     let bestD = Infinity;
+    let secondD = Infinity;
     for (const e of eligible) {
       const p = e.get(Position)!;
       const d = Math.hypot(p.x - bp.x, p.z - bp.z);
       if (d < bestD) {
+        secondD = bestD;
+        ts.presser2 = ts.presser;
         bestD = d;
         ts.presser = e;
+      } else if (d < secondD) {
+        secondD = d;
+        ts.presser2 = e;
       }
     }
 
-    if (carrierTeam === t || carrierTeam === -1) continue;
+    // cover only matters while we're defending — drop it otherwise
+    if (carrierTeam === t || carrierTeam === -1) {
+      ts.presser2 = null;
+      continue;
+    }
     // mark the 3 most dangerous opponents (closest to our goal, besides the carrier)
     const dangerous = players
       .filter((e) => e.get(Team)!.id !== t && e !== carrier && e.get(PlayerInfo)!.role !== Role.GK)
@@ -350,7 +364,9 @@ function updateAssignments(
       })
       .sort((a, b) => a.danger - b.danger)
       .slice(0, 3);
-    const free = new Set(eligible.filter((e) => e !== ts.presser));
+    const free = new Set(
+      eligible.filter((e) => e !== ts.presser && e !== ts.presser2),
+    );
     for (const { e: opp } of dangerous) {
       const op = opp.get(Position)!;
       let marker: Entity | null = null;
@@ -571,8 +587,8 @@ function defendPosition(
       const spell = Math.sin(state.time * 0.5 + e.get(PlayerInfo)!.index * 2.6);
       // press tight (right on top of him, to nick the ball) most of the time;
       // only briefly drop off to contain so he's never left to stroll about
-      const pressTight = danger > 0.35 || spell > -0.15;
-      const off = pressTight ? 0.8 : 2.2; // engage vs stand off and contain
+      const pressTight = danger > 0.2 || spell > -0.45;
+      const off = pressTight ? 0.7 : 1.6; // engage vs stand off and contain
       // approach across a shoulder (alternating) rather than tailing his wake
       const side = Math.sin(state.time * 0.35 + e.get(PlayerInfo)!.index * 1.9);
       const lateral = side * 1.4;
@@ -580,6 +596,19 @@ function defendPosition(
     } else {
       seek(e, bp.x + bv.x * 0.25, bp.z + bv.z * 0.25, dt);
     }
+    return;
+  }
+
+  // cover: the second-nearest sits goal-side of the carrier as a second wall,
+  // so beating the first man doesn't leave a clear run — he steps in next.
+  if (ts.presser2 === e && carrier) {
+    const cp = carrier.get(Position)!;
+    const cv = carrier.get(Velocity)!;
+    const fx = cp.x + cv.x * 0.4;
+    const fz = cp.z + cv.z * 0.4;
+    const gd = Math.hypot(ownGoalX - fx, fz) || 1;
+    const cover = 4.5; // a few metres goal-side, the next line of defence
+    seek(e, fx + ((ownGoalX - fx) / gd) * cover, fz + (-fz / gd) * cover, dt);
     return;
   }
 
