@@ -230,7 +230,9 @@ export function Hud(): React.ReactNode {
   const menuMusicRef = useRef<HTMLAudioElement | null>(null);
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
-  const menuMusicActive = mode === "menu" && (menuTab === "home" || menuTab === "training");
+  const menuMusicActive =
+    mode === "menu" &&
+    (menuTab === "home" || menuTab === "training" || menuTab === "worldcup");
 
   useEffect(() => {
     if (mode !== "menu") setMenuTab("home");
