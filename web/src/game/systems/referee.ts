@@ -941,7 +941,13 @@ export function refereeSystem(world: World, dt: number): void {
       return;
     }
   }
-  if (ballFree && Math.abs(bp.z) > PITCH.halfWidth + R) {
+  // out for a throw-in: a FREE ball is out the instant its leading edge pokes
+  // over the touchline (the same lenient line as goals — z = halfWidth - R); a
+  // ball still glued to a dribbler must be carried WHOLLY over (halfWidth + R)
+  // so running ALONG the line is fine, but you can't just walk it off the pitch.
+  const touchOut = ballFree ? PITCH.halfWidth - R : PITCH.halfWidth + R;
+  if (Math.abs(bp.z) > touchOut) {
+    if (!ballFree) b.bs.owner = null; // dribbled it out — release before the restart
     const lastTouch = match.get(Match)!.lastTouchTeam;
     startSetPiece(
       world,
