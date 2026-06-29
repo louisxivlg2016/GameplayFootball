@@ -428,6 +428,40 @@ export function radioEnabled(): boolean {
   return enabled;
 }
 
+export type RadioStatusKind = "loading" | "live" | "reconnecting" | "failed" | "muted";
+/** Live state for the on-screen indicator. */
+export function radioStatus(): RadioStatusKind {
+  if (!enabled) return "muted";
+  if (piperState === "ready") return "live";
+  if (piperState === "failed") return warmAttempts < 10 ? "reconnecting" : "failed";
+  return "loading"; // idle / loading
+}
+
+/** Force a clean reconnect of the voice engine (manual recovery from the HUD). */
+export function reconnectRadio(): void {
+  warmAttempts = 0;
+  workerRespawns = 0;
+  predictFails = 0;
+  workerEverSpoke = false;
+  playerBusy = false;
+  queuedFlow = null;
+  pendingText = null;
+  resumeRadio();
+  // wipe a possibly-corrupt cached model, then warm up from scratch
+  void removeVoice(VOICE_ID)
+    .catch(() => {})
+    .finally(() => {
+      try {
+        piperWorker?.terminate();
+      } catch {
+        /* already gone */
+      }
+      piperWorker = null;
+      piperState = "idle";
+      warmupPiper();
+    });
+}
+
 /** Is the commentator free to take a play-by-play line right now? */
 export function radioIdle(): boolean {
   if (!enabled) return false;

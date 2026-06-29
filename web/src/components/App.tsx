@@ -6,6 +6,7 @@ import { world } from "../game/world";
 import { useStore } from "../game/store";
 import { Game } from "./Game";
 import { Hud } from "./Hud";
+import { RadioStatus } from "./RadioStatus";
 
 export function App(): React.ReactNode {
   const gen = useStore((s) => s.gen);
@@ -39,6 +40,7 @@ export function App(): React.ReactNode {
         </WorldProvider>
       </Canvas>
       <Hud />
+      <RadioStatus />
     </>
   );
 }
