@@ -29,13 +29,25 @@ export function Systems(): null {
       recordFrame(world, dt);
       radarSystem(world, dt);
     } else if (mode === "play" && practice === 6) {
-      // tackle drill: the referee script stages the duel and the card demo,
-      // so the normal AI/tackle swarm stays out of the way.
+      // tackle drill: keep normal ball/tackle resolution so both players can
+      // win the duel, but leave the wider team AI off the field.
+      possessionSystem(world, dt);
       controlSystem(world, dt);
-      refereeSystem(world, dt);
+      tackleSystem(world, dt);
       movementSystem(world, dt);
       ballSystem(world, dt);
+      refereeSystem(world, dt);
       officialsSystem(world, dt);
+      recordFrame(world, dt);
+      radarSystem(world, dt);
+    } else if (mode === "play" && practice === 7) {
+      // dribble drill: one player, one ball, no team AI — just control,
+      // touches and the referee's waypoint progression/reset logic.
+      possessionSystem(world, dt);
+      controlSystem(world, dt);
+      movementSystem(world, dt);
+      ballSystem(world, dt);
+      refereeSystem(world, dt);
       recordFrame(world, dt);
       radarSystem(world, dt);
     } else if (mode === "play") {

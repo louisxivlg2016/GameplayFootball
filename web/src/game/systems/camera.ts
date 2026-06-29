@@ -124,6 +124,15 @@ export function cameraSystem(
     desiredPos.set(sp.x, 12, sp.z + 22);
     desiredLook.set(sp.x, 0.4, sp.z * 0.4);
     desiredFov = 34;
+  } else if (mode === "play" && useStore.getState().practice === 7) {
+    // dribble drill: a slightly higher chase cam so the next arrows and poles
+    // stay visible in front of the controlled player.
+    const team = useStore.getState().humanTeam;
+    const s = attackSign(team);
+    const sp = world.queryFirst(Selected)?.get(Position) ?? { x: 0, z: 0 };
+    desiredPos.set(sp.x - s * 8.5, 9.5, sp.z + 16);
+    desiredLook.set(sp.x + s * 10, 0.45, sp.z * 0.3);
+    desiredFov = 31;
   } else {
     const sp = world.queryFirst(Selected)?.get(Position);
     const fx = bp.x * (sp ? 0.75 : 1) + (sp ? sp.x * 0.25 : 0) + bv.x * 0.4;

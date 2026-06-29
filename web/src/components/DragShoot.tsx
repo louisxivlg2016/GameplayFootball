@@ -16,6 +16,7 @@ import {
 import { refState } from "../game/systems/referee";
 import { humanSlotFor, PITCH, attackSign } from "../game/levels";
 import { strikeToward } from "../game/systems/kicks";
+import { useI18n } from "../i18n";
 
 /**
  * Draw-to-shoot: at a human penalty, free kick or corner you scribble a white
@@ -59,6 +60,7 @@ function ballScreen(): { x: number; y: number } | null {
 }
 
 export function DragShoot(): React.ReactNode {
+  const { t } = useI18n();
   const [active, setActive] = useState(false);
   const [path, setPath] = useState<Pt[] | null>(null);
   const dragging = useRef(false);
@@ -179,7 +181,7 @@ export function DragShoot(): React.ReactNode {
             pointerEvents: "none",
           }}
         >
-          ✏️ Trace un trait pour tirer
+          ✏️ {t("dragToShoot")}
         </div>
       )}
       {path && path.length > 1 && (
@@ -277,6 +279,7 @@ function diveKeeper(dir: number): void {
  * that way — pick the right side and you keep it out.
  */
 export function KeeperArrows(): React.ReactNode {
+  const { t } = useI18n();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => {
     let raf = 0;
@@ -335,7 +338,7 @@ export function KeeperArrows(): React.ReactNode {
           textShadow: "0 2px 8px #000",
         }}
       >
-        🧤 Choisis un côté pour plonger
+        🧤 {t("chooseDiveSide")}
       </div>
       {btn(-1)}
       {btn(1)}

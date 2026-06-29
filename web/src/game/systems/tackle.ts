@@ -49,6 +49,7 @@ const AUTO_AI_TACKLES = true;
 export function tackleSystem(world: World, dt: number): void {
   const store = useStore.getState();
   if (store.mode !== "play") return;
+  const tacklePractice = store.practice === 6;
   const ball = world.queryFirst(IsBall);
   if (!ball) return;
   const bs = ball.get(BallState)!;
@@ -67,7 +68,7 @@ export function tackleSystem(world: World, dt: number): void {
     if (consumePress(padFor(slot, players).tackle) && !refState.ceremony) {
       const sel = world.queryFirst(slot === 1 ? Selected2 : Selected);
       if (sel && bs.owner !== sel && !slides.has(sel) && !sel.has(SlideTackle) && !cooldowns.has(sel)) {
-        startSlide(sel, nearestOpponent(sel, world, 1.7));
+        startSlide(sel, nearestOpponent(sel, world, tacklePractice ? 2.2 : 1.7));
       }
     }
   }
@@ -121,6 +122,24 @@ export function tackleSystem(world: World, dt: number): void {
           }
           cooldowns.set(e, 0.6); // brief pause before he can challenge again
           continue;
+        }
+        if (tacklePractice && d < 1.15) {
+          const h = e.get(Heading)!.angle;
+          bs.owner = e;
+          bs.lastKicker = null;
+          bs.passTarget = null;
+          bs.passProtected = false;
+          bs.touchTimer = 0;
+          bs.kickCooldown = 0;
+          rb.setLinvel({ x: Math.sin(h) * 2.2, y: 0.08, z: Math.cos(h) * 2.2 }, true);
+          bs.recaptureBlocks.push({ player: carrier, t: 0.75 });
+          world.queryFirst(Match)?.set(Match, { lastTouchTeam: e.get(Team)!.id });
+          if (carrier.isAlive() && !carrier.has(Tripped)) {
+            carrier.add(Tripped);
+            carrier.set(Tripped, { t: 0, yaw: carrier.get(Heading)!.angle, fall: 0.5 });
+          }
+          cooldowns.set(e, 0.9);
+          break;
         }
         if (Math.random() >= chance) continue;
         // every duel resolves differently: a clean steal he comes away
@@ -237,18 +256,30 @@ export function tackleSystem(world: World, dt: number): void {
       }
     }
     if (dBall < ballReach && bp.y < 0.8) {
-      // won the ball: poke it clear
+      // won the ball: in the tackle drill, come away with it; in matches,
+      // still poke it loose into space.
       const owner = bs.owner;
-      bs.owner = null;
-      releaseBall(world, e, {
-        x: slide.dirX * 8 + (Math.random() - 0.5) * 3,
-        y: 0.5,
-        z: slide.dirZ * 8 + (Math.random() - 0.5) * 3,
-      });
+      if (tacklePractice) {
+        bs.owner = e;
+        bs.lastKicker = null;
+        bs.passTarget = null;
+        bs.passProtected = false;
+        bs.touchTimer = 0;
+        bs.kickCooldown = 0;
+        rb.setLinvel({ x: slide.dirX * 2.4, y: 0.08, z: slide.dirZ * 2.4 }, true);
+        world.queryFirst(Match)?.set(Match, { lastTouchTeam: e.get(Team)!.id });
+      } else {
+        bs.owner = null;
+        releaseBall(world, e, {
+          x: slide.dirX * 8 + (Math.random() - 0.5) * 3,
+          y: 0.5,
+          z: slide.dirZ * 8 + (Math.random() - 0.5) * 3,
+        });
+      }
       // at high fps the poke moves cm before the next possession pass — block
       // the dispossessed owner briefly or they instantly recapture
       if (owner) {
-        bs.recaptureBlocks.push({ player: owner, t: 0.12 });
+        bs.recaptureBlocks.push({ player: owner, t: tacklePractice ? 0.55 : 0.12 });
         // clean tackle still clips the legs: the dispossessed man stumbles
         if (owner.isAlive() && !owner.has(Tripped)) {
           owner.add(Tripped);

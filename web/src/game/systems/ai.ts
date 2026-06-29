@@ -722,10 +722,22 @@ function aiCarrier(world: World, e: Entity, teamId: number, dt: number): void {
       return;
     }
 
-    // defenders panic-clear under pressure near their own goal
+    // defenders under pressure near their own goal sometimes just lash it long
     const ownGoalDist = Math.hypot(-goalX - p.x, p.z);
-    if (mindset < 0.25 && !choice && ownGoalDist < 16 && nearestOpp < 3) {
-      panicClear(world, e);
+    const inOwnDefence = ownGoalDist < 24;
+    const heavyPressure = nearestOpp < 4.2;
+    const clearChance =
+      0.16 +
+      clamp((24 - ownGoalDist) / 18, 0, 0.22) +
+      clamp((4.2 - nearestOpp) / 4.2, 0, 0.2);
+    if (
+      info.role !== Role.ATT &&
+      inOwnDefence &&
+      heavyPressure &&
+      (!choice || info.role === Role.DEF || nearestOpp < 2.4) &&
+      Math.random() < clearChance
+    ) {
+      panicClear(world, e, nearestOpp < 2.1 ? 1 : 0);
       return;
     }
   } else {

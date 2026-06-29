@@ -6,13 +6,15 @@ import {
   RigidBody,
 } from "@react-three/rapier";
 import { PITCH } from "../game/levels";
+import { useStore } from "../game/store";
+import { dribblePoles, dribbleWaypoints } from "../game/practice";
 
 const APRON_X = 7;
 const APRON_Z = 6;
 const GROUND_W = (PITCH.halfLength + APRON_X) * 2; // 124 m
 const GROUND_H = (PITCH.halfWidth + APRON_Z) * 2; // 84 m
 
-function makePitchTexture(): THREE.CanvasTexture {
+function makePitchTexture(practice: number, humanTeam: number): THREE.CanvasTexture {
   const px = 16; // pixels per meter
   const canvas = document.createElement("canvas");
   canvas.width = GROUND_W * px;
@@ -76,6 +78,47 @@ function makePitchTexture(): THREE.CanvasTexture {
     }
   }
 
+  if (practice === 7) {
+    const route = dribbleWaypoints(humanTeam);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(255,153,51,0.3)";
+    ctx.lineWidth = S(0.32);
+    ctx.beginPath();
+    ctx.moveTo(X(route[0]!.x), Y(route[0]!.z));
+    for (const point of route.slice(1)) ctx.lineTo(X(point.x), Y(point.z));
+    ctx.stroke();
+
+    const drawArrow = (x: number, z: number, angle: number): void => {
+      ctx.save();
+      ctx.translate(X(x), Y(z));
+      ctx.rotate(angle);
+      ctx.fillStyle = "rgba(255,163,44,0.92)";
+      ctx.beginPath();
+      ctx.moveTo(S(-1.15), S(-0.28));
+      ctx.lineTo(S(0.2), S(-0.28));
+      ctx.lineTo(S(0.2), S(-0.62));
+      ctx.lineTo(S(1.1), 0);
+      ctx.lineTo(S(0.2), S(0.62));
+      ctx.lineTo(S(0.2), S(0.28));
+      ctx.lineTo(S(-1.15), S(0.28));
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    };
+
+    for (let i = 0; i + 1 < route.length; i++) {
+      const a = route[i]!;
+      const b = route[i + 1]!;
+      const dx = b.x - a.x;
+      const dz = b.z - a.z;
+      const angle = Math.atan2(dz, dx);
+      for (const t of [0.33, 0.66]) {
+        drawArrow(a.x + dx * t, a.z + dz * t, angle);
+      }
+    }
+  }
+
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
@@ -83,7 +126,10 @@ function makePitchTexture(): THREE.CanvasTexture {
 }
 
 export function Pitch(): React.ReactNode {
-  const texture = useMemo(makePitchTexture, []);
+  const practice = useStore((s) => s.practice);
+  const humanTeam = useStore((s) => s.humanTeam);
+  const texture = useMemo(() => makePitchTexture(practice, humanTeam), [practice, humanTeam]);
+  const poles = useMemo(() => (practice === 7 ? dribblePoles(humanTeam) : []), [practice, humanTeam]);
   return (
     <group>
       <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
@@ -150,6 +196,19 @@ export function Pitch(): React.ReactNode {
 
       {([1, -1] as const).map((s) => (
         <Goal key={s} side={s} />
+      ))}
+
+      {poles.map((pole, index) => (
+        <group key={`dribble-pole-${index}`} position={[pole.x, 0, pole.z]}>
+          <mesh castShadow position={[0, 0.58, 0]}>
+            <cylinderGeometry args={[0.07, 0.07, 1.16, 14]} />
+            <meshStandardMaterial color="#ff8c2b" roughness={0.55} />
+          </mesh>
+          <mesh receiveShadow position={[0, 0.03, 0]}>
+            <cylinderGeometry args={[0.22, 0.22, 0.06, 18]} />
+            <meshStandardMaterial color="#ffb24d" roughness={0.9} />
+          </mesh>
+        </group>
       ))}
 
       {/* ad boards + a dark stand as backdrop */}

@@ -268,6 +268,7 @@ export function possessionSystem(world: World, dt: number): void {
         true,
       );
       bs.owner = null; // loose ball — a rebound for whoever follows up
+      match.set(Match, { lastTouchTeam: best.get(Team)!.id });
       bs.recaptureBlocks.push({ player: best, t: 0.5 });
       radio("save");
       return;

@@ -1,18 +1,45 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { TEAMS, useStore } from "../game/store";
 import { TouchControls } from "./TouchControls";
 import { DragShoot, KeeperArrows, humanSetPieceActive } from "./DragShoot";
 import { world } from "../game/world";
 import { skipCinematic } from "../game/systems/cinematic";
+import { audioMuted, setAudioMuted } from "../game/audio";
+import { RADIO_STATE_EVENT, radioEnabled, toggleRadio } from "../game/radio";
 import playButtonUrl from "../assets/play-button.png";
 import trainingButtonUrl from "../assets/training-button.png";
 import worldCupButtonUrl from "../assets/worldcup-button.png";
 import trainingCornerUrl from "../assets/training-corner.png";
 import trainingFreeKickUrl from "../assets/training-free-kick.png";
 import trainingPenaltyUrl from "../assets/training-penalty.png";
+import trainingOffsideUrl from "../assets/training-offside.png";
+import trainingTackleUrl from "../assets/training-tackle.png";
 import menuThemeUrl from "../assets/audio/menu-theme.mp4";
+import menuThemeFrUrl from "../assets/audio/menu-theme-fr.mp4";
+import menuThemeEsUrl from "../assets/audio/menu-theme-es.mp4";
+import menuThemeNbUrl from "../assets/audio/menu-theme-nb.mp4";
+import menuThemeDeUrl from "../assets/audio/menu-theme-de.mp4";
+import menuThemeRuUrl from "../assets/audio/menu-theme-ru.mp4";
+import menuThemeArUrl from "../assets/audio/menu-theme-ar.mp4";
+import menuThemeItUrl from "../assets/audio/menu-theme-it.mp4";
+import menuThemePtUrl from "../assets/audio/menu-theme-pt.mp4";
+import menuThemeZhUrl from "../assets/audio/menu-theme-zh.mp4";
+import { LANGUAGE_OPTIONS, translatePhaseLabel, useI18n, type AppLanguage } from "../i18n";
 
 const act = () => useStore.getState();
+const MENU_THEME_BY_LANGUAGE: Partial<Record<AppLanguage, string>> = {
+  fr: menuThemeFrUrl,
+  es: menuThemeEsUrl,
+  nb: menuThemeNbUrl,
+  de: menuThemeDeUrl,
+  ru: menuThemeRuUrl,
+  ar: menuThemeArUrl,
+  it: menuThemeItUrl,
+  pt: menuThemePtUrl,
+  "zh-CN": menuThemeZhUrl,
+  "zh-TW": menuThemeZhUrl,
+};
+const LANGUAGE_PROMPT_STORAGE_KEY = "gpf-language-prompt-v1";
 
 type MenuTab = "home" | "training" | "worldcup" | "lineup";
 type LineupDrag = {
@@ -25,12 +52,29 @@ type LineupDrag = {
   moved: boolean;
 };
 
-const TRAINING_OPTIONS = [
-  { id: 2, title: "COUP FRANC", note: "Mur, ballon arrete, tir direct", image: trainingFreeKickUrl },
-  { id: 3, title: "CORNER", note: "Centre depuis le drapeau", image: trainingCornerUrl },
-  { id: 4, title: "PENALTY", note: "Face au gardien, plongeon", image: trainingPenaltyUrl },
-  { id: 5, title: "HORS-JEU", note: "Apprendre le timing des passes" },
-  { id: 6, title: "TACLE", note: "Si tu restes immobile, l'IA te tacle et l'arbitre peut sortir un carton" },
+const TRAINING_OPTIONS: Array<{
+  id: number;
+  titleKey: "freeKick" | "corner" | "penalty" | "offside" | "tackle" | "dribble";
+  noteKey:
+    | "freeKickNote"
+    | "cornerNote"
+    | "penaltyNote"
+    | "offsideNote"
+    | "tackleNote"
+    | "dribbleNote";
+  image?: string;
+}> = [
+  { id: 2, titleKey: "freeKick", noteKey: "freeKickNote", image: trainingFreeKickUrl },
+  { id: 3, titleKey: "corner", noteKey: "cornerNote", image: trainingCornerUrl },
+  { id: 4, titleKey: "penalty", noteKey: "penaltyNote", image: trainingPenaltyUrl },
+  { id: 7, titleKey: "dribble", noteKey: "dribbleNote" },
+  { id: 5, titleKey: "offside", noteKey: "offsideNote", image: trainingOffsideUrl },
+  {
+    id: 6,
+    titleKey: "tackle",
+    noteKey: "tackleNote",
+    image: trainingTackleUrl,
+  },
 ];
 
 const WORLD_CUP_FIXTURES = [
@@ -162,6 +206,11 @@ function loadSavedLineup(): number[] {
   }
 }
 
+function shouldPromptForLanguage(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(LANGUAGE_PROMPT_STORAGE_KEY) !== "1";
+}
+
 function playerInitials(name: string): string {
   return name
     .split(" ")
@@ -211,6 +260,7 @@ function PlayerHead({ name, photoUrl = "" }: { name: string; photoUrl?: string }
 }
 
 export function Hud(): React.ReactNode {
+  const { language, setLanguage, t } = useI18n();
   const mode = useStore((s) => s.mode);
   const score = useStore((s) => s.score);
   const clock = useStore((s) => s.clock);
@@ -226,10 +276,15 @@ export function Hud(): React.ReactNode {
   const [lineupFocus, setLineupFocus] = useState<number>(() => loadSavedLineup()[0] ?? DEFAULT_LINEUP[0]!);
   const [lineupDrag, setLineupDrag] = useState<LineupDrag | null>(null);
   const [matchSubOpen, setMatchSubOpen] = useState(false);
+  const [muted, setMuted] = useState<boolean>(() => audioMuted());
+  const [radioOn, setRadioOn] = useState<boolean>(() => radioEnabled());
+  const [languagePromptOpen, setLanguagePromptOpen] = useState<boolean>(() => shouldPromptForLanguage());
   const suppressBenchClick = useRef(false);
   const menuMusicRef = useRef<HTMLAudioElement | null>(null);
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
+  const translatedPhase = translatePhaseLabel(language, phaseLabel);
+  const menuThemeSrc = MENU_THEME_BY_LANGUAGE[language] ?? menuThemeUrl;
   const menuMusicActive =
     mode === "menu" &&
     (menuTab === "home" || menuTab === "training" || menuTab === "worldcup");
@@ -243,6 +298,22 @@ export function Hud(): React.ReactNode {
   }, [mode]);
 
   useEffect(() => {
+    setAudioMuted(muted);
+  }, [muted]);
+
+  useEffect(() => {
+    const syncRadio = (): void => setRadioOn(radioEnabled());
+    const onRadioState = (event: Event): void => {
+      const next = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled;
+      setRadioOn(typeof next === "boolean" ? next : radioEnabled());
+    };
+
+    syncRadio();
+    window.addEventListener(RADIO_STATE_EVENT, onRadioState as EventListener);
+    return () => window.removeEventListener(RADIO_STATE_EVENT, onRadioState as EventListener);
+  }, []);
+
+  useEffect(() => {
     window.localStorage.setItem(LINEUP_STORAGE_KEY, JSON.stringify(selectedLineup));
   }, [selectedLineup]);
 
@@ -251,11 +322,16 @@ export function Hud(): React.ReactNode {
     if (!audio) return;
     audio.volume = 0.42;
     audio.loop = true;
+    audio.muted = muted;
     if (!menuMusicActive) {
       audio.pause();
       audio.currentTime = 0;
       return;
     }
+
+    audio.pause();
+    audio.currentTime = 0;
+    audio.load();
 
     const tryPlay = (): void => {
       void audio.play().catch(() => undefined);
@@ -268,10 +344,17 @@ export function Hud(): React.ReactNode {
       window.removeEventListener("pointerdown", tryPlay);
       window.removeEventListener("keydown", tryPlay);
     };
-  }, [menuMusicActive]);
+  }, [menuMusicActive, menuThemeSrc, muted]);
 
   const lineupPlayerNames = (): string[] =>
     selectedLineup.map((id) => LINEUP_PLAYER_BY_ID.get(id)?.name ?? "");
+
+  const confirmLanguagePrompt = (): void => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LANGUAGE_PROMPT_STORAGE_KEY, "1");
+    }
+    setLanguagePromptOpen(false);
+  };
 
   const startMatch = (practiceId = 0): void => {
     act().setLineupNames(lineupPlayerNames());
@@ -340,12 +423,12 @@ export function Hud(): React.ReactNode {
 
   return (
     <div className="hud">
-      <audio ref={menuMusicRef} src={menuThemeUrl} preload="auto" hidden />
+      <audio ref={menuMusicRef} src={menuThemeSrc} preload="auto" hidden />
       {mode !== "menu" && (
         <>
           <div className="scoreboard">
             <span className="clock">
-              {mm}:{ss} {phaseLabel}
+              {mm}:{ss} {translatedPhase}
             </span>
             <span className="team">
               <span className="swatch" style={{ background: TEAMS[0].color }} />
@@ -384,47 +467,47 @@ export function Hud(): React.ReactNode {
       {mode === "play" && players === 1 && (
         <div className={`match-sub-prompt${matchSubOpen ? " open" : ""}`}>
           <button className="match-sub-main" onClick={() => setMatchSubOpen((open) => !open)}>
-            CHANGER JOUEUR ?
+            {t("changePlayer")}
           </button>
           {matchSubOpen && (
             <div className="match-sub-card">
-              <span>Joueur actuel</span>
-              <b>{selectedName || "Aucun"}</b>
-              <button onClick={() => setMatchSubOpen(false)}>GARDER</button>
+              <span>{t("currentPlayer")}</span>
+              <b>{selectedName || t("none")}</b>
+              <button onClick={() => setMatchSubOpen(false)}>{t("keep")}</button>
               <button
                 onClick={() => {
                   setMenuTab("lineup");
                   act().setMode("menu");
                 }}
               >
-                COMPOSITION
+                {t("composition")}
               </button>
             </div>
           )}
         </div>
       )}
       {mode === "play" && (
-        <button
-          onClick={() => act().setMode("pause")}
-          style={{
-            position: "absolute",
-            top: 16,
-            right: 16,
-            pointerEvents: "auto",
-            cursor: "pointer",
-            width: 44,
-            height: 44,
-            borderRadius: 8,
-            border: "2px solid rgba(255,255,255,0.3)",
-            background: "rgba(8,12,24,0.6)",
-            color: "#fff",
-            fontSize: 16,
-            fontWeight: 800,
-          }}
-          aria-label="Pause"
-        >
-          ❚❚
-        </button>
+        <div className="hud-top-actions">
+          <SoundToggleButton
+            muted={muted}
+            onToggle={() => setMuted((current) => !current)}
+            variant="hud"
+          />
+          <RadioToggleButton enabled={radioOn} onToggle={() => toggleRadio()} variant="hud" />
+          <button
+            onClick={() => act().setMode("pause")}
+            className="hud-top-button"
+            aria-label={t("pauseAria")}
+          >
+            ❚❚
+          </button>
+        </div>
+      )}
+      {mode !== "menu" && mode !== "play" && (
+        <div className="hud-top-actions">
+          <SoundToggleButton muted={muted} onToggle={() => setMuted((current) => !current)} variant="hud" />
+          <RadioToggleButton enabled={radioOn} onToggle={() => toggleRadio()} variant="hud" />
+        </div>
       )}
       {(mode === "goal" ||
         mode === "replay" ||
@@ -447,9 +530,9 @@ export function Hud(): React.ReactNode {
             fontWeight: 800,
             letterSpacing: 1,
           }}
-          aria-label="Passer le replay"
+          aria-label={t("skipReplayAria")}
         >
-          PASSER ⏭
+          {t("skipReplay")} ⏭
         </button>
       )}
       {mode === "goal" && <div className="banner">GOAL!</div>}
@@ -463,8 +546,8 @@ export function Hud(): React.ReactNode {
           <div className="menu-side menu-side-red" />
           <div className="menu-side menu-side-blue" />
           <div className="menu-shell pause-shell">
-            <h1>PAUSE</h1>
-            <BigButton label="REPRENDRE" onClick={() => act().setMode("play")} />
+            <h1>{t("pause")}</h1>
+            <BigButton label={t("resume")} onClick={() => act().setMode("play")} />
             <button
               className="menu-big-button"
               style={{
@@ -475,9 +558,9 @@ export function Hud(): React.ReactNode {
               }}
               onClick={() => act().setMode("menu")}
             >
-              QUITTER ▸ MENU
+              {t("quitToMenu")}
             </button>
-            <div className="prompt">ou appuie sur Échap</div>
+            <div className="prompt">{t("pressEscape")}</div>
           </div>
         </div>
       )}
@@ -486,6 +569,27 @@ export function Hud(): React.ReactNode {
           <div className="menu-side menu-side-red" />
           <div className="menu-side menu-side-blue" />
           <div className="menu-shell">
+            <div className="menu-top-tools">
+              <SoundToggleButton
+                muted={muted}
+                onToggle={() => setMuted((current) => !current)}
+                variant="menu"
+              />
+              <RadioToggleButton
+                enabled={radioOn}
+                onToggle={() => toggleRadio()}
+                variant="menu"
+                longLabel
+              />
+              <LanguagePicker language={language} onChange={setLanguage} />
+            </div>
+            {languagePromptOpen && (
+              <LanguagePrompt
+                language={language}
+                onChange={setLanguage}
+                onConfirm={confirmLanguagePrompt}
+              />
+            )}
             {menuTab === "home" && (
               <div className="legend-strip menu-hero-legends" aria-hidden="true">
                 {MENU_LEGENDS.map((legend) => (
@@ -503,14 +607,14 @@ export function Hud(): React.ReactNode {
             </div>
             {menuTab !== "home" && (
               <button className="menu-back" onClick={() => setMenuTab("home")}>
-                RETOUR
+                {t("back")}
               </button>
             )}
             {menuTab === "worldcup" && (
               <div className="menu-premium-strip">
-                <span>TACTIQUES RAPIDES</span>
-                <span>RADIO STADE</span>
-                <span>REPLAY & CARTONS</span>
+                <span>{t("quickTactics")}</span>
+                <span>{t("stadiumRadio")}</span>
+                <span>{t("replayCards")}</span>
               </div>
             )}
             {menuTab === "home" && (
@@ -519,24 +623,24 @@ export function Hud(): React.ReactNode {
                   <MenuModeButton
                     tone="yellow"
                     kicker="MATCH"
-                    title="JOUER"
-                    note="Lance un vrai match direct"
+                    title={t("play")}
+                    note={t("playNote")}
                     image={playButtonUrl}
                     onClick={() => setMenuTab("lineup")}
                   />
                   <MenuModeButton
                     tone="green"
                     kicker="EXERCICES"
-                    title="ENTRAINEMENT"
-                    note="Penalty, corner, coup franc, tirs au but"
+                    title={t("training")}
+                    note={t("trainingNote")}
                     image={trainingButtonUrl}
                     onClick={() => setMenuTab("training")}
                   />
                   <MenuModeButton
                     tone="blue"
                     kicker="19 JUILLET"
-                    title="COUPE DU MONDE"
-                    note="Calendrier, groupes et finale"
+                    title={t("worldCup")}
+                    note={t("worldCupNote")}
                     image={worldCupButtonUrl}
                     onClick={() => setMenuTab("worldcup")}
                   />
@@ -549,8 +653,8 @@ export function Hud(): React.ReactNode {
             {menuTab === "training" && (
               <div className="menu-panel">
                 <div className="menu-panel-head">
-                  <span>ENTRAINEMENT</span>
-                  <b>Choisis ton exercice</b>
+                  <span>{t("trainingHeading")}</span>
+                  <b>{t("chooseExercise")}</b>
                 </div>
                 <div className="training-grid">
                   {TRAINING_OPTIONS.map((option) => (
@@ -562,12 +666,12 @@ export function Hud(): React.ReactNode {
                       {option.image ? (
                         <>
                           <img src={option.image} alt="" />
-                          <span className="training-image-label">{option.title}</span>
+                          <span className="training-image-label">{t(option.titleKey)}</span>
                         </>
                       ) : (
                         <>
-                          <span>{option.title}</span>
-                          <b>{option.note}</b>
+                          <span>{t(option.titleKey)}</span>
+                          <b>{t(option.noteKey)}</b>
                         </>
                       )}
                     </button>
@@ -579,15 +683,15 @@ export function Hud(): React.ReactNode {
               <div className="lineup-panel">
                 <div className="lineup-top">
                   <div>
-                    <span>COMPOSITION</span>
-                    <b>Choisis tes joueurs avant le match</b>
+                    <span>{t("lineup")}</span>
+                    <b>{t("choosePlayers")}</b>
                   </div>
                   <button className="lineup-start" onClick={() => startMatch(0)}>
-                    JOUER LE MATCH
+                    {t("playMatch")}
                   </button>
                 </div>
                 <div className="lineup-layout">
-                  <div className="lineup-pitch" aria-label="Formation">
+                  <div className="lineup-pitch" aria-label={t("lineup")}>
                     {LINEUP_SLOTS.map((slot, index) => {
                       const player = LINEUP_PLAYER_BY_ID.get(selectedLineup[index]!)!;
                       return (
@@ -607,7 +711,7 @@ export function Hud(): React.ReactNode {
                     })}
                   </div>
                   <div className="lineup-bench">
-                    <span>REMPLACANTS</span>
+                    <span>{t("substitutes")}</span>
                     {LINEUP_PLAYERS.filter((player) => !selectedLineup.includes(player.id)).map((player) => (
                       <button
                         key={player.id}
@@ -671,8 +775,8 @@ export function Hud(): React.ReactNode {
             {menuTab === "worldcup" && (
               <div className="menu-panel worldcup-panel">
                 <div className="menu-panel-head">
-                  <span>COUPE DU MONDE 2026</span>
-                  <b>Du 11 juin au 19 juillet, jouable quand tu veux</b>
+                  <span>{t("worldCup2026")}</span>
+                  <b>{t("worldCupRange")}</b>
                 </div>
                 <div className="worldcup-list">
                   {WORLD_CUP_FIXTURES.map((fixture) => (
@@ -690,7 +794,7 @@ export function Hud(): React.ReactNode {
                       <span className="fixture-meta">
                         {fixture.group} · {fixture.time} · {fixture.venue}
                       </span>
-                      <span className="fixture-play">JOUER</span>
+                      <span className="fixture-play">{t("playFixture")}</span>
                     </button>
                   ))}
                 </div>
@@ -699,29 +803,21 @@ export function Hud(): React.ReactNode {
             {menuTab === "home" && (
               players === 1 ? (
                 <div className="controls">
-                  <b>WASD / Arrows</b> move&ensp;<b>Shift</b> sprint
+                  {t("soloControls1")}
                   <br />
-                  <b>Space</b> shoot&ensp;<b>X</b> pass&ensp;<b>C</b> lofted pass&ensp;
-                  <b>V</b> header&ensp;<b>E</b> slide tackle
+                  {t("soloControls2")}
                   <br />
-                  <b>Gardien</b> : tu le prends sur un tir/penalty —{" "}
-                  <b>Espace/E</b> plonge du côté du joystick
+                  {t("soloControls3")}
                   <br />
-                  <b>R</b> radio commentary&ensp;<b>Esc</b> pause
+                  {t("soloControls4")}
                 </div>
               ) : (
                 <div className="controls">
-                  <span style={{ color: TEAMS[0].color, fontWeight: 700 }}>J1 (RED)</span>
-                  &ensp;<b>WASD</b> move&ensp;<b>Shift g.</b> sprint&ensp;
-                  <b>Espace</b> tir&ensp;<b>X</b> passe&ensp;<b>C</b> lobée&ensp;
-                  <b>E</b> tacle
+                  {t("versusControls1")}
                   <br />
-                  <span style={{ color: "#4ad2ff", fontWeight: 700 }}>J2 (BLU)</span>
-                  &ensp;<b>Flèches</b> move&ensp;<b>Shift d.</b> sprint&ensp;
-                  <b>K</b> tir&ensp;<b>L</b> passe&ensp;<b>M</b> lobée&ensp;
-                  <b>I</b> tacle
+                  {t("versusControls2")}
                   <br />
-                  <b>R</b> radio&ensp;<b>Esc</b> pause
+                  {t("versusControls3")}
                 </div>
               )
             )}
@@ -768,7 +864,11 @@ function MenuModeButton({
   return (
     <button className={`menu-mode-button mode-${tone}${image ? " image-mode-button" : ""}`} onClick={onClick}>
       {image ? (
-        <img src={image} alt={title} />
+        <>
+          <img src={image} alt={title} />
+          <span className="image-mode-caption">{title}</span>
+          <em className="image-mode-note">{note}</em>
+        </>
       ) : (
         <>
           <span>{kicker}</span>
@@ -777,6 +877,113 @@ function MenuModeButton({
         </>
       )}
     </button>
+  );
+}
+
+function SoundToggleButton({
+  muted,
+  onToggle,
+  variant,
+  style,
+}: {
+  muted: boolean;
+  onToggle: () => void;
+  variant: "menu" | "hud";
+  style?: CSSProperties;
+}): React.ReactNode {
+  const { t } = useI18n();
+  return (
+    <button
+      className={`sound-toggle-button sound-toggle-${variant}`}
+      onClick={onToggle}
+      aria-label={`${t("sound")}: ${muted ? t("soundOff") : t("soundOn")}`}
+      style={style}
+    >
+      <span>{t("sound")}</span>
+      <b>{muted ? t("soundOff") : t("soundOn")}</b>
+    </button>
+  );
+}
+
+function RadioToggleButton({
+  enabled,
+  onToggle,
+  variant,
+  longLabel,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+  variant: "menu" | "hud";
+  longLabel?: boolean;
+}): React.ReactNode {
+  const { t } = useI18n();
+  return (
+    <button
+      className={`radio-toggle-button radio-toggle-${variant}`}
+      onClick={onToggle}
+      aria-label={`${longLabel ? t("stadiumRadio") : t("radio")}: ${enabled ? t("soundOn") : t("soundOff")}`}
+    >
+      <span>{longLabel ? t("stadiumRadio") : t("radio")}</span>
+      <b>{enabled ? t("soundOn") : t("soundOff")}</b>
+    </button>
+  );
+}
+
+function LanguagePicker({
+  language,
+  onChange,
+}: {
+  language: AppLanguage;
+  onChange: (language: AppLanguage) => void;
+}): React.ReactNode {
+  const { t } = useI18n();
+  return (
+    <label className="menu-language-picker">
+      <span>{t("language")}</span>
+      <select
+        value={language}
+        onChange={(event) => onChange(event.target.value as AppLanguage)}
+      >
+        {LANGUAGE_OPTIONS.map((option) => (
+          <option key={option.code} value={option.code}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function LanguagePrompt({
+  language,
+  onChange,
+  onConfirm,
+}: {
+  language: AppLanguage;
+  onChange: (language: AppLanguage) => void;
+  onConfirm: () => void;
+}): React.ReactNode {
+  const { t } = useI18n();
+  return (
+    <div className="menu-language-modal-backdrop">
+      <div className="menu-language-modal">
+        <span>{t("chooseLanguage")}</span>
+        <b>{t("chooseLanguageNote")}</b>
+        <select
+          value={language}
+          onChange={(event) => onChange(event.target.value as AppLanguage)}
+        >
+          {LANGUAGE_OPTIONS.map((option) => (
+            <option key={option.code} value={option.code}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <button className="menu-big-button menu-language-confirm" onClick={onConfirm}>
+          {t("continueLabel")}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -843,6 +1050,7 @@ function ShootoutBoard(): React.ReactNode {
 }
 
 function PlayersToggle(): React.ReactNode {
+  const { t } = useI18n();
   const players = useStore((s) => s.players);
   return (
     <button
@@ -850,14 +1058,14 @@ function PlayersToggle(): React.ReactNode {
       onClick={() => act().togglePlayers()}
     >
       <span className="menu-key">J</span>
-      <span className="menu-option-label">Joueurs</span>
+      <span className="menu-option-label">{t("players")}</span>
       <span className="menu-choice-line">
-        <span className={players === 1 ? "active-choice yellow-choice" : "muted-choice"}>1 JOUEUR</span>
-        <span className={players === 2 ? "active-choice blue-choice" : "muted-choice"}>2 JOUEURS</span>
+        <span className={players === 1 ? "active-choice yellow-choice" : "muted-choice"}>{t("onePlayer")}</span>
+        <span className={players === 2 ? "active-choice blue-choice" : "muted-choice"}>{t("twoPlayers")}</span>
       </span>
       {players === 2 && (
         <span className="menu-option-note">
-          versus local : J1 dirige les ROUGES, J2 dirige les BLEUS
+          {t("versusNote")}
         </span>
       )}
     </button>
@@ -865,6 +1073,7 @@ function PlayersToggle(): React.ReactNode {
 }
 
 function TeamChoice(): React.ReactNode {
+  const { t } = useI18n();
   const humanTeam = useStore((s) => s.humanTeam);
   return (
     <button
@@ -872,32 +1081,33 @@ function TeamChoice(): React.ReactNode {
       onClick={() => act().toggleHumanTeam()}
     >
       <span className="menu-key">E</span>
-      <span className="menu-option-label">Equipe</span>
+      <span className="menu-option-label">{t("team")}</span>
       <span className="menu-choice-line">
         <span className={humanTeam === 0 ? "active-choice red-choice" : "muted-choice"}>RED</span>
         <span className={humanTeam === 1 ? "active-choice blue-choice" : "muted-choice"}>BLU</span>
       </span>
       <span className="menu-option-note">
-        tu joues {TEAMS[humanTeam].name}, l'autre equipe est l'IA
+        {t("teamNote", { team: TEAMS[humanTeam].name })}
       </span>
     </button>
   );
 }
 
-const DIFFICULTY_NAMES = ["FACILE", "NORMAL", "DIFFICILE"];
 const DIFFICULTY_COLORS = ["#7ddb5a", "#ffe94a", "#ff6b4a"];
 
 function DifficultyPicker(): React.ReactNode {
+  const { t } = useI18n();
   const difficulty = useStore((s) => s.difficulty);
+  const difficultyNames = [t("easy"), t("normal"), t("hard")];
   return (
     <button
       className="menu-option tile-yellow"
       onClick={() => act().cycleDifficulty()}
     >
       <span className="menu-key">D</span>
-      <span className="menu-option-label">Difficulté</span>
+      <span className="menu-option-label">{t("difficulty")}</span>
       <span className="menu-choice-line">
-        {DIFFICULTY_NAMES.map((name, i) => (
+        {difficultyNames.map((name, i) => (
           <span
             key={name}
             className={i === difficulty ? "active-choice" : "muted-choice"}
@@ -912,6 +1122,7 @@ function DifficultyPicker(): React.ReactNode {
 }
 
 function ImportantToggle(): React.ReactNode {
+  const { t } = useI18n();
   const important = useStore((s) => s.important);
   return (
     <button
@@ -919,13 +1130,12 @@ function ImportantToggle(): React.ReactNode {
       onClick={() => act().toggleImportant()}
     >
       <span className="menu-key">M</span>
-      <span className="menu-option-label">Match important</span>
+      <span className="menu-option-label">{t("importantMatch")}</span>
       <b className={important ? "active-choice yellow-choice" : "muted-choice"}>
-        {important ? "OUI" : "NON"}
+        {important ? t("yes") : t("no")}
       </b>
       <span className="menu-option-note">
-        deux mi-temps, puis prolongation (deux mi-temps) et tirs au but si le
-        score reste égal
+        {t("importantNote")}
       </span>
     </button>
   );

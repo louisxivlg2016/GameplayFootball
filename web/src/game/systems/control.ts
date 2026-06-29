@@ -20,7 +20,7 @@ import {
 } from "../traits";
 import { PITCH, SPEEDS, attackSign, setSelected } from "../levels";
 import { useStore } from "../store";
-import { header, pass, shoot } from "./kicks";
+import { header, panicClear, pass, shoot } from "./kicks";
 import { refState } from "./referee";
 
 // per-slot auto-switch hysteresis (the Match trait keeps slot 0's for the
@@ -186,6 +186,14 @@ function controlSlot(
   const h = sel.get(Heading)!.angle;
   const fx = moving ? dir.x : Math.sin(h);
   const fz = moving ? dir.z : Math.cos(h);
+  let nearestOpp = Infinity;
+  for (const o of world.query(IsPlayer)) {
+    if (o.get(Team)!.id === team) continue;
+    const op = o.get(Position)!;
+    nearestOpp = Math.min(nearestOpp, Math.hypot(op.x - sp.x, op.z - sp.z));
+  }
+  const ownGoalX = -attackSign(team) * PITCH.halfLength;
+  const ownGoalDist = Math.hypot(ownGoalX - sp.x, sp.z);
 
   // an airborne ball (cross, bounce, clearance) is played with the HEAD/volley,
   // which the feet can't reach. Head with V (TÊTE button) or the shoot button;
@@ -216,6 +224,10 @@ function controlSlot(
 
   if (kickable) {
     if (consumePress(pad.shoot)) {
+      if (!penaltyTaker && !isKeeper && ownGoalDist < 24 && isSprintingFor(pad)) {
+        panicClear(world, sel, nearestOpp < 2.3 ? 1 : 0);
+        return;
+      }
       // vertical input steers toward a corner, like the original's aim bias
       // (aimZ is world-z in the goal mouth, the same axis for either goal)
       shoot(world, sel, dir.z * PITCH.goalHalfWidth * 0.85 + (Math.random() - 0.5));

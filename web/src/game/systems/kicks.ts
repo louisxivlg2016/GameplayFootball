@@ -408,17 +408,28 @@ export function header(
   releaseBall(world, player, { x: vx, y: vy, z: vz });
 }
 
-/** Panic clear for low-mindset players near goal (elizacontroller.cpp:924-939). */
-export function panicClear(world: World, kicker: Entity): void {
+/** Panic clear for defenders under pressure near goal: long, ugly, sometimes out. */
+export function panicClear(world: World, kicker: Entity, extraWild = 0): void {
   const teamId = kicker.get(Team)!.id;
   const kp = kicker.get(Position)!;
   const s = attackSign(teamId);
-  const dirZ = kp.z >= 0 ? 0.5 : -0.5;
-  const len = Math.hypot(s, dirZ);
+  const ownGoalX = -s * PITCH.halfLength;
+  const ownGoalDist = Math.hypot(ownGoalX - kp.x, kp.z);
+  const deep = clamp(1 - ownGoalDist / 24, 0, 1);
+  const wild =
+    Math.random() < 0.14 + deep * 0.14 + clamp(extraWild, 0, 1) * 0.28;
+  const dirX = s * (1.2 + Math.random() * 0.28);
+  const dirZ =
+    wild
+      ? (Math.random() < 0.5 ? -1 : 1) * (0.85 + Math.random() * 0.75)
+      : (kp.z >= 0 ? 1 : -1) * (0.18 + Math.random() * 0.42);
+  const len = Math.hypot(dirX, dirZ);
+  const speed = wild ? 28 + Math.random() * 4 : 23 + Math.random() * 4;
+  const lift = wild ? 8.5 + Math.random() * 2.5 : 7.2 + Math.random() * 1.8;
   releaseBall(world, kicker, {
-    x: (s / len) * 17,
-    y: 7,
-    z: (dirZ / len) * 17 + (Math.random() - 0.5) * 4,
+    x: (dirX / len) * speed,
+    y: lift,
+    z: (dirZ / len) * speed + (Math.random() - 0.5) * (wild ? 6 : 3),
   });
 }
 

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { holdKey, releaseKey, tapKey, touchMove } from "../game/input";
+import { useI18n } from "../i18n";
 
 /**
  * On-screen controls so the game is playable with touch or mouse, no keyboard:
@@ -8,9 +9,10 @@ import { holdKey, releaseKey, tapKey, touchMove } from "../game/input";
  * it works the same on phones and desktops.
  */
 const SPRINT_CODE = "ShiftLeft";
-const DEAD = 0.16; // joystick deadzone
+const DEAD = 0.22; // joystick deadzone
 
 export function TouchControls(): React.ReactNode {
+  const { t } = useI18n();
   return (
     <div
       style={{
@@ -22,7 +24,17 @@ export function TouchControls(): React.ReactNode {
       }}
     >
       <Joystick />
-      <Actions />
+      <Actions
+        labels={{
+          sprint: t("sprint"),
+          header: t("header"),
+          lob: t("lob"),
+          lobSub: t("lobSub"),
+          tackle: t("tackle"),
+          pass: t("pass"),
+          shoot: t("shoot"),
+        }}
+      />
     </div>
   );
 }
@@ -54,8 +66,13 @@ function Joystick(): React.ReactNode {
       touchMove.z = 0;
       touchMove.active = false;
     } else {
-      touchMove.x = nx;
-      touchMove.z = nz;
+      // Match the keyboard feel: small thumb motions should not fling the
+      // player away, but a full throw still reaches the same top pace.
+      const dirX = nx / mag;
+      const dirZ = nz / mag;
+      const drive = Math.pow((mag - DEAD) / (1 - DEAD), 1.35);
+      touchMove.x = dirX * drive;
+      touchMove.z = dirZ * drive;
       touchMove.active = true;
     }
   };
@@ -71,7 +88,7 @@ function Joystick(): React.ReactNode {
     <div
       ref={baseRef}
       onPointerDown={(e) => {
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        e.currentTarget.setPointerCapture(e.pointerId);
         update(e.clientX, e.clientY);
       }}
       onPointerMove={(e) => {
@@ -80,6 +97,7 @@ function Joystick(): React.ReactNode {
       }}
       onPointerUp={end}
       onPointerCancel={end}
+      onLostPointerCapture={end}
       style={{
         position: "absolute",
         left: 26,
@@ -133,7 +151,7 @@ function Btn({
   return (
     <div
       onPointerDown={(e) => {
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        e.currentTarget.setPointerCapture(e.pointerId);
         setActive(true);
         onDown();
       }}
@@ -142,6 +160,10 @@ function Btn({
         onUp?.();
       }}
       onPointerCancel={() => {
+        setActive(false);
+        onUp?.();
+      }}
+      onLostPointerCapture={() => {
         setActive(false);
         onUp?.();
       }}
@@ -171,7 +193,19 @@ function Btn({
   );
 }
 
-function Actions(): React.ReactNode {
+function Actions({
+  labels,
+}: {
+  labels: {
+    sprint: string;
+    header: string;
+    lob: string;
+    lobSub: string;
+    tackle: string;
+    pass: string;
+    shoot: string;
+  };
+}): React.ReactNode {
   return (
     <div
       style={{
@@ -184,7 +218,7 @@ function Actions(): React.ReactNode {
       {/* sprint + header pads */}
       <div style={{ position: "absolute", right: 188, bottom: 90 }}>
         <Btn
-          label="SPRINT"
+          label={labels.sprint}
           color="#7ddb5a"
           size={62}
           onDown={() => holdKey(SPRINT_CODE)}
@@ -192,21 +226,27 @@ function Actions(): React.ReactNode {
         />
       </div>
       <div style={{ position: "absolute", right: 190, bottom: 20 }}>
-        <Btn label="TÊTE" color="#c98bff" size={58} onDown={() => tapKey("KeyV")} />
+        <Btn label={labels.header} color="#c98bff" size={58} onDown={() => tapKey("KeyV")} />
       </div>
       {/* action diamond */}
       <div style={{ position: "relative", width: 176, height: 176 }}>
         <div style={{ position: "absolute", top: 0, left: 58 }}>
-          <Btn label="LOB" sub="lobée" color="#4ad2ff" size={60} onDown={() => tapKey("KeyC")} />
+          <Btn
+            label={labels.lob}
+            sub={labels.lobSub}
+            color="#4ad2ff"
+            size={60}
+            onDown={() => tapKey("KeyC")}
+          />
         </div>
         <div style={{ position: "absolute", top: 58, left: 0 }}>
-          <Btn label="TACLE" color="#ff6b4a" size={60} onDown={() => tapKey("KeyE")} />
+          <Btn label={labels.tackle} color="#ff6b4a" size={60} onDown={() => tapKey("KeyE")} />
         </div>
         <div style={{ position: "absolute", top: 58, right: 0 }}>
-          <Btn label="PASSE" color="#ffe94a" size={60} onDown={() => tapKey("KeyX")} />
+          <Btn label={labels.pass} color="#ffe94a" size={60} onDown={() => tapKey("KeyX")} />
         </div>
         <div style={{ position: "absolute", bottom: 0, left: 50 }}>
-          <Btn label="TIR" color="#2eb84a" size={76} onDown={() => tapKey("Space")} />
+          <Btn label={labels.shoot} color="#2eb84a" size={76} onDown={() => tapKey("Space")} />
         </div>
       </div>
     </div>

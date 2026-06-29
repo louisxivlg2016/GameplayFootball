@@ -36,6 +36,7 @@ import { hasMoveInputFor } from "../input";
 import { crowdRoar, setTension, whistle } from "../audio";
 import { radio, radioScore } from "../radio";
 import { evaluateBestPass, executePass, pass, releaseBall, shoot } from "./kicks";
+import { dribbleWaypoints } from "../practice";
 import {
   queueCardCinematic,
   queueGoalCinematic,
@@ -112,6 +113,10 @@ export const refState = {
     /** he nicked it off you — now YOU chase and tackle to win it back */
     recovering: boolean;
   } | null,
+  dribbleDrill: null as {
+    runner: Entity | null;
+    next: number;
+  } | null,
   /** game-clock time of the next radio score reminder */
   nextChatter: 500,
   shootout: null as {
@@ -130,6 +135,10 @@ export const refState = {
 function banner(text: string, seconds = 2.5): void {
   useStore.getState().setBanner(text);
   refState.bannerT = seconds;
+}
+
+function defendingTeamAtGoalLine(side: number): 0 | 1 {
+  return side === -attackSign(0) ? 0 : 1;
 }
 
 function steerTo(e: Entity, tx: number, tz: number, dt: number, maxSpeed: number): void {
@@ -731,6 +740,7 @@ export function refereeSystem(world: World, dt: number): void {
     setTension(false);
     refState.firstKickoff = match.get(Match)!.lastTouchTeam;
     refState.practiceResetT = 0;
+    refState.dribbleDrill = null;
     store.setOffsideLine(null); // clear any leftover drill line
     store.setOffsidePlayer(null);
     store.setPhaseLabel(PHASE_LABEL[0]!);
@@ -921,25 +931,31 @@ export function refereeSystem(world: World, dt: number): void {
       match.set(Match, { resetTimer: 3.2, pendingKickoffTeam: 1 - scorer });
       return;
     }
-    if (Math.abs(bp.x) > PITCH.halfLength + 0.4) {
-      // a fast ball out just beside or above the frame: everyone thought goal
-      const bvOut = b.rb.linvel();
-      if (Math.hypot(bvOut.x, bvOut.y, bvOut.z) > 11 && Math.abs(bp.z) < 9) {
-        radio("miss");
-      }
-      // ball out behind a goal: if the DEFENDING side knocked it out (a
-      // clearance or deflection off your own man) it's a CORNER for the
-      // attackers; if the attackers put it out, the keeper takes a goal kick.
-      const defending = attackSign(0) * side > 0 ? 1 : 0;
-      const lastTouch = match.get(Match)!.lastTouchTeam;
-      if (lastTouch === defending) {
-        // you knocked it behind your own line → corner for the OTHER team
-        startSetPiece(world, "corner", 1 - defending, side * 54.5, Math.sign(bp.z) * 35.4);
-      } else {
-        startSetPiece(world, "goalkick", defending, side * PITCH.halfLength * 0.92, 0);
-      }
-      return;
+  }
+  const goalOut = ballFree ? PITCH.halfLength + 0.4 : PITCH.halfLength + R;
+  if (Math.abs(bp.x) > goalOut) {
+    const side = Math.sign(bp.x) || 1;
+    // a fast ball out just beside or above the frame: everyone thought goal
+    const bvOut = b.rb.linvel();
+    if (Math.hypot(bvOut.x, bvOut.y, bvOut.z) > 11 && Math.abs(bp.z) < 9) {
+      radio("miss");
     }
+    // If a dribbler carries it over the goal line, HE is the last touch.
+    // If the ball is free, use the tracked last-touch team (shots, deflections,
+    // tackles, saves). Defenders putting it over their OWN line concede a
+    // corner; attackers putting it over concede a goal kick.
+    const lastTouch = owner ? owner.get(Team)!.id : match.get(Match)!.lastTouchTeam;
+    if (!ballFree) {
+      match.set(Match, { lastTouchTeam: lastTouch });
+      b.bs.owner = null;
+    }
+    const defending = defendingTeamAtGoalLine(side);
+    if (lastTouch === defending) {
+      startSetPiece(world, "corner", 1 - defending, side * 54.5, Math.sign(bp.z) * 35.4);
+    } else {
+      startSetPiece(world, "goalkick", defending, side * PITCH.halfLength * 0.92, 0);
+    }
+    return;
   }
   // out for a throw-in: a FREE ball is out the instant its leading edge pokes
   // over the touchline (the same lenient line as goals — z = halfWidth - R); a
@@ -1145,11 +1161,79 @@ function placePractice(world: World): void {
   } else if (practice === 4) {
     // a penalty
     startSetPiece(world, "penalty", humanTeam, s * 51, 0);
+  } else if (practice === 7) {
+    stageDribbleDrill(world);
   } else if (practice === 6) {
     stageTackleDrill(world);
   } else {
     stageOffsideDrill(world);
   }
+}
+
+function stageDribbleDrill(world: World): void {
+  const store = useStore.getState();
+  const humanTeam = store.humanTeam;
+  const route = dribbleWaypoints(humanTeam);
+  const allPlayers = [...world.query(IsPlayer)];
+  const humanPool = allPlayers.filter(
+    (e) => e.get(Team)!.id === humanTeam && e.get(PlayerInfo)!.role !== Role.GK,
+  );
+  const runner =
+    humanPool.find((e) => e.get(PlayerInfo)!.role === Role.ATT) ??
+    humanPool.find((e) => e.get(PlayerInfo)!.role === Role.MID) ??
+    humanPool[0] ??
+    null;
+  if (!runner) return;
+
+  for (const e of allPlayers) {
+    if (e !== runner) e.destroy();
+  }
+
+  const start = route[0]!;
+  const next = route[1]!;
+  const heading = Math.atan2(next.x - start.x, next.z - start.z);
+  const p = runner.get(Position)!;
+  const v = runner.get(Velocity)!;
+  p.set(start.x, 0, start.z);
+  v.set(0, 0, 0);
+  runner.set(Heading, { angle: heading });
+  runner.get(HomePos)!.set(start.x, 0, start.z);
+  if (runner.has(SlideTackle)) runner.remove(SlideTackle);
+  if (runner.has(Tripped)) runner.remove(Tripped);
+  if (runner.has(KeeperDive)) runner.remove(KeeperDive);
+  if (runner.has(Jump)) runner.remove(Jump);
+
+  const b = ballOf(world);
+  if (b) {
+    b.rb.setTranslation({ x: start.x, y: PITCH.ballRadius, z: start.z }, true);
+    b.rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    b.rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    b.bs.owner = runner;
+    b.bs.lastKicker = null;
+    b.bs.passTarget = null;
+    b.bs.passHomingT = 0;
+    b.bs.passProtected = false;
+    b.bs.kickCooldown = 0;
+    b.bs.recaptureBlocks = [];
+  }
+
+  const ref = world.queryFirst(IsReferee);
+  if (ref) {
+    ref.get(Position)!.set(start.x - attackSign(humanTeam) * 7, 0, -15);
+    ref.get(Velocity)!.set(0, 0, 0);
+    ref.set(Heading, { angle: Math.atan2(attackSign(humanTeam), 0) });
+  }
+
+  const slot = humanSlotFor(humanTeam);
+  if (slot !== null) setSelected(world, runner, slot);
+  refState.ceremony = null;
+  refState.flagged.clear();
+  refState.practiceResetT = 0;
+  refState.tackleDrill = null;
+  refState.dribbleDrill = { runner, next: 1 };
+  store.setBanner("SUIS LES FLÈCHES !");
+  store.setOffsideLine(null);
+  store.setOffsidePlayer(null);
 }
 
 function stageTackleDrill(world: World): void {
@@ -1228,6 +1312,7 @@ function stageTackleDrill(world: World): void {
   refState.ceremony = null;
   refState.flagged.clear();
   refState.practiceResetT = 0;
+  refState.dribbleDrill = null;
   refState.tackleDrill = {
     runner,
     defender,
@@ -1286,6 +1371,7 @@ function stageOffsideDrill(world: World): void {
   if (slot !== null && runner) setSelected(world, runner, slot);
   refState.ceremony = null;
   refState.flagged.clear();
+  refState.dribbleDrill = null;
   refState.drillOffT = 0;
   refState.drillSafeT = 0;
   useStore.getState().setOffsideLine(lineX); // show the line to stay behind
@@ -1385,6 +1471,55 @@ function tackleDrillTick(world: World, dt: number): void {
   }
 }
 
+function dribbleDrillTick(world: World): void {
+  const drill = refState.dribbleDrill;
+  const store = useStore.getState();
+  if (!drill || !drill.runner?.isAlive()) {
+    stageDribbleDrill(world);
+    return;
+  }
+  const route = dribbleWaypoints(store.humanTeam);
+  const runner = drill.runner;
+  const runnerPos = runner.get(Position)!;
+  const b = ballOf(world);
+  if (!b) return;
+  const ballPos = b.rb.translation();
+  const ballDist = Math.hypot(ballPos.x - runnerPos.x, ballPos.z - runnerPos.z);
+  const hasBall = b.bs.owner === runner || ballDist < 1.8;
+
+  if (!hasBall && (ballDist > 4.5 || Math.abs(ballPos.x) > 54 || Math.abs(ballPos.z) > 35)) {
+    store.setBanner("GARDE LA BALLE !");
+    refState.practiceResetT = 1.1;
+    return;
+  }
+
+  const target = route[drill.next];
+  if (!target) {
+    crowdRoar();
+    store.addGoalQuiet(store.humanTeam);
+    store.setBanner("PARCOURS RÉUSSI !");
+    refState.practiceResetT = 1.8;
+    return;
+  }
+
+  const reach = drill.next === route.length - 1 ? 3.2 : 2.6;
+  if (Math.hypot(runnerPos.x - target.x, runnerPos.z - target.z) <= reach) {
+    drill.next += 1;
+    if (drill.next >= route.length) {
+      crowdRoar();
+      store.addGoalQuiet(store.humanTeam);
+      store.setBanner("PARCOURS RÉUSSI !");
+      refState.practiceResetT = 1.8;
+      return;
+    }
+    store.setBanner("BIEN !");
+    return;
+  }
+
+  if (!hasBall) store.setBanner("RATTRAPE LA BALLE !");
+  else store.setBanner("SUIS LES FLÈCHES !");
+}
+
 /** A drill offside resets the scenario instead of awarding a free kick. */
 export function practiceOffsideReset(): void {
   refState.practiceResetT = 1.2;
@@ -1412,6 +1547,10 @@ function practiceSystem(
   }
   if (store.practice === 6) {
     tackleDrillTick(world, dt);
+    return;
+  }
+  if (store.practice === 7) {
+    dribbleDrillTick(world);
     return;
   }
   const b = ballOf(world);

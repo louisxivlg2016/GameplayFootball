@@ -11,6 +11,16 @@ import goalButButUrl from "../assets/audio/goal-but-but.mp3";
 import { sharedAudioContext, sharedAudioOutput } from "./audio";
 
 let enabled = true;
+export const RADIO_STATE_EVENT = "gpf-radio-statechange";
+
+function dispatchRadioState(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<{ enabled: boolean }>(RADIO_STATE_EVENT, {
+      detail: { enabled },
+    }),
+  );
+}
 
 // ---- shared player for the neural engine ----
 // WebAudio playback: an HTMLAudioElement caps at volume 1.0 — the commentator
@@ -340,8 +350,10 @@ function warmupPiper(): void {
       sayWaiters.delete(msg.id);
     }
   };
-  // tom-medium: clean male French Piper voice (22kHz). WASM runtimes are
-  // served locally by serve.ts — third-party CDNs are blocked on some networks
+  // tom-medium: 44.1kHz French Piper voice from Hugging Face. The other free
+  // French Piper options we checked (siwis/upmc) stay at 22.05kHz, so tom
+  // remains the cleanest default here. WASM runtimes are served locally by
+  // serve.ts — third-party CDNs are blocked on some networks.
   piperWorker.postMessage({
     type: "init",
     voiceId: VOICE_ID,
@@ -463,6 +475,7 @@ export function radioReset(): void {
     piperState = "idle";
     warmupPiper(); // engine died/never started — bring it back for this match
   }
+  dispatchRadioState();
 }
 
 /** Is the commentator free to take a play-by-play line right now? */
@@ -499,6 +512,7 @@ export function toggleRadio(): boolean {
   } else {
     say("La radio du match est de retour à l'antenne !", 2);
   }
+  dispatchRadioState();
   return enabled;
 }
 
