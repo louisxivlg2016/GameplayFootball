@@ -224,6 +224,30 @@ let piperState: "idle" | "loading" | "ready" | "failed" = "idle";
 let sayId = 0;
 const sayWaiters = new Map<number, (wav: Blob | null) => void>();
 
+// A load that fails once (worker fetched mid server-restart, a transient HF
+// hiccup, a half-written OPFS cache) used to leave the radio silent for the
+// WHOLE page session — there was no retry. Now a failure self-heals: tear the
+// worker down and warm up again with a backoff, so the voice comes back on its
+// own within seconds instead of needing a manual hard-reload.
+let warmAttempts = 0;
+function scheduleWarmupRetry(why: string): void {
+  if (warmAttempts >= 6) return; // ~1 min of tries, then truly give up (offline)
+  warmAttempts++;
+  const delay = Math.min(2000 * warmAttempts, 12000);
+  console.info(`[radio] voice load failed (${why}) — retry ${warmAttempts}/6 in ${delay}ms`);
+  setTimeout(() => {
+    if (piperState !== "failed") return; // recovered some other way
+    try {
+      piperWorker?.terminate();
+    } catch {
+      /* already gone */
+    }
+    piperWorker = null;
+    piperState = "idle";
+    warmupPiper();
+  }, delay);
+}
+
 function warmupPiper(): void {
   if (piperState !== "idle") return;
   piperState = "loading";
@@ -234,12 +258,14 @@ function warmupPiper(): void {
     console.info("[radio] worker failed:", err);
     piperState = "failed";
     (globalThis as Record<string, unknown>).__radioEngine = "none";
+    scheduleWarmupRetry("worker construct");
     return;
   }
   piperWorker.onerror = (e) => {
     console.info("[radio] worker error:", e.message ?? e);
     piperState = "failed";
     (globalThis as Record<string, unknown>).__radioEngine = "none";
+    scheduleWarmupRetry("worker error");
   };
   piperWorker.onmessage = (e: MessageEvent) => {
     const msg = e.data as
@@ -249,6 +275,7 @@ function warmupPiper(): void {
       | { type: "sayError"; id: number };
     if (msg.type === "ready") {
       piperState = "ready";
+      warmAttempts = 0; // proven alive — reset the retry budget
       console.info("[radio] piper french voice on air (worker)");
       (globalThis as Record<string, unknown>).__radioEngine = "piper-fr";
       void removeVoice("fr_FR-gilles-low").catch(() => {});
@@ -258,6 +285,7 @@ function warmupPiper(): void {
       console.info("[radio] piper failed:", msg.error);
       piperState = "failed"; // offline or unsupported: the radio stays silent
       (globalThis as Record<string, unknown>).__radioEngine = "none";
+      scheduleWarmupRetry("session create"); // transient failures self-heal
       speakPending();
     } else if (msg.type === "wav") {
       sayWaiters.get(msg.id)?.(new Blob([msg.buf], { type: "audio/wav" }));
