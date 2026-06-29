@@ -228,23 +228,40 @@ const sayWaiters = new Map<number, (wav: Blob | null) => void>();
 // hiccup, a half-written OPFS cache) used to leave the radio silent for the
 // WHOLE page session — there was no retry. Now a failure self-heals: tear the
 // worker down and warm up again with a backoff, so the voice comes back on its
-// own within seconds instead of needing a manual hard-reload.
+// own without needing a manual hard-reload.
+//
+// The nastiest case is a CORRUPT OPFS cache — a model half-written by an
+// earlier interrupted download. Every load then throws the same way forever,
+// and a plain reload won't help because the bad bytes are still cached. So
+// once a couple of retries have failed we PURGE the cached voice from OPFS
+// before the next attempt: the model re-downloads clean and the radio heals
+// itself, with no "clear site data" needed from the user.
+const VOICE_ID = "fr_FR-tom-medium";
 let warmAttempts = 0;
 function scheduleWarmupRetry(why: string): void {
-  if (warmAttempts >= 6) return; // ~1 min of tries, then truly give up (offline)
+  if (warmAttempts >= 10) return; // a couple of minutes of tries, then give up
   warmAttempts++;
-  const delay = Math.min(2000 * warmAttempts, 12000);
-  console.info(`[radio] voice load failed (${why}) — retry ${warmAttempts}/6 in ${delay}ms`);
+  const delay = Math.min(1500 * warmAttempts, 10000);
+  // a model-load (session create) failure that survives the first couple of
+  // transient retries is most likely a corrupt cache — wipe it and re-fetch
+  const purge = why === "session create" && warmAttempts >= 2;
+  console.info(
+    `[radio] voice load failed (${why}) — retry ${warmAttempts}/10 in ${delay}ms${purge ? " (purging cached model)" : ""}`,
+  );
   setTimeout(() => {
     if (piperState !== "failed") return; // recovered some other way
-    try {
-      piperWorker?.terminate();
-    } catch {
-      /* already gone */
-    }
-    piperWorker = null;
-    piperState = "idle";
-    warmupPiper();
+    const restart = (): void => {
+      try {
+        piperWorker?.terminate();
+      } catch {
+        /* already gone */
+      }
+      piperWorker = null;
+      piperState = "idle";
+      warmupPiper();
+    };
+    if (purge) void removeVoice(VOICE_ID).catch(() => {}).finally(restart);
+    else restart();
   }, delay);
 }
 
@@ -299,7 +316,7 @@ function warmupPiper(): void {
   // served locally by serve.ts — third-party CDNs are blocked on some networks
   piperWorker.postMessage({
     type: "init",
-    voiceId: "fr_FR-tom-medium",
+    voiceId: VOICE_ID,
     wasmPaths: {
       onnxWasm: "/tts/onnx/",
       piperData: "/tts/piper_phonemize.data",
