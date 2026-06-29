@@ -19,6 +19,13 @@ let radioCtx: AudioContext | null = null;
 let radioOut: GainNode | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let playerBusy = false;
+// when the mic was taken / last made progress. If `onended` never fires (the
+// context was suspended mid-clip, a decode quirk, a lost event) the mic would
+// stay busy forever and the commentary would go permanently silent after a few
+// lines. The stuck-mic guard in takeMic steals it back once it's been held this
+// long with no progress, so the radio can never lock up for good.
+let playerBusyAt = 0;
+const MIC_STUCK_MS = 20000;
 let playerGen = 0;
 
 function ensureRadioCtx(): AudioContext {
@@ -114,6 +121,7 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
       }
     };
     src.start();
+    playerBusyAt = Date.now(); // real playback started — mic is making progress
     radioDebug.lastPlayAt = Date.now();
     radioDebug.ctxState = ctx.state;
   } catch (err) {
@@ -186,6 +194,7 @@ async function playGoalClip(): Promise<void> {
       }
     };
     src.start();
+    playerBusyAt = Date.now(); // real playback started — mic is making progress
     radioDebug.lastSay = "goal-but-but sample";
     radioDebug.lastSayAt = Date.now();
     radioDebug.lastPlayAt = Date.now();
@@ -201,9 +210,14 @@ function takeMic(priority: number): number | null {
     stopCurrent();
     queuedFlow = null; // a shout supersedes any pre-baked chatter
   } else if (playerBusy) {
-    return null;
+    // legitimately busy with a recent line — let it finish. But if the mic has
+    // been held far too long with no progress, it's wedged (a lost onended):
+    // steal it back so the commentary recovers instead of dying for good.
+    if (Date.now() - playerBusyAt < MIC_STUCK_MS) return null;
+    stopCurrent();
   }
   playerBusy = true;
+  playerBusyAt = Date.now();
   return ++playerGen;
 }
 
@@ -334,11 +348,30 @@ if (typeof window !== "undefined") warmupRadioVoice();
 if (typeof window !== "undefined") void fetchGoalClipBytes();
 
 let predictFails = 0;
-// once the worker has produced even one clip it is proven alive — after that a
-// slow synthesis is just slow (single-threaded WASM has no crossOriginIsolated
-// here), never a reason to terminate it. Killing a live-but-slow worker was an
-// infinite restart loop: cold-start, time out, respawn, cold-start again...
+// `workerEverSpoke` tightens the mic watchdog once the worker is warm (a cold
+// start can take ~15s; a warm sentence is a couple seconds).
 let workerEverSpoke = false;
+let lastWorkerReplyAt = 0; // when the worker last produced a real clip
+// bounded respawns: a worker that worked and then crashes/hangs (the "talks at
+// first, then goes silent" bug) gets restarted — but cap it so a genuinely
+// broken engine can't respawn forever.
+let workerRespawns = 0;
+
+function restartWorker(reason: string): void {
+  workerRespawns++;
+  workerEverSpoke = false; // the fresh worker is cold again — give it grace
+  predictFails = 0;
+  lastWorkerReplyAt = 0;
+  console.info(`[radio] voice worker ${reason} — restarting (#${workerRespawns})`);
+  try {
+    piperWorker?.terminate();
+  } catch {
+    /* already gone */
+  }
+  piperWorker = null;
+  piperState = "idle";
+  warmupPiper();
+}
 
 function piperPredict(text: string): Promise<Blob | null> {
   return new Promise((resolve) => {
@@ -355,26 +388,27 @@ function piperPredict(text: string): Promise<Blob | null> {
       if (wav) {
         predictFails = 0;
         workerEverSpoke = true;
-      } else if (!workerEverSpoke && ++predictFails >= 3) {
-        // it has never once spoken AND keeps timing out: genuinely broken
-        // (e.g. server bounce mid-fetch). A proven worker is never killed.
-        predictFails = 0;
-        console.info("[radio] worker never responded — restarting voice engine");
-        try {
-          piperWorker?.terminate();
-        } catch {
-          /* already gone */
-        }
-        piperWorker = null;
-        piperState = "idle";
-        warmupPiper();
+        lastWorkerReplyAt = Date.now();
+      } else if (workerRespawns < 8) {
+        // a timeout. Respawn ONLY on genuine death, not a transient stall:
+        //  - a once-healthy worker that has produced NOTHING for a sustained
+        //    stretch (40s) has crashed/hung — this is the "talks then goes
+        //    silent" bug. Time-based so a burst of concurrent timeouts hitting
+        //    one slow moment (radioFlow fires synths without awaiting) doesn't
+        //    trip a false restart.
+        //  - a worker that has NEVER spoken and keeps timing out (3x) never
+        //    started at all (server bounce mid-fetch); restart it cold.
+        const silentFor = workerEverSpoke ? Date.now() - lastWorkerReplyAt : 0;
+        if (workerEverSpoke && silentFor > 40000) restartWorker("went silent");
+        else if (!workerEverSpoke && ++predictFails >= 3) restartWorker("never responded");
       }
       resolve(wav);
     };
     sayWaiters.set(id, finish);
-    // a dead worker must never lock the mic forever — but single-threaded
-    // cold-start synthesis can take ~15s, so the watchdog is generous
-    setTimeout(() => finish(null), 30000);
+    // the watchdog frees the MIC so chatter never locks up; cold start can take
+    // ~15s so an unproven worker gets longer. Restart is decided separately,
+    // time-based, above.
+    setTimeout(() => finish(null), workerEverSpoke ? 18000 : 30000);
     piperWorker.postMessage({ type: "say", id, text });
   });
 }
