@@ -462,6 +462,15 @@ export function radioStatus(): RadioStatusKind {
   return "loading"; // idle / loading
 }
 
+/** Speak a test line on demand (HUD click). Wakes the context, un-mutes, and
+ *  forces an urgent line so it plays even if the mic was busy — a direct check
+ *  of whether sound actually reaches the speakers. */
+export function radioTest(): void {
+  resumeRadio();
+  enabled = true; // un-mute, else the test would be swallowed
+  say("Test de la radio du match. Un, deux, trois. Vous entendez ?", 2);
+}
+
 /** Force a clean reconnect of the voice engine (manual recovery from the HUD). */
 export function reconnectRadio(): void {
   warmAttempts = 0;

@@ -6,6 +6,7 @@ import {
   toggleRadio,
   reconnectRadio,
   resumeRadio,
+  radioTest,
   type RadioStatusKind,
 } from "../game/radio";
 
@@ -38,21 +39,22 @@ export function RadioStatus(): React.ReactNode {
 
   const onClick = (): void => {
     // the click is itself a user gesture — exactly what a parked context needs
-    if (status === "suspended") {
-      initAudio();
-      resumeAudio();
-      resumeRadio();
-    } else if (status === "live" || status === "muted") {
-      toggleRadio();
+    initAudio();
+    resumeAudio();
+    resumeRadio();
+    if (status === "live" || status === "suspended") {
+      radioTest(); // speak a test line now — proves whether sound reaches output
+    } else if (status === "muted") {
+      toggleRadio(); // un-mute
     } else {
-      reconnectRadio();
+      reconnectRadio(); // loading stuck / dead → force a fresh engine
     }
   };
 
   return (
     <button
       onClick={onClick}
-      title="Radio : cliquer pour couper / réactiver ou reconnecter (touche R)"
+      title="Cliquer pour tester le son de la radio / la réactiver (touche R pour couper)"
       style={{
         position: "fixed",
         top: "8px",
