@@ -440,60 +440,26 @@ export function radioEnabled(): boolean {
   return enabled;
 }
 
-export type RadioStatusKind =
-  | "loading"
-  | "live"
-  | "suspended"
-  | "reconnecting"
-  | "failed"
-  | "muted";
-/** Live state for the on-screen indicator. */
-export function radioStatus(): RadioStatusKind {
-  if (!enabled) return "muted";
-  if (piperState === "ready") {
-    // engine is up — but if the output AudioContext is parked (Chrome blocks
-    // WebAudio until a gesture; incognito re-parks it because it keeps no media
-    // engagement history) every clip plays into silence. Surface it so the user
-    // can tap to wake it instead of staring at a green "on air" with no sound.
-    if (radioCtx && radioCtx.state !== "running") return "suspended";
-    return "live";
-  }
-  if (piperState === "failed") return warmAttempts < 10 ? "reconnecting" : "failed";
-  return "loading"; // idle / loading
-}
-
-/** Speak a test line on demand (HUD click). Wakes the context, un-mutes, and
- *  forces an urgent line so it plays even if the mic was busy — a direct check
- *  of whether sound actually reaches the speakers. */
-export function radioTest(): void {
-  resumeRadio();
-  enabled = true; // un-mute, else the test would be swallowed
-  say("Test de la radio du match. Un, deux, trois. Vous entendez ?", 2);
-}
-
-/** Force a clean reconnect of the voice engine (manual recovery from the HUD). */
-export function reconnectRadio(): void {
-  warmAttempts = 0;
-  workerRespawns = 0;
-  predictFails = 0;
-  workerEverSpoke = false;
+/** Clean slate for a new match. The radio is a module singleton that outlives
+ *  the React match tree, so a mic left BUSY at the previous full-time (a clip
+ *  whose onended never landed once the mode flipped to menu, a half-spoken
+ *  buffered line) would carry over and start the new match silent. Reset the
+ *  player + queue, wake the context, and make sure the engine is warming. */
+export function radioReset(): void {
+  stopCurrent(); // frees currentSource + playerBusy
   playerBusy = false;
+  playerBusyAt = 0;
   queuedFlow = null;
   pendingText = null;
+  predictFails = 0;
+  playerGen++; // orphan any in-flight clip that resolves late
   resumeRadio();
-  // wipe a possibly-corrupt cached model, then warm up from scratch
-  void removeVoice(VOICE_ID)
-    .catch(() => {})
-    .finally(() => {
-      try {
-        piperWorker?.terminate();
-      } catch {
-        /* already gone */
-      }
-      piperWorker = null;
-      piperState = "idle";
-      warmupPiper();
-    });
+  if (piperState === "idle" || piperState === "failed") {
+    warmAttempts = 0;
+    workerRespawns = 0;
+    piperState = "idle";
+    warmupPiper(); // engine died/never started — bring it back for this match
+  }
 }
 
 /** Is the commentator free to take a play-by-play line right now? */
