@@ -8,7 +8,7 @@
  */
 import { remove as removeVoice } from "@mintplex-labs/piper-tts-web";
 import goalButButUrl from "../assets/audio/goal-but-but.mp3";
-import { sharedAudioContext } from "./audio";
+import { sharedAudioContext, sharedAudioOutput } from "./audio";
 
 let enabled = true;
 
@@ -46,7 +46,9 @@ function ensureRadioCtx(): AudioContext {
       comp.ratio.value = 10;
       comp.attack.value = 0.002;
       comp.release.value = 0.18;
-      comp.connect(radioCtx.destination);
+      const sharedOut = sharedAudioOutput();
+      if (sharedOut && sharedOut.context === radioCtx) comp.connect(sharedOut);
+      else comp.connect(radioCtx.destination);
       radioOut = radioCtx.createGain();
       radioOut.gain.value = 1;
       radioOut.connect(comp);
@@ -446,6 +448,7 @@ export function radioEnabled(): boolean {
  *  buffered line) would carry over and start the new match silent. Reset the
  *  player + queue, wake the context, and make sure the engine is warming. */
 export function radioReset(): void {
+  enabled = true; // a new match always re-enables the radio (R may have cut it)
   stopCurrent(); // frees currentSource + playerBusy
   playerBusy = false;
   playerBusyAt = 0;
