@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../game/store";
+import { initAudio, resumeAudio } from "../game/audio";
 import {
   radioStatus,
   toggleRadio,
   reconnectRadio,
+  resumeRadio,
   type RadioStatusKind,
 } from "../game/radio";
 
 const LABEL: Record<RadioStatusKind, { text: string; color: string }> = {
   live: { text: "📻 à l'antenne", color: "#39d27f" },
+  suspended: { text: "🔇 son en pause — cliquer", color: "#e0a93a" },
   loading: { text: "📻 chargement…", color: "#e0a93a" },
   reconnecting: { text: "📻 reconnexion…", color: "#e0a93a" },
   failed: { text: "📻 hors service — cliquer", color: "#e6584a" },
@@ -17,8 +20,9 @@ const LABEL: Record<RadioStatusKind, { text: string; color: string }> = {
 
 /**
  * Small radio state pill (top-left, in-match only). Diagnostic + control:
- * green = on air, amber = loading/reconnecting, red = dead, grey = muted.
- * Click: live → mute, muted → unmute, any problem state → force a reconnect.
+ * green = on air, amber = loading/reconnecting/sound-parked, red = dead,
+ * grey = muted. Click (a user gesture): suspended → wake the audio context,
+ * live → mute, muted → unmute, dead → force a reconnect.
  */
 export function RadioStatus(): React.ReactNode {
   const mode = useStore((s) => s.mode);
@@ -33,8 +37,16 @@ export function RadioStatus(): React.ReactNode {
   const { text, color } = LABEL[status];
 
   const onClick = (): void => {
-    if (status === "live" || status === "muted") toggleRadio();
-    else reconnectRadio();
+    // the click is itself a user gesture — exactly what a parked context needs
+    if (status === "suspended") {
+      initAudio();
+      resumeAudio();
+      resumeRadio();
+    } else if (status === "live" || status === "muted") {
+      toggleRadio();
+    } else {
+      reconnectRadio();
+    }
   };
 
   return (

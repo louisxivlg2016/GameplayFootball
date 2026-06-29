@@ -135,6 +135,18 @@ export function resumeRadio(): void {
   if (radioCtx && radioCtx.state !== "running") void radioCtx.resume();
 }
 
+// Safety net: a backgrounded tab suspends the AudioContext, and coming back
+// without a fresh click would leave the radio green-but-silent. Re-wake it
+// whenever the tab regains visibility/focus (sticky activation lets resume()
+// succeed without a new gesture once the user has interacted once).
+if (typeof window !== "undefined") {
+  const wake = (): void => resumeRadio();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") wake();
+  });
+  window.addEventListener("focus", wake);
+}
+
 /** Live diagnostics: inspect with __radioDebug in the console. */
 const radioDebug = {
   lastSay: "",
@@ -428,11 +440,24 @@ export function radioEnabled(): boolean {
   return enabled;
 }
 
-export type RadioStatusKind = "loading" | "live" | "reconnecting" | "failed" | "muted";
+export type RadioStatusKind =
+  | "loading"
+  | "live"
+  | "suspended"
+  | "reconnecting"
+  | "failed"
+  | "muted";
 /** Live state for the on-screen indicator. */
 export function radioStatus(): RadioStatusKind {
   if (!enabled) return "muted";
-  if (piperState === "ready") return "live";
+  if (piperState === "ready") {
+    // engine is up — but if the output AudioContext is parked (Chrome blocks
+    // WebAudio until a gesture; incognito re-parks it because it keeps no media
+    // engagement history) every clip plays into silence. Surface it so the user
+    // can tap to wake it instead of staring at a green "on air" with no sound.
+    if (radioCtx && radioCtx.state !== "running") return "suspended";
+    return "live";
+  }
   if (piperState === "failed") return warmAttempts < 10 ? "reconnecting" : "failed";
   return "loading"; // idle / loading
 }
