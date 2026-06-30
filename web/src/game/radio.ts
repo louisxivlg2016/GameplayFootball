@@ -53,9 +53,18 @@ function speechFallbackAvailable(): boolean {
 function preferredSpeechVoice(): SpeechSynthesisVoice | null {
   if (!speechFallbackAvailable()) return null;
   const voices = window.speechSynthesis.getVoices();
+  const scoreVoice = (voice: SpeechSynthesisVoice): number => {
+    const name = voice.name.toLowerCase();
+    let score = voice.lang.toLowerCase().startsWith("fr") ? 100 : 0;
+    if (/(thomas|daniel|nicolas|paul|vincent|antoine|xavier|alexandre|yann|julien)/i.test(name)) score += 40;
+    if (/(female|femme|woman|amelie|amélie|hortense|audrey|claire|julie|marie)/i.test(name)) score -= 60;
+    return score;
+  };
+  const ranked = voices
+    .filter((voice) => voice.lang.toLowerCase().startsWith("fr"))
+    .sort((a, b) => scoreVoice(b) - scoreVoice(a));
   return (
-    voices.find((voice) => voice.lang.toLowerCase().startsWith("fr") && /thomas|am[eé]lie|hortense/i.test(voice.name)) ??
-    voices.find((voice) => voice.lang.toLowerCase().startsWith("fr")) ??
+    ranked[0] ??
     null
   );
 }
@@ -237,7 +246,7 @@ function playSpeechFallback(text: string, gen: number, fx?: VoiceFx): void {
   if (voice) utterance.voice = voice;
   utterance.lang = voice?.lang || "fr-FR";
   utterance.rate = Math.max(0.8, Math.min(1.25, fx?.rate ?? 1));
-  utterance.pitch = 1;
+  utterance.pitch = 0.82;
   utterance.volume = audioMuted() ? 0 : Math.max(0.35, Math.min(1, fx?.volume ?? 1));
   utterance.onend = (): void => {
     if (token !== speechToken || gen !== playerGen) return;
@@ -422,6 +431,8 @@ const sayWaiters = new Map<number, (wav: Blob | null) => void>();
 // itself, with no "clear site data" needed from the user.
 const VOICE_ID = "fr_FR-tom-medium";
 let warmAttempts = 0;
+let piperLoadStartedAt = 0;
+const PIPER_FALLBACK_DELAY_MS = 12000;
 function scheduleWarmupRetry(why: string): void {
   if (warmAttempts >= 10) return; // a couple of minutes of tries, then give up
   warmAttempts++;
@@ -452,6 +463,7 @@ function scheduleWarmupRetry(why: string): void {
 function warmupPiper(): void {
   if (piperState !== "idle") return;
   piperState = "loading";
+  piperLoadStartedAt = Date.now();
   try {
     // pre-bundled by serve.ts — the dev HTML bundler can't bundle worker URLs
     piperWorker = new Worker("/tts/worker.js", { type: "module" });
@@ -634,7 +646,13 @@ export function radioIdle(): boolean {
 export function radioFlow(text: string): void {
   if (!enabled) return;
   if (piperState !== "ready") {
-    if (speechFallbackAvailable() && !playerBusy) say(text, 1);
+    if (
+      speechFallbackAvailable() &&
+      !playerBusy &&
+      (piperState === "failed" || Date.now() - piperLoadStartedAt > PIPER_FALLBACK_DELAY_MS)
+    ) {
+      say(text, 1);
+    }
     return;
   }
   const g = globalThis as Record<string, unknown>;
@@ -674,7 +692,10 @@ function say(text: string, priority = 1, fx?: VoiceFx): void {
     void sayPiper(text, priority, fx);
     return;
   }
-  if (speechFallbackAvailable()) {
+  if (
+    speechFallbackAvailable() &&
+    (piperState === "failed" || Date.now() - piperLoadStartedAt > PIPER_FALLBACK_DELAY_MS)
+  ) {
     const gen = takeMic(priority);
     if (gen !== null) playSpeechFallback(text, gen, fx);
     return;
