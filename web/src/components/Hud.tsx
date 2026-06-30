@@ -373,10 +373,10 @@ export function Hud(): React.ReactNode {
 
   const startMatch = (practiceId = 0): void => {
     ensureInteractiveAudio();
-    radio("opening");
     act().setLineupNames(lineupPlayerNames());
     act().setPractice(practiceId);
     act().newMatch();
+    radio("opening");
   };
 
   const replaceLineupSlot = (slotIndex: number, playerId: number): void => {

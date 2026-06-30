@@ -47,8 +47,8 @@ export function initInput(): void {
     } = useStore.getState();
     if (e.code === "Enter") {
       if (mode === "menu") {
-        radio("opening");
         newMatch();
+        radio("opening");
       }
       else if (mode === "pause") setMode("play");
     }
