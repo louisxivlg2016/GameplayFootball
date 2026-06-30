@@ -63,6 +63,9 @@ const en = {
   penaltyNote: "Face the keeper, dive",
   offside: "Offside",
   offsideNote: "Learn pass timing",
+  bannerOffside: "OFFSIDE!",
+  bannerOffsideMoveBack: "⚠ OFFSIDE - MOVE BACK",
+  bannerOnsideGood: "✓ ONSIDE - GOOD!",
   tackle: "Tackle",
   tackleNote: "If you stand still, the AI tackles and the referee may show a card",
   dribble: "Dribble",
@@ -155,6 +158,9 @@ const fr: TranslationTable = {
   penaltyNote: "Face au gardien, plongeon",
   offside: "Hors-jeu",
   offsideNote: "Apprendre le timing des passes",
+  bannerOffside: "HORS-JEU !",
+  bannerOffsideMoveBack: "⚠ HORS-JEU - RECULE",
+  bannerOnsideGood: "✓ PAS HORS-JEU - BIEN !",
   tackle: "Tacle",
   tackleNote: "Si tu restes immobile, l'IA te tacle et l'arbitre peut sortir un carton",
   dribble: "Dribble",
@@ -243,6 +249,9 @@ const es: TranslationTable = {
   penaltyNote: "Frente al portero, estirada",
   offside: "Fuera de juego",
   offsideNote: "Aprende el timing de los pases",
+  bannerOffside: "¡FUERA DE JUEGO!",
+  bannerOffsideMoveBack: "⚠ FUERA DE JUEGO - RETROCEDE",
+  bannerOnsideGood: "✓ EN JUEGO - ¡BIEN!",
   tackle: "Entrada",
   tackleNote: "Si te quedas quieto, la IA entra y el arbitro puede sacar tarjeta",
   dribble: "Regate",
@@ -325,6 +334,9 @@ const pt: TranslationTable = {
   penaltyNote: "Cara a cara com o goleiro, mergulho",
   offside: "Impedimento",
   offsideNote: "Aprende o tempo do passe",
+  bannerOffside: "IMPEDIMENTO!",
+  bannerOffsideMoveBack: "⚠ IMPEDIMENTO - RECUA",
+  bannerOnsideGood: "✓ POSICAO LEGAL - BOA!",
   tackle: "Carrinho",
   tackleNote: "Se ficares parado, a IA te da um carrinho e o arbitro pode mostrar cartao",
   changePlayer: "MUDAR JOGADOR?",
@@ -411,6 +423,9 @@ const de: TranslationTable = {
   penaltyNote: "Eins gegen den Torwart, Hechtsprung",
   offside: "Abseits",
   offsideNote: "Lerne das Pass-Timing",
+  bannerOffside: "ABSEITS!",
+  bannerOffsideMoveBack: "⚠ ABSEITS - ZURUCK",
+  bannerOnsideGood: "✓ KEIN ABSEITS - GUT!",
   tackle: "Tackling",
   tackleNote: "Wenn du stehen bleibst, tackelt die KI und der Schiedsrichter kann eine Karte zeigen",
   dribble: "Dribbling",
@@ -500,6 +515,9 @@ const nb: TranslationTable = {
   penaltyNote: "Mot keeperen, stup",
   offside: "Offside",
   offsideNote: "Lær pasningstiming",
+  bannerOffside: "OFFSIDE!",
+  bannerOffsideMoveBack: "⚠ OFFSIDE - TREKK DEG TILBAKE",
+  bannerOnsideGood: "✓ ONSIDE - BRA!",
   tackle: "Takling",
   tackleNote: "Hvis du står stille, takler AI-en og dommeren kan vise kort",
   dribble: "Dribling",
@@ -578,6 +596,9 @@ const it: TranslationTable = {
   penaltyNote: "Davanti al portiere, tuffo",
   offside: "Fuorigioco",
   offsideNote: "Impara il tempo del passaggio",
+  bannerOffside: "FUORIGIOCO!",
+  bannerOffsideMoveBack: "⚠ FUORIGIOCO - ARRETRA",
+  bannerOnsideGood: "✓ IN GIOCO - BENE!",
   tackle: "Contrasto",
   tackleNote: "Se resti fermo, la IA entra in tackle e l'arbitro puo mostrare un cartellino",
   changePlayer: "CAMBIA GIOCATORE?",
@@ -904,6 +925,9 @@ const ru: TranslationTable = {
   penaltyNote: "Лицом к вратарю, прыжок",
   offside: "Офсайд",
   offsideNote: "Изучи тайминг паса",
+  bannerOffside: "ОФСАЙД!",
+  bannerOffsideMoveBack: "⚠ ОФСАЙД - ОТОЙДИ НАЗАД",
+  bannerOnsideGood: "✓ БЕЗ ОФСАЙДА - ХОРОШО!",
   tackle: "Подкат",
   tackleNote: "Если стоишь на месте, ИИ подкатится, а судья может показать карточку",
   dribble: "Дриблинг",
@@ -1066,6 +1090,9 @@ const ar: TranslationTable = {
   penaltyNote: "امام الحارس، ارتماء",
   offside: "تسلل",
   offsideNote: "تعلم توقيت التمرير",
+  bannerOffside: "تسلل!",
+  bannerOffsideMoveBack: "⚠ تسلل - ارجع للخلف",
+  bannerOnsideGood: "✓ وضع سليم - جيد!",
   tackle: "تدخل",
   tackleNote: "اذا بقيت ساكنا، سيقوم الذكاء الاصطناعي بتدخل وقد يشهر الحكم بطاقة",
   changePlayer: "تغيير اللاعب؟",
@@ -1466,6 +1493,9 @@ const ja: TranslationTable = {
   penaltyNote: "キーパーと対面、ダイブ",
   offside: "オフサイド",
   offsideNote: "パスのタイミングを学ぶ",
+  bannerOffside: "オフサイド!",
+  bannerOffsideMoveBack: "⚠ オフサイド - 下がれ",
+  bannerOnsideGood: "✓ オンサイド - いいぞ!",
   tackle: "タックル",
   tackleNote: "立ち止まると AI がタックルし、主審がカードを出すことがある",
   changePlayer: "選手を変更?",
@@ -1546,6 +1576,9 @@ const ko: TranslationTable = {
   penaltyNote: "골키퍼와 일대일, 다이빙",
   offside: "오프사이드",
   offsideNote: "패스 타이밍을 익히세요",
+  bannerOffside: "오프사이드!",
+  bannerOffsideMoveBack: "⚠ 오프사이드 - 뒤로 물러서",
+  bannerOnsideGood: "✓ 온사이드 - 좋아!",
   tackle: "태클",
   tackleNote: "가만히 있으면 AI가 태클하고 심판이 카드를 줄 수 있습니다",
   changePlayer: "선수 변경?",
@@ -1626,6 +1659,9 @@ const zhCN: TranslationTable = {
   penaltyNote: "面对门将，扑救",
   offside: "越位",
   offsideNote: "学习传球时机",
+  bannerOffside: "越位！",
+  bannerOffsideMoveBack: "⚠ 越位 - 往后退",
+  bannerOnsideGood: "✓ 不越位 - 很好！",
   tackle: "铲球",
   tackleNote: "如果你站着不动，AI 会铲球，裁判可能出牌",
   changePlayer: "更换球员？",
@@ -1706,6 +1742,9 @@ const zhTW: TranslationTable = {
   penaltyNote: "面對門將，撲救",
   offside: "越位",
   offsideNote: "學習傳球時機",
+  bannerOffside: "越位！",
+  bannerOffsideMoveBack: "⚠ 越位 - 往後退",
+  bannerOnsideGood: "✓ 沒越位 - 很好！",
   tackle: "鏟球",
   tackleNote: "如果你站著不動，AI 會鏟球，裁判可能出牌",
   changePlayer: "更換球員？",
@@ -1813,6 +1852,22 @@ export function translate(
   vars?: Record<string, string | number>,
 ): string {
   return formatMessage(translations[language][key] ?? en[key], vars);
+}
+
+function normalizeBanner(text: string): string {
+  return text.replaceAll("—", "-").replace(/\s+/g, " ").trim();
+}
+
+const bannerKeys: Partial<Record<string, TranslationKey>> = {
+  "HORS-JEU": "bannerOffside",
+  "HORS-JEU !": "bannerOffside",
+  "⚠ HORS-JEU - RECULE": "bannerOffsideMoveBack",
+  "✓ ONSIDE - BIEN !": "bannerOnsideGood",
+};
+
+export function translateBannerMessage(language: AppLanguage, text: string): string {
+  const key = bannerKeys[normalizeBanner(text)];
+  return key ? translate(language, key) : text;
 }
 
 export function translatePhaseLabel(language: AppLanguage, phaseLabel: string): string {
