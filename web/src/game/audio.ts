@@ -38,6 +38,7 @@ const audioDebug = (g.__gpfAudioDebug ??= {
   lastResumeAt: 0,
   lastError: "",
 });
+let lastPrimeAt = 0;
 
 function applyMuteState(): void {
   if (!ctx || !masterGain) return;
@@ -102,6 +103,29 @@ export function resumeAudio(): void {
     .catch((err: unknown) => {
       audioDebug.lastError = String(err);
     });
+}
+
+export function primeAudioOutput(): void {
+  initAudio();
+  resumeAudio();
+  if (!ctx || !masterGain) return;
+  const now = Date.now();
+  if (now - lastPrimeAt < 800) return;
+  lastPrimeAt = now;
+  try {
+    const t = ctx.currentTime + 0.001;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, t);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.00001, t + 0.03);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t);
+    osc.stop(t + 0.03);
+  } catch (err) {
+    audioDebug.lastError = String(err);
+  }
 }
 
 export function initAudio(): void {

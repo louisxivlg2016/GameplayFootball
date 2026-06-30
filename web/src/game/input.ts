@@ -1,6 +1,6 @@
 import { useStore } from "./store";
-import { initAudio, resumeAudio } from "./audio";
-import { resumeRadio, toggleRadio, warmupRadioVoice } from "./radio";
+import { initAudio, primeAudioOutput, resumeAudio } from "./audio";
+import { radio, resumeRadio, toggleRadio, warmupRadioVoice } from "./radio";
 
 const held = new Set<string>();
 const pressed = new Set<string>();
@@ -19,6 +19,7 @@ const MOVE_KEYS = new Set([
 function unlockAudio(): void {
   initAudio();
   resumeAudio();
+  primeAudioOutput();
   warmupRadioVoice();
   resumeRadio();
 }
@@ -45,7 +46,10 @@ export function initInput(): void {
       cyclePractice,
     } = useStore.getState();
     if (e.code === "Enter") {
-      if (mode === "menu") newMatch();
+      if (mode === "menu") {
+        radio("opening");
+        newMatch();
+      }
       else if (mode === "pause") setMode("play");
     }
     if (e.code === "KeyM" && mode === "menu") toggleImportant();

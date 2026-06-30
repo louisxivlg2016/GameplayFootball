@@ -4,8 +4,8 @@ import { TouchControls } from "./TouchControls";
 import { DragShoot, KeeperArrows, humanSetPieceActive } from "./DragShoot";
 import { world } from "../game/world";
 import { skipCinematic } from "../game/systems/cinematic";
-import { audioMuted, initAudio, resumeAudio, setAudioMuted } from "../game/audio";
-import { RADIO_STATE_EVENT, radioEnabled, resumeRadio, toggleRadio, warmupRadioVoice } from "../game/radio";
+import { audioMuted, initAudio, primeAudioOutput, resumeAudio, setAudioMuted } from "../game/audio";
+import { RADIO_STATE_EVENT, radio, radioEnabled, resumeRadio, toggleRadio, warmupRadioVoice } from "../game/radio";
 import playButtonUrl from "../assets/play-button.png";
 import trainingButtonUrl from "../assets/training-button.png";
 import worldCupButtonUrl from "../assets/worldcup-button.png";
@@ -24,7 +24,13 @@ import menuThemeArUrl from "../assets/audio/menu-theme-ar.mp4";
 import menuThemeItUrl from "../assets/audio/menu-theme-it.mp4";
 import menuThemePtUrl from "../assets/audio/menu-theme-pt.mp4";
 import menuThemeZhUrl from "../assets/audio/menu-theme-zh.mp4";
-import { LANGUAGE_OPTIONS, translatePhaseLabel, useI18n, type AppLanguage } from "../i18n";
+import {
+  LANGUAGE_OPTIONS,
+  translateBannerMessage,
+  translatePhaseLabel,
+  useI18n,
+  type AppLanguage,
+} from "../i18n";
 
 const act = () => useStore.getState();
 const MENU_THEME_BY_LANGUAGE: Partial<Record<AppLanguage, string>> = {
@@ -226,6 +232,7 @@ const wikiPhotoCache = new Map<string, string>();
 function ensureInteractiveAudio(): void {
   initAudio();
   resumeAudio();
+  primeAudioOutput();
   warmupRadioVoice();
   resumeRadio();
 }
@@ -291,6 +298,7 @@ export function Hud(): React.ReactNode {
   const mm = String(Math.floor(clock / 60)).padStart(2, "0");
   const ss = String(clock % 60).padStart(2, "0");
   const translatedPhase = translatePhaseLabel(language, phaseLabel);
+  const translatedBanner = translateBannerMessage(language, banner);
   const menuThemeSrc = MENU_THEME_BY_LANGUAGE[language] ?? menuThemeUrl;
   const menuMusicActive =
     mode === "menu" &&
@@ -365,6 +373,7 @@ export function Hud(): React.ReactNode {
 
   const startMatch = (practiceId = 0): void => {
     ensureInteractiveAudio();
+    radio("opening");
     act().setLineupNames(lineupPlayerNames());
     act().setPractice(practiceId);
     act().newMatch();
@@ -546,7 +555,7 @@ export function Hud(): React.ReactNode {
       {mode === "goal" && <div className="banner">GOAL!</div>}
       {banner && mode !== "goal" && (
         <div className="banner" style={{ fontSize: 40, letterSpacing: 3 }}>
-          {banner}
+          {translatedBanner}
         </div>
       )}
       {mode === "pause" && (

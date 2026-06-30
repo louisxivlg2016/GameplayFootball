@@ -38,6 +38,7 @@ let playerBusyAt = 0;
 const MIC_STUCK_MS = 20000;
 let playerGen = 0;
 let speechToken = 0;
+let lastOpeningAt = 0;
 
 function speechFallbackAvailable(): boolean {
   return (
@@ -659,6 +660,8 @@ export function radio(
   const target = info.target ?? "";
   switch (event) {
     case "opening":
+      if (Date.now() - lastOpeningAt < 4500) break;
+      lastOpeningAt = Date.now();
       say(
         pick([
           "Bienvenue à toutes et à tous ! Aujourd'hui, nous allons assister à un match passionnant !",
