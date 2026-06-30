@@ -1,6 +1,6 @@
 /**
  * Radio commentary: a French play-by-play voice. Piper neural TTS
- * (fr_FR-siwis-medium) synthesized in a Web Worker, WASM runtimes self-hosted
+ * (fr_FR-tom-medium) synthesized in a Web Worker, WASM runtimes self-hosted
  * by serve.ts. There is deliberately NO robotic fallback: if the neural voice
  * cannot load, the radio stays silent (see console [radio] lines for why).
  * Urgent events (goals, cards) interrupt; chatter only plays when the
@@ -420,7 +420,7 @@ const sayWaiters = new Map<number, (wav: Blob | null) => void>();
 // once a couple of retries have failed we PURGE the cached voice from OPFS
 // before the next attempt: the model re-downloads clean and the radio heals
 // itself, with no "clear site data" needed from the user.
-const VOICE_ID = "fr_FR-siwis-medium";
+const VOICE_ID = "fr_FR-tom-medium";
 let warmAttempts = 0;
 function scheduleWarmupRetry(why: string): void {
   if (warmAttempts >= 10) return; // a couple of minutes of tries, then give up
@@ -480,7 +480,7 @@ function warmupPiper(): void {
       console.info("[radio] piper french voice on air (worker)");
       (globalThis as Record<string, unknown>).__radioEngine = "piper-fr";
       void removeVoice("fr_FR-gilles-low").catch(() => {});
-      void removeVoice("fr_FR-tom-medium").catch(() => {});
+      void removeVoice("fr_FR-siwis-medium").catch(() => {});
       void removeVoice("fr_FR-upmc-medium").catch(() => {});
       speakPending();
     } else if (msg.type === "error") {
@@ -497,9 +497,8 @@ function warmupPiper(): void {
       sayWaiters.delete(msg.id);
     }
   };
-  // siwis-medium tends to read softer and more naturally than tom in French.
-  // WASM runtimes are served locally by serve.ts — third-party CDNs are
-  // blocked on some networks.
+  // tom-medium remains the safest French Piper choice here. WASM runtimes are
+  // served locally by serve.ts — third-party CDNs are blocked on some networks.
   piperWorker.postMessage({
     type: "init",
     voiceId: VOICE_ID,
