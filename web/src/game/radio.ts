@@ -28,6 +28,8 @@ function dispatchRadioState(): void {
 let radioCtx: AudioContext | null = null;
 let radioOut: GainNode | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
+let currentAudioEl: HTMLAudioElement | null = null;
+let currentAudioUrl: string | null = null;
 let playerBusy = false;
 // when the mic was taken / last made progress. If `onended` never fires (the
 // context was suspended mid-clip, a decode quirk, a lost event) the mic would
@@ -99,6 +101,25 @@ function ensureRadioCtx(): AudioContext {
   return radioCtx;
 }
 
+function clearCurrentAudioElement(): void {
+  if (currentAudioEl) {
+    currentAudioEl.onended = null;
+    currentAudioEl.onerror = null;
+    try {
+      currentAudioEl.pause();
+      currentAudioEl.removeAttribute("src");
+      currentAudioEl.load();
+    } catch {
+      /* already gone */
+    }
+    currentAudioEl = null;
+  }
+  if (currentAudioUrl) {
+    URL.revokeObjectURL(currentAudioUrl);
+    currentAudioUrl = null;
+  }
+}
+
 function stopCurrent(): void {
   try {
     currentSource?.stop();
@@ -106,6 +127,7 @@ function stopCurrent(): void {
     /* already stopped */
   }
   stopSpeechFallback();
+  clearCurrentAudioElement();
   currentSource = null;
   playerBusy = false;
 }
@@ -134,6 +156,35 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
     return;
   }
   try {
+    // Mobile browsers are much more reliable with HTMLMediaElement than with
+    // WebAudio for spoken clips, so prefer this path first.
+    if (typeof Audio !== "undefined") {
+      clearCurrentAudioElement();
+      const url = URL.createObjectURL(wav);
+      const audio = new Audio(url);
+      currentAudioEl = audio;
+      currentAudioUrl = url;
+      audio.preload = "auto";
+      audio.setAttribute("playsinline", "true");
+      audio.playbackRate = fx?.rate ?? 1;
+      audio.volume = audioMuted() ? 0 : Math.max(0.4, Math.min(1, (fx?.volume ?? 1) * 0.95));
+      audio.onended = (): void => {
+        if (currentAudioEl !== audio) return;
+        clearCurrentAudioElement();
+        playerBusy = false;
+        playQueuedFlow();
+      };
+      audio.onerror = (): void => {
+        if (currentAudioEl !== audio) return;
+        clearCurrentAudioElement();
+        playerBusy = false;
+      };
+      await audio.play();
+      playerBusyAt = Date.now();
+      radioDebug.lastPlayAt = Date.now();
+      radioDebug.ctxState = "media";
+      return;
+    }
     const ctx = ensureRadioCtx();
     const pcm = await ctx.decodeAudioData(await wav.arrayBuffer());
     if (gen !== playerGen) return;
@@ -266,6 +317,33 @@ async function playGoalClip(): Promise<void> {
   const gen = takeMic(3);
   if (gen === null) return;
   try {
+    if (typeof Audio !== "undefined") {
+      clearCurrentAudioElement();
+      const audio = new Audio(goalButButUrl);
+      currentAudioEl = audio;
+      currentAudioUrl = null;
+      audio.preload = "auto";
+      audio.setAttribute("playsinline", "true");
+      audio.volume = audioMuted() ? 0 : 1;
+      audio.onended = (): void => {
+        if (currentAudioEl !== audio) return;
+        clearCurrentAudioElement();
+        playerBusy = false;
+        playQueuedFlow();
+      };
+      audio.onerror = (): void => {
+        if (currentAudioEl !== audio) return;
+        clearCurrentAudioElement();
+        playerBusy = false;
+      };
+      await audio.play();
+      playerBusyAt = Date.now();
+      radioDebug.lastSay = "goal-but-but sample";
+      radioDebug.lastSayAt = Date.now();
+      radioDebug.lastPlayAt = Date.now();
+      radioDebug.ctxState = "media";
+      return;
+    }
     const ctx = ensureRadioCtx();
     const pcm = await loadGoalClip(ctx);
     if (!pcm || gen !== playerGen || !enabled) {
