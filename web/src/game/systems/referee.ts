@@ -764,7 +764,7 @@ export function refereeSystem(world: World, dt: number): void {
       store.setPhaseLabel("ENTR.");
       placePractice(world);
     } else {
-      radio("kickoff", { team: refState.firstKickoff }); // opening whistle call
+      radio("opening", { team: refState.firstKickoff });
     }
   }
 

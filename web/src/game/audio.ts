@@ -147,7 +147,7 @@ export function initAudio(): void {
   masterGain.gain.value = muted ? 0 : 1;
   masterGain.connect(ctx.destination);
   crowdGain = ctx.createGain();
-  crowdGain.gain.value = 0.035; // under the radio voice
+  crowdGain.gain.value = 0.07; // audible on phone speakers, still under the radio
   src.connect(filter).connect(crowdGain).connect(masterGain);
   src.start();
   g.__gpfAudio = { ctx, crowdGain, masterGain, muted };
@@ -230,7 +230,7 @@ export function setTension(on: boolean): void {
     const t = ctx.currentTime;
     crowdGain.gain.cancelScheduledValues(t);
     crowdGain.gain.setValueAtTime(crowdGain.gain.value, t);
-    crowdGain.gain.linearRampToValueAtTime(on ? 0.01 : 0.035, t + 0.8);
+    crowdGain.gain.linearRampToValueAtTime(on ? 0.018 : 0.07, t + 0.8);
   }
   if (on && heartbeatTimer === null) {
     const beat = (): void => {
@@ -255,5 +255,5 @@ export function crowdRoar(): void {
   crowdGain.gain.cancelScheduledValues(t);
   crowdGain.gain.setValueAtTime(crowdGain.gain.value, t);
   crowdGain.gain.linearRampToValueAtTime(0.35, t + 0.4);
-  crowdGain.gain.exponentialRampToValueAtTime(0.05, t + 4);
+  crowdGain.gain.exponentialRampToValueAtTime(0.09, t + 4);
 }

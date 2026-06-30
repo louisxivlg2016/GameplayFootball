@@ -21,6 +21,8 @@ const pick = (lines: string[]): string =>
 
 let gap = 0; // breathing time between lines, counts only while the mic is idle
 let lastKind = "";
+let commentaryGen = -1;
+let openingBurst = false;
 
 /**
  * Continuous play-by-play: whenever the commentator is free, describe what is
@@ -28,12 +30,20 @@ let lastKind = "";
  */
 export function commentarySystem(world: World, dt: number): void {
   if (refState.ceremony || refState.ended) return;
+  const gen = useStore.getState().gen;
+  if (gen !== commentaryGen) {
+    commentaryGen = gen;
+    gap = 0.1;
+    lastKind = "";
+    openingBurst = true;
+  }
 
   gap -= dt;
   if (gap > 0) return;
   // radioFlow pre-synthesizes while the mic is busy, chaining without dead air.
   // a short breath keeps the commentator nearly constant without overlapping
-  gap = 0.8 + Math.random() * 1.2;
+  gap = openingBurst ? 0.3 + Math.random() * 0.35 : 0.55 + Math.random() * 0.75;
+  openingBurst = refState.clock < 14;
 
   const ball = world.queryFirst(IsBall);
   const rb = ball?.get(BallRef)?.value;

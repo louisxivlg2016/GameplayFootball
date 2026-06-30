@@ -4,8 +4,8 @@ import { TouchControls } from "./TouchControls";
 import { DragShoot, KeeperArrows, humanSetPieceActive } from "./DragShoot";
 import { world } from "../game/world";
 import { skipCinematic } from "../game/systems/cinematic";
-import { audioMuted, setAudioMuted } from "../game/audio";
-import { RADIO_STATE_EVENT, radioEnabled, toggleRadio } from "../game/radio";
+import { audioMuted, initAudio, resumeAudio, setAudioMuted } from "../game/audio";
+import { RADIO_STATE_EVENT, radioEnabled, resumeRadio, toggleRadio, warmupRadioVoice } from "../game/radio";
 import playButtonUrl from "../assets/play-button.png";
 import trainingButtonUrl from "../assets/training-button.png";
 import worldCupButtonUrl from "../assets/worldcup-button.png";
@@ -223,6 +223,13 @@ function playerInitials(name: string): string {
 
 const wikiPhotoCache = new Map<string, string>();
 
+function ensureInteractiveAudio(): void {
+  initAudio();
+  resumeAudio();
+  warmupRadioVoice();
+  resumeRadio();
+}
+
 function PlayerHead({ name, photoUrl = "" }: { name: string; photoUrl?: string }): React.ReactNode {
   const [photo, setPhoto] = useState(photoUrl || wikiPhotoCache.get(name) || "");
 
@@ -357,6 +364,7 @@ export function Hud(): React.ReactNode {
   };
 
   const startMatch = (practiceId = 0): void => {
+    ensureInteractiveAudio();
     act().setLineupNames(lineupPlayerNames());
     act().setPractice(practiceId);
     act().newMatch();
@@ -581,7 +589,7 @@ export function Hud(): React.ReactNode {
                 variant="menu"
                 longLabel
               />
-              <LanguagePicker language={language} onChange={setLanguage} />
+              {menuTab === "home" && <LanguagePicker language={language} onChange={setLanguage} />}
             </div>
             {languagePromptOpen && (
               <LanguagePrompt

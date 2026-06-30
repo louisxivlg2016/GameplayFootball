@@ -686,6 +686,7 @@
         padding: 24px;
         background: rgba(3, 7, 5, 0.58);
         backdrop-filter: blur(7px);
+        pointer-events: none;
       }
       .menu-language-modal {
         width: min(460px, calc(100vw - 48px));
@@ -697,6 +698,7 @@
         border: 2px solid rgba(255, 255, 255, 0.18);
         border-radius: 10px;
         box-shadow: 0 24px 44px rgba(0, 0, 0, 0.38);
+        pointer-events: auto;
       }
       .menu-language-modal span {
         color: #ffe94a;
@@ -1419,9 +1421,13 @@
           gap: 10px;
         }
         .menu-top-tools {
-          top: 14px;
-          right: 14px;
+          position: static;
+          width: 100%;
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: flex-end;
           gap: 8px;
+          margin-bottom: 12px;
         }
         .menu-language-picker select {
           min-width: 150px;
@@ -1458,6 +1464,36 @@
         .menu-panel-head,
         .fixture-row {
           grid-template-columns: 1fr;
+        }
+        .lineup-top {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .lineup-start {
+          width: 100%;
+        }
+        .lineup-layout {
+          grid-template-columns: 1fr;
+        }
+        .lineup-pitch {
+          min-height: 380px;
+        }
+        .lineup-bench {
+          max-height: 34vh;
+        }
+        .player-card {
+          width: 72px;
+          min-height: 90px;
+        }
+        .player-card strong {
+          font-size: 15px;
+        }
+        .player-card span {
+          margin-top: -18px;
+          font-size: 9px;
+        }
+        .player-card b {
+          font-size: 9px;
         }
         .menu-panel-head {
           align-items: flex-start;

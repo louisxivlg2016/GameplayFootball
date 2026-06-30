@@ -8,7 +8,7 @@
  */
 import { remove as removeVoice } from "@mintplex-labs/piper-tts-web";
 import goalButButUrl from "../assets/audio/goal-but-but.mp3";
-import { sharedAudioContext, sharedAudioOutput } from "./audio";
+import { audioMuted, sharedAudioContext, sharedAudioOutput } from "./audio";
 
 let enabled = true;
 export const RADIO_STATE_EVENT = "gpf-radio-statechange";
@@ -37,6 +37,35 @@ let playerBusy = false;
 let playerBusyAt = 0;
 const MIC_STUCK_MS = 20000;
 let playerGen = 0;
+let speechToken = 0;
+
+function speechFallbackAvailable(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.speechSynthesis !== "undefined" &&
+    typeof SpeechSynthesisUtterance !== "undefined"
+  );
+}
+
+function preferredSpeechVoice(): SpeechSynthesisVoice | null {
+  if (!speechFallbackAvailable()) return null;
+  const voices = window.speechSynthesis.getVoices();
+  return (
+    voices.find((voice) => voice.lang.toLowerCase().startsWith("fr") && /thomas|am[eé]lie|hortense/i.test(voice.name)) ??
+    voices.find((voice) => voice.lang.toLowerCase().startsWith("fr")) ??
+    null
+  );
+}
+
+function stopSpeechFallback(): void {
+  if (!speechFallbackAvailable()) return;
+  speechToken++;
+  try {
+    window.speechSynthesis.cancel();
+  } catch {
+    /* no-op */
+  }
+}
 
 function ensureRadioCtx(): AudioContext {
   if (!radioCtx) {
@@ -75,6 +104,7 @@ function stopCurrent(): void {
   } catch {
     /* already stopped */
   }
+  stopSpeechFallback();
   currentSource = null;
   playerBusy = false;
 }
@@ -136,6 +166,43 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
     playerBusyAt = Date.now(); // real playback started — mic is making progress
     radioDebug.lastPlayAt = Date.now();
     radioDebug.ctxState = ctx.state;
+  } catch (err) {
+    radioDebug.lastError = String(err);
+    if (gen === playerGen) playerBusy = false;
+  }
+}
+
+function playSpeechFallback(text: string, gen: number, fx?: VoiceFx): void {
+  if (gen !== playerGen) return;
+  if (!enabled || !speechFallbackAvailable()) {
+    playerBusy = false;
+    return;
+  }
+  const synth = window.speechSynthesis;
+  const token = ++speechToken;
+  const utterance = new SpeechSynthesisUtterance(text);
+  const voice = preferredSpeechVoice();
+  if (voice) utterance.voice = voice;
+  utterance.lang = voice?.lang || "fr-FR";
+  utterance.rate = Math.max(0.8, Math.min(1.25, fx?.rate ?? 1));
+  utterance.pitch = 1;
+  utterance.volume = audioMuted() ? 0 : Math.max(0.35, Math.min(1, fx?.volume ?? 1));
+  utterance.onend = (): void => {
+    if (token !== speechToken || gen !== playerGen) return;
+    playerBusy = false;
+    playQueuedFlow();
+  };
+  utterance.onerror = (): void => {
+    if (token !== speechToken || gen !== playerGen) return;
+    playerBusy = false;
+  };
+  try {
+    synth.cancel();
+    synth.speak(utterance);
+    playerBusyAt = Date.now();
+    radioDebug.lastPlayAt = Date.now();
+    radioDebug.ctxState = "speech";
+    (globalThis as Record<string, unknown>).__radioEngine = "speech-fr";
   } catch (err) {
     radioDebug.lastError = String(err);
     if (gen === playerGen) playerBusy = false;
@@ -481,13 +548,17 @@ export function radioReset(): void {
 /** Is the commentator free to take a play-by-play line right now? */
 export function radioIdle(): boolean {
   if (!enabled) return false;
-  return piperState === "ready" && !playerBusy;
+  return (piperState === "ready" || speechFallbackAvailable()) && !playerBusy;
 }
 
 /** Continuous play-by-play line. If the mic is busy, the line is synthesized
  *  right away (the worker is free while audio plays) and chained next. */
 export function radioFlow(text: string): void {
-  if (!enabled || piperState !== "ready") return;
+  if (!enabled) return;
+  if (piperState !== "ready") {
+    if (speechFallbackAvailable() && !playerBusy) say(text, 1);
+    return;
+  }
   const g = globalThis as Record<string, unknown>;
   g.__radioLines = ((g.__radioLines as number) ?? 0) + 1;
   if (!playerBusy) {
@@ -525,6 +596,11 @@ function say(text: string, priority = 1, fx?: VoiceFx): void {
     void sayPiper(text, priority, fx);
     return;
   }
+  if (speechFallbackAvailable()) {
+    const gen = takeMic(priority);
+    if (gen !== null) playSpeechFallback(text, gen, fx);
+    return;
+  }
   // still loading: hold the latest urgent line for the good voice
   if (piperState === "loading" && priority >= 2) {
     pendingText = text;
@@ -545,6 +621,7 @@ export const teamName = (id: number): string =>
   id === 0 ? "les Rouges" : "les Bleus";
 
 export type RadioEvent =
+  | "opening"
   | "kickoff"
   | "goal"
   | "foul"
@@ -581,6 +658,16 @@ export function radio(
   const player = info.player ?? "";
   const target = info.target ?? "";
   switch (event) {
+    case "opening":
+      say(
+        pick([
+          "Bienvenue à toutes et à tous ! Aujourd'hui, nous allons assister à un match passionnant !",
+          "Bonjour à toutes et à tous ! Installez-vous bien, ce match s'annonce passionnant !",
+          "Bienvenue en direct du stade ! Aujourd'hui, on vous promet une rencontre passionnante !",
+        ]),
+        2,
+      );
+      break;
     case "kickoff":
       say(
         pick([
