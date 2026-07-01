@@ -24,6 +24,10 @@ import menuThemeArUrl from "../assets/audio/menu-theme-ar.mp4";
 import menuThemeItUrl from "../assets/audio/menu-theme-it.mp4";
 import menuThemePtUrl from "../assets/audio/menu-theme-pt.mp4";
 import menuThemeZhUrl from "../assets/audio/menu-theme-zh.mp4";
+import menuThemeJaUrl from "../assets/audio/menu-theme-ja.mp4";
+import menuThemeGaUrl from "../assets/audio/menu-theme-ga.mp4";
+import menuThemeNlUrl from "../assets/audio/menu-theme-nl.mp4";
+import menuThemeHrUrl from "../assets/audio/menu-theme-hr.mp4";
 import {
   LANGUAGE_OPTIONS,
   translateBannerMessage,
@@ -42,6 +46,10 @@ const MENU_THEME_BY_LANGUAGE: Partial<Record<AppLanguage, string>> = {
   ar: menuThemeArUrl,
   it: menuThemeItUrl,
   pt: menuThemePtUrl,
+  ga: menuThemeGaUrl,
+  nl: menuThemeNlUrl,
+  hr: menuThemeHrUrl,
+  ja: menuThemeJaUrl,
   "zh-CN": menuThemeZhUrl,
   "zh-TW": menuThemeZhUrl,
 };

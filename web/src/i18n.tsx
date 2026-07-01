@@ -632,6 +632,14 @@ const it: TranslationTable = {
   phasePractice: "ALL.",
 };
 
+const ga: TranslationTable = {
+  language: "Teanga",
+  play: "Imir",
+  training: "Traenail",
+  worldCup: "Corn an Domhain",
+  offside: "Luiofsaid",
+};
+
 const nl: TranslationTable = {
   language: "Taal",
   back: "Terug",
@@ -710,6 +718,14 @@ const nl: TranslationTable = {
   phaseEt2: "VT2",
   phasePens: "PEN",
   phasePractice: "TRAI.",
+};
+
+const hr: TranslationTable = {
+  language: "Jezik",
+  play: "Igraj",
+  training: "Trening",
+  worldCup: "Svjetsko prvenstvo",
+  offside: "Zaledje",
 };
 
 const pl: TranslationTable = {
@@ -1786,7 +1802,9 @@ const translations = {
   de,
   nb,
   it,
+  ga,
   nl,
+  hr,
   pl,
   tr,
   ru,
@@ -1812,7 +1830,9 @@ export const LANGUAGE_OPTIONS: Array<{ code: AppLanguage; label: string }> = [
   { code: "de", label: "Deutsch" },
   { code: "nb", label: "Norsk" },
   { code: "it", label: "Italiano" },
+  { code: "ga", label: "Gaeilge" },
   { code: "nl", label: "Nederlands" },
+  { code: "hr", label: "Hrvatski" },
   { code: "pl", label: "Polski" },
   { code: "tr", label: "Turkce" },
   { code: "ru", label: "Русский" },
