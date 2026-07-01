@@ -14,7 +14,7 @@ import {
 } from "../traits";
 import { useStore } from "../store";
 import { PITCH } from "../levels";
-import { animateRig, poseIdleRig } from "./movement";
+import { animateRig, playActionClip, stopActionClip } from "./movement";
 import type { RigHolder } from "./movement";
 // circular with referee.ts is safe: bindings are only touched inside functions
 import {
@@ -53,14 +53,7 @@ const CARD_SECONDS = 4.0;
 export const cineState = {
   ring: [] as Frame[],
   celebration: null as { scorer: Entity; t: number } | null,
-  card: null as {
-    red: boolean;
-    t: number;
-    // idle@0 snapshot of the posed bones, captured once so the card pose can be
-    // SET absolutely each frame (mixer.update(0) won't re-apply on repeat, so
-    // multiplying every frame would accumulate and spin the arm)
-    base?: { rs: THREE.Quaternion; re: THREE.Quaternion; ls: THREE.Quaternion };
-  } | null,
+  card: null as { red: boolean; t: number } | null,
   replay: null as { frames: Frame[]; i: number; after: "kickoff" | "resume" } | null,
   queued: null as Frame[] | null,
   sendOffScene: null as {
@@ -87,14 +80,6 @@ export const cineState = {
 const OFFSIDE_SECONDS = 3.2; // static hold on the lines (drill, or no footage)
 const OFFSIDE_REPLAY_FRAMES = 65; // ~2.2s of lead-up before the flag
 const OFFSIDE_HOLD = 1.3; // beat held on the offside moment after the replay
-
-const X_AXIS = new THREE.Vector3(1, 0, 0);
-const Z_AXIS = new THREE.Vector3(0, 0, 1);
-const tmpQ = new THREE.Quaternion();
-const smooth01 = (v: number): number => {
-  const x = Math.min(1, Math.max(0, v));
-  return x * x * (3 - 2 * x);
-};
 
 function resetCine(gen: number): void {
   cineState.gen = gen;
@@ -225,6 +210,12 @@ export function skipCinematic(world: World): void {
   const goalSeq = mode === "goal" || cineState.replay?.after === "kickoff";
   const pendingOff = cineState.sendOffScene?.player ?? cineState.sendOffAfter;
 
+  // release any situation clip mid-flight (celebration, card raise)
+  const cel = cineState.celebration;
+  if (cel?.scorer.isAlive()) {
+    const ch = cel.scorer.get(MeshRef);
+    if (ch) stopActionClip(ch, 0.1);
+  }
   cineState.celebration = null;
   cineState.card = null;
   cineState.replay = null;
@@ -234,6 +225,7 @@ export function skipCinematic(world: World): void {
   // hide a raised card if we skipped mid-raise
   const ref = world.queryFirst(IsReferee)?.get(MeshRef);
   if (ref) {
+    stopActionClip(ref, 0.1);
     const mesh = cardProps.get(ref);
     if (mesh) mesh.visible = false;
   }
@@ -249,6 +241,11 @@ export function skipCinematic(world: World): void {
 
 /** Goal celebration over: hand off to the replay. True if it took over. */
 export function startGoalReplay(): boolean {
+  const cel = cineState.celebration;
+  if (cel?.scorer.isAlive()) {
+    const ch = cel.scorer.get(MeshRef);
+    if (ch) stopActionClip(ch, 0.15); // release the celebrate clip
+  }
   cineState.celebration = null;
   if (!cineState.queued || cineState.queued.length < MIN_REPLAY_FRAMES) return false;
   cineState.replay = { frames: cineState.queued, i: 0, after: "kickoff" };
@@ -267,14 +264,10 @@ function cardMesh(h: RigHolder, bones: Record<string, THREE.Bone>): THREE.Mesh {
       new THREE.PlaneGeometry(0.07, 0.1), // hand-sized — a card, not a billboard
       new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
     );
-    // gripped in the raised hand, turned flat to FACE the camera. The forearm
-    // bone's local frame is steeply skewed, so these offsets look odd but are
-    // correct — calibrated against the EXACT in-game card camera (pos y1.7 z+5,
-    // look y1.35, fov30); an earlier guess used a different camera and the
-    // parallax left the card floating beside the hand.
-    // NB: calibrate at the game's PORTRAIT aspect — a square preview lies about
-    // the vertical placement, which is what sent the card flying off earlier.
-    mesh.position.set(-1.12, 2.0, 0.06);
+    // gripped at the END of the forearm: the elbow's children (the forearm
+    // geometry) extend ~0.33m along local -z to the hand, so the card rides
+    // the hand through the WHOLE showcard anim — raise, hold and lower
+    mesh.position.set(0, 0.02, -0.36);
     mesh.rotation.x = Math.PI / 2;
     bones.right_elbow?.add(mesh);
     cardProps.set(h, mesh);
@@ -371,26 +364,13 @@ export function cinematicSystem(world: World, dt: number): void {
     }
     cel.t += dt;
     const h = cel.scorer.get(MeshRef)!;
-    if (h.value && h.bones) {
+    if (h.value) {
       faceCamera(h.value, dt);
-      // ONE celebratory beat: a single hop, the hands brought together once in
-      // applause and then held there — not a 50,000x loop of claps and bounces
-      const ramp = smooth01(cel.t / 0.4);
-      const hop = Math.sin(Math.min(cel.t / 0.55, 1) * Math.PI) * 0.18; // one hop
-      h.value.position.y = hop;
-      animateRig(h, 0, 0, dt);
-      // both arms up in front at chest height, elbows bent so the hands meet
-      const lift = 1.15 * ramp;
-      const bend = 1.3 * ramp;
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -lift));
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -lift));
-      h.bones.left_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -bend));
-      h.bones.right_elbow?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -bend));
-      // the forearms swing together ONCE (apart -> clasped), then stay there
-      const together = smooth01((cel.t - 0.35) / 0.4);
-      const spread = (1 - together) * 0.5 * ramp;
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, spread));
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, -spread));
+      h.value.position.y = 0;
+      // the original celebration anim (happy_normal): one clean full-body beat
+      // of joy, then the final pose held — no procedural arm waving
+      playActionClip(h, "celebrate", { duration: 1.4, fade: 0.18 });
+      animateRig(h, 0, 0, dt); // action path: advances the mixer
     }
     return;
   }
@@ -405,40 +385,17 @@ export function cinematicSystem(world: World, dt: number): void {
       // snap to face the lens INSTANTLY — no slow turn, so the raised arm is
       // dead still and does not swing across the scene
       h.value.rotation.set(0, 0, 0);
-      const rs = h.bones.right_shoulder;
-      const re = h.bones.right_elbow;
-      const ls = h.bones.left_shoulder;
-      // capture a clean idle@0 base ONCE. poseIdleRig's mixer.update(0) does NOT
-      // re-apply on repeat calls, so multiplying the pose every frame would
-      // accumulate and spin the arm. Snapshot once, then SET absolutely each
-      // frame → the arm is provably motionless (verified over 200 frames).
-      if (!card.base && rs && re && ls) {
-        poseIdleRig(h);
-        card.base = {
-          rs: rs.quaternion.clone(),
-          re: re.quaternion.clone(),
-          ls: ls.quaternion.clone(),
-        };
-      }
-      if (card.base) {
-        // right arm straight up, card held high facing the crowd; left arm down
-        rs?.quaternion
-          .copy(card.base.rs)
-          .multiply(tmpQ.setFromAxisAngle(X_AXIS, -3.0))
-          .multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.05));
-        re?.quaternion
-          .copy(card.base.re)
-          .multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.12));
-        ls?.quaternion
-          .copy(card.base.ls)
-          .multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.3));
-      }
+      // the original special anim (000_showcard): raise, hold high, lower —
+      // stretched across the scene; the card rides IN the raised hand
+      playActionClip(h, "showcard", { duration: CARD_SECONDS - 0.5, fade: 0.15 });
+      animateRig(h, 0, 0, dt); // action path: advances the mixer
       const mesh = cardMesh(h, h.bones);
       (mesh.material as THREE.MeshBasicMaterial).color.set(card.red ? 0xe53935 : 0xffd60a);
       mesh.visible = true;
     }
     if (card.t >= CARD_SECONDS) {
       if (h) {
+        stopActionClip(h, 0.2);
         const mesh = cardProps.get(h);
         if (mesh) mesh.visible = false;
       }

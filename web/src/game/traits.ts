@@ -42,8 +42,9 @@ export const Name = trait(() => ({ full: "", short: "", spoken: "" }));
 export const Position = trait(() => new THREE.Vector3());
 export const Velocity = trait(() => new THREE.Vector3());
 export const Heading = trait({ angle: 0 });
-/** A keeper mid-dive: committed flight, procedural pose, extended reach. */
-export const KeeperDive = trait({ t: 0, side: 1 });
+/** A keeper mid-dive: committed flight along the original deflect anims.
+ *  kind picks the clip by ball height at the save: 0 high, 1 mid, 2 ground. */
+export const KeeperDive = trait({ t: 0, side: 1, kind: 1 });
 /** A player hopping to block — the free-kick wall leaping as the ball is struck. */
 export const Jump = trait({ t: 0 });
 /** A player mid slide-tackle: low reclined pose along the locked yaw. */
@@ -64,6 +65,8 @@ export const MeshRef = trait(() => ({
   variant: "idle",
   bridging: null as string | null,
   pending: null as string | null,
+  /** one-shot situation clip (dive/slide/celebrate/showcard) owning the rig */
+  action: null as string | null,
   prevSpeed: 0,
   lean: 0,
 }));

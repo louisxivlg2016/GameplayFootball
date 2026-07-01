@@ -241,7 +241,11 @@ export function possessionSystem(world: World, dt: number): void {
       if (!best.has(KeeperDive)) {
         const kp = best.get(Position)!;
         best.add(KeeperDive);
-        best.set(KeeperDive, { t: 0, side: Math.sign(bp.z - kp.z) || 1 });
+        best.set(KeeperDive, {
+          t: 0,
+          side: Math.sign(bp.z - kp.z) || 1,
+          kind: bp.y > 1.3 ? 0 : bp.y > 0.55 ? 1 : 2, // deflect clip by ball height
+        });
       }
       bs.recaptureBlocks.push({ player: best, t: 0.4 });
       return;
@@ -256,7 +260,11 @@ export function possessionSystem(world: World, dt: number): void {
       const kp = best.get(Position)!;
       if (!best.has(KeeperDive)) {
         best.add(KeeperDive);
-        best.set(KeeperDive, { t: 0, side: Math.sign(bp.z - kp.z) || 1 });
+        best.set(KeeperDive, {
+          t: 0,
+          side: Math.sign(bp.z - kp.z) || 1,
+          kind: bp.y > 1.3 ? 0 : bp.y > 0.55 ? 1 : 2, // deflect clip by ball height
+        });
       }
       // shove it clear of the goal: out toward the field, to a flank, with lift
       rb.setLinvel(

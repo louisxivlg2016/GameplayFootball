@@ -883,8 +883,14 @@ function keeper(
           Math.abs(lateral) > 0.3 &&
           Math.hypot(bv.x, bv.z) > 6
         ) {
+          // pick the deflect clip by where the ball will cross the line
+          const yAtGoal = Math.max(0, bp.y + bv.y * tCross - 4.9 * tCross * tCross);
           e.add(KeeperDive);
-          e.set(KeeperDive, { t: 0, side: Math.sign(lateral) || 1 });
+          e.set(KeeperDive, {
+            t: 0,
+            side: Math.sign(lateral) || 1,
+            kind: yAtGoal > 1.3 ? 0 : yAtGoal > 0.55 ? 1 : 2,
+          });
           const v = e.get(Velocity)!;
           const tFly = Math.max(tCross, 0.2);
           v.z = clamp(lateral / tFly, -8, 8); // slow, watchable, beatable to the corners

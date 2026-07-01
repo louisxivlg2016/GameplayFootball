@@ -71,8 +71,10 @@ async function parseAnim(file: string): Promise<AnimTracks> {
   const tracks: AnimTracks = new Map();
   for (const rawLine of text.split("\n")) {
     const line = rawLine.trim();
-    if (!line || line.startsWith("<")) {
-      if (line.startsWith("<")) break;
+    if (!line || line.startsWith("<") || line.startsWith("extension")) {
+      // animation.cpp:Load stops track parsing at BOTH "extension" rows and
+      // the xml block — deflect/sliding anims carry football-extension rows
+      if (line.startsWith("<") || line.startsWith("extension")) break;
       continue;
     }
     const tok = line.split(",");
@@ -103,7 +105,7 @@ function mirrorQuat(v: number[]): number[] {
 
 interface ClipJson {
   name: string;
-  kind: "cycle" | "bridge";
+  kind: "cycle" | "bridge" | "action";
   gait: string;
   /** body-facing vs movement-direction angle in degrees (cycles only) */
   angle: number;
@@ -308,6 +310,53 @@ function buildBridgeClip(name: string, gait: string, info: AnimInfo): ClipJson {
   for (let k = 0; k < player.frames.length; k++) {
     out.rootZ.times.push(round(player.frames[k]! * FRAME_S));
     out.rootZ.values.push(round(player.values[k]![2]!));
+  }
+  return out;
+}
+
+/**
+ * One-shot situation anim (showcard, celebration, keeper deflect, sliding),
+ * exported verbatim like the original plays them (humanoid special anims).
+ * Horizontal root motion is stripped — the web physics moves the entity —
+ * only the height (z) track is kept, exactly like the locomotion cycles.
+ * `preMirror` L/R-flips at conversion so all dive clips share one convention
+ * (dive to the actor's RIGHT); the runtime mirrors again for the other side.
+ */
+function buildActionClip(
+  name: string,
+  tracks: AnimTracks,
+  preMirror = false,
+): ClipJson {
+  let F = 0;
+  for (const [, track] of tracks) F = Math.max(F, ...track.frames);
+  const out: ClipJson = {
+    name,
+    kind: "action",
+    gait: "action",
+    angle: 0,
+    duration: round(F * FRAME_S),
+    velocity: 0,
+    tracks: {},
+    rootZ: { times: [], values: [] },
+  };
+  for (const [bone, track] of tracks) {
+    if (bone === "player") continue;
+    const src = preMirror ? tracks.get(MIRROR[bone] ?? bone) ?? track : track;
+    const times: number[] = [];
+    const quats: number[] = [];
+    for (let k = 0; k < src.frames.length; k++) {
+      times.push(round(src.frames[k]! * FRAME_S));
+      const v = preMirror ? mirrorQuat(src.values[k]!) : src.values[k]!;
+      quats.push(...v.map((n) => round(n)));
+    }
+    out.tracks[bone] = { times, quats };
+  }
+  const player = tracks.get("player");
+  if (player) {
+    for (let k = 0; k < player.frames.length; k++) {
+      out.rootZ.times.push(round(player.frames[k]! * FRAME_S));
+      out.rootZ.values.push(round(player.values[k]![2]!));
+    }
   }
   return out;
 }
@@ -714,6 +763,32 @@ aliasCycle("sprint", "dribble");
 for (const gait of ["dribble", "walk", "sprint"]) {
   pickBridge("idle", gait);
   pickBridge(gait, "idle");
+}
+
+// one-shot situation anims, straight from the original data (task-specific
+// selection mirrors what animcollection.cpp exposes per situation type):
+// - special/000_showcard  : the referee's card raise
+// - celebration/*         : goal joy (normal), conceding sadness
+// - deflect/idle/090_*    : keeper dives at three heights (normalized to
+//                           dive RIGHT; ground clip dives left in the data)
+// - deflect/idle/000_high_holdball : straight catch
+// - sliding/sprint/000    : slide tackle at speed
+const ACTION_SOURCES: Array<{ name: string; file: string; preMirror?: boolean; mirrorAs?: string }> = [
+  { name: "showcard", file: "special/000_showcard.anim" },
+  { name: "celebrate", file: "celebration/happy_normal/000.anim" },
+  { name: "sad", file: "celebration/sad_normal/000.anim" },
+  { name: "dive_high", file: "deflect/idle/090_high_deflect_far.anim", mirrorAs: "dive_high_m" },
+  { name: "dive_mid", file: "deflect/idle/090_midheight_deflect_far.anim", mirrorAs: "dive_mid_m" },
+  { name: "dive_low", file: "deflect/idle/090_ground_deflect_far.anim", preMirror: true, mirrorAs: "dive_low_m" },
+  { name: "catch", file: "deflect/idle/000_high_holdball.anim" },
+  { name: "sliding", file: "sliding/sprint/000.anim" },
+];
+for (const src of ACTION_SOURCES) {
+  const tracks = await parseAnim(path.join(animDir, src.file));
+  const clip = buildActionClip(src.name, tracks, src.preMirror);
+  clips.push(clip);
+  console.log(`action ${src.name}: ${src.file} ${clip.duration}s`);
+  if (src.mirrorAs) clips.push({ ...mirrorClip(clip, src.mirrorAs), kind: "action", gait: "action" });
 }
 
 await Bun.write(path.join(OUT, "anims.json"), JSON.stringify({ clips }));

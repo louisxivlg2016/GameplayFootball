@@ -25,7 +25,7 @@ interface ModelData {
 interface AnimsData {
   clips: Array<{
     name: string;
-    kind: "cycle" | "bridge";
+    kind: "cycle" | "bridge" | "action";
     gait: string;
     angle: number;
     duration: number;
@@ -145,7 +145,7 @@ export interface ClipMeta {
   duration: number;
   gait: string;
   angle: number;
-  kind: "cycle" | "bridge";
+  kind: "cycle" | "bridge" | "action";
 }
 
 export const CLIP_META: Record<string, ClipMeta> = {};
@@ -203,7 +203,8 @@ function makeKitTexture(shirt: string, shorts: string, socks: string): THREE.Can
 }
 
 function kitMaterial(kind: string, teamColor: string): THREE.MeshStandardMaterial {
-  let mat = kitMatCache.get(kind);
+  const cacheKey = `${kind}:${teamColor}`;
+  let mat = kitMatCache.get(cacheKey);
   if (!mat) {
     mat = new THREE.MeshStandardMaterial({
       map:
@@ -214,7 +215,7 @@ function kitMaterial(kind: string, teamColor: string): THREE.MeshStandardMateria
             : makeKitTexture(teamColor, "#f2f2f2", teamColor),
       roughness: 0.85,
     });
-    kitMatCache.set(kind, mat);
+    kitMatCache.set(cacheKey, mat);
   }
   return mat;
 }
@@ -276,7 +277,8 @@ export function createPlayerRig(
   const actions: Record<string, THREE.AnimationAction> = {};
   for (const clip of clips) {
     const action = mixer.clipAction(clip);
-    if (CLIP_META[clip.name]!.kind === "bridge") {
+    // bridges AND situation actions are one-shots that hold their final pose
+    if (CLIP_META[clip.name]!.kind !== "cycle") {
       action.setLoop(THREE.LoopOnce, 1);
       action.clampWhenFinished = true;
     }

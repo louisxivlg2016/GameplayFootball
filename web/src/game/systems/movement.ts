@@ -25,23 +25,6 @@ const normAngle = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const tmpQ = new THREE.Quaternion();
-const tmpV = new THREE.Vector3();
-// bones that may touch the turf while sliding — the body is lifted so the
-// lowest of these rests on the grass instead of sinking under the pitch
-const SLIDE_GROUND_BONES = [
-  "neck",
-  "body",
-  "middle",
-  "left_knee",
-  "right_knee",
-  "left_ankle",
-  "right_ankle",
-];
-
-const smooth01 = (v: number): number => {
-  const x = clamp(v, 0, 1);
-  return x * x * (3 - 2 * x);
-};
 
 function startLoop(
   h: { actions: Record<string, THREE.AnimationAction> | null; variant: string; bridging: string | null },
@@ -54,6 +37,45 @@ function startLoop(
   next.reset().play();
   if (cur && cur !== next) cur.crossFadeTo(next, fade, true);
   h.variant = name;
+}
+
+/**
+ * Play a one-shot situation clip (dive/slide/celebrate/showcard — the
+ * original .anim data) through the mixer. While it owns the rig, animateRig
+ * only advances the mixer; gait logic and per-limb adaptation stand down.
+ * `duration` stretches the clip to a gameplay window (timeScale = clip/target).
+ */
+export function playActionClip(
+  h: RigHolder,
+  name: string,
+  opts?: { duration?: number; fade?: number },
+): void {
+  if (!h.mixer || !h.actions || h.action === name) return;
+  const next = h.actions[name];
+  const meta = CLIP_META[name];
+  if (!next || !meta) return;
+  const cur = h.actions[h.action ?? h.bridging ?? h.variant];
+  next.reset().play();
+  next.timeScale = opts?.duration ? meta.duration / opts.duration : 1;
+  if (cur && cur !== next) cur.crossFadeTo(next, opts?.fade ?? 0.12, false);
+  h.action = name;
+  h.bridging = null;
+  h.pending = null;
+}
+
+/** Release the rig back to locomotion after a one-shot situation clip. */
+export function stopActionClip(h: RigHolder, fade = 0.3): void {
+  if (!h.action || !h.mixer || !h.actions) return;
+  const cur = h.actions[h.action];
+  const idle = h.actions.idle;
+  if (cur && idle) {
+    idle.reset().play();
+    cur.crossFadeTo(idle, fade, false);
+  }
+  h.action = null;
+  h.variant = "idle";
+  h.bridging = null;
+  h.pending = null;
 }
 
 export function movementSystem(world: World, dt: number): void {
@@ -99,6 +121,8 @@ export function movementSystem(world: World, dt: number): void {
       if (t > 3.4) {
         e.remove(KeeperDive);
         dive = undefined;
+        const hh = e.get(MeshRef);
+        if (hh) stopActionClip(hh); // get up off the turf, back to locomotion
       } else {
         e.set(KeeperDive, { t });
         dive = { ...dive, t };
@@ -121,6 +145,8 @@ export function movementSystem(world: World, dt: number): void {
         v.z = 0;
         e.remove(SlideTackle);
         slide = undefined;
+        const hh = e.get(MeshRef);
+        if (hh) stopActionClip(hh); // climb back up into locomotion
       } else {
         e.set(SlideTackle, { t });
         slide = { ...slide, t };
@@ -191,30 +217,15 @@ export function movementSystem(world: World, dt: number): void {
     const h = e.get(MeshRef)!;
     if (h.value) {
       if (dive) {
-        // procedural dive: roll horizontal toward the ball side, arms-first,
-        // launch UP into an airborne arc, then settle (no clip exists for it).
-        const inK = Math.min(dive.t / 1.15, 1); // very slow, readable launch ramp
-        const upK = dive.t < 2.05 ? 1 : Math.max(0, 1 - (dive.t - 2.05) / 1.35);
-        const amt = inK * upK;
-        // the rig pivots around its feet, so a body rolled flat would sink half
-        // into the pitch — lift it by the roll amount so it always floats on the
-        // grass, then add a long, slow arc so he leaps UP like a real keeper
-        const leap = Math.sin(Math.min(dive.t / 2.05, 1) * Math.PI) * 0.42;
-        const air = amt * 0.46 + leap;
-        h.value.position.set(p.x, air, p.z);
-        h.value.rotation.set(0.08 * amt, heading, -dive.side * 1.35 * amt, "YZX");
-      } else if (slide) {
-        // procedural slide tackle: drop low and recline right back onto the
-        // turf along the lunge, lead leg shot out front, then climb back up.
-        const down = smooth01(slide.t / 0.22);
-        const up = slide.t < 1.05 ? 1 : smooth01(1 - (slide.t - 1.05) / 0.5);
-        const amt = down * up;
-        // recline the body almost flat to the grass (verified in the pose
-        // preview): at this lean the legs already point forward along the slide.
-        // y is set by the grounding pass below (it pivots about the feet, which
-        // would otherwise bury half the body under the pitch).
+        // original deflect anims do the whole dive — launch, full-stretch
+        // flight, landing on the turf — through the bone + root-height tracks.
+        // The mesh stays upright here; physics slides the body to the ball.
         h.value.position.set(p.x, 0, p.z);
-        h.value.rotation.set(-1.45 * amt, slide.yaw, 0, "YZX");
+        h.value.rotation.set(0, heading, 0, "YZX");
+      } else if (slide) {
+        // original sliding anim: drop, slide on the turf along the locked yaw.
+        h.value.position.set(p.x, 0, p.z);
+        h.value.rotation.set(0, slide.yaw, 0, "YZX");
       } else if (trip) {
         // tripped: pitch forward over the clipped legs along the run line,
         // hit the grass, then climb back up (stumbles only dip partway)
@@ -252,7 +263,22 @@ export function movementSystem(world: World, dt: number): void {
       }
     }
     if (h.tag) h.tag.visible = selected && !posed;
-    // a dive/slide holds a STATIC base (no running legs flailing under the pose)
+    // situation clips: the original deflect/sliding anims own the skeleton.
+    // Back in live play with no dive/slide component, ANY lingering one-shot
+    // (a yanked dive, a celebrate that outlived its scene) must release the
+    // rig here or the body would stay clamped in its final pose forever.
+    if (!dive && !slide && h.action) stopActionClip(h);
+    if (dive) {
+      // base clips dive to the actor's RIGHT; world-side vs facing picks the
+      // mirror (right_world = (-cos θ, 0, sin θ), dive dir = (0,0,side))
+      const base = ["dive_high", "dive_mid", "dive_low"][dive.kind] ?? "dive_mid";
+      const name = dive.side * Math.sin(heading) < 0 ? `${base}_m` : base;
+      // stretch the ~0.8s clip over the lunge window; he then holds the
+      // landed pose on the turf (clamped) until the dive timer releases him
+      playActionClip(h, name, { duration: 1.5 });
+    } else if (slide) {
+      playActionClip(h, "sliding", { duration: 0.95 });
+    }
     animateRig(h, slide || dive || (speed < 1.2 && h.variant !== "idle") ? 0 : posed ? 0.3 : speed, angleDiff, dt);
     if (trip && trip.fall > 0.75 && h.bones) {
       // arms shoot forward to brace the fall
@@ -261,47 +287,6 @@ export function movementSystem(world: World, dt: number): void {
         (trip.t < 0.9 ? 1 : Math.max(0, 1 - (trip.t - 0.9) / 0.6));
       h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -1.6 * amt));
       h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -1.6 * amt));
-    }
-    if (dive && h.bones) {
-      // arms stretched out toward the ball, like the reference dive
-      const reach = Math.min(dive.t / 1.0, 1) * (dive.t < 2.05 ? 1 : Math.max(0, 1 - (dive.t - 2.05) / 1.0));
-      const armReach = reach * 2.35;
-      const legReach = reach * 0.45;
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -armReach));
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -armReach));
-      h.bones.left_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, legReach));
-      h.bones.right_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, legReach * 0.75));
-      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -legReach * 0.45));
-      h.bones.right_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -legReach * 0.25));
-    }
-    if (slide && h.bones) {
-      // lead leg shoots out along the lunge, trailing leg tucks under
-      const amt =
-        smooth01(slide.t / 0.22) *
-        (slide.t < 1.05 ? 1 : smooth01(1 - (slide.t - 1.05) / 0.5));
-      // both legs extended forward along the slide toward the ball, only lightly
-      // bent so they lie along the turf (verified flat in the pose preview)
-      h.bones.right_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.15 * amt));
-      h.bones.left_thigh?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.15 * amt));
-      h.bones.left_knee?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.5 * amt));
-      // lead arm forward for balance, trailing arm flung out to brace on the turf
-      h.bones.right_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, -0.4 * amt));
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(X_AXIS, 0.3 * amt));
-      h.bones.left_shoulder?.quaternion.multiply(tmpQ.setFromAxisAngle(Z_AXIS, 0.4 * amt));
-      // grounding pass: lift the whole body so its lowest limb rests on the
-      // grass. The recline pivots about the feet, which would otherwise bury
-      // half the body under the pitch (lowest bone Y ≈ 0.08 sits it on the turf).
-      if (h.value) {
-        h.value.updateMatrixWorld(true);
-        let lowest = Infinity;
-        for (const n of SLIDE_GROUND_BONES) {
-          const gb = h.bones[n];
-          if (!gb) continue;
-          gb.getWorldPosition(tmpV);
-          if (tmpV.y < lowest) lowest = tmpV.y;
-        }
-        if (lowest < 0.08) h.value.position.y = 0.08 - lowest;
-      }
     }
   }
 
@@ -357,6 +342,8 @@ export interface RigHolder {
   variant: string;
   bridging: string | null;
   pending: string | null;
+  /** one-shot situation clip currently owning the rig, or null */
+  action: string | null;
   prevSpeed: number;
   lean: number;
 }
@@ -370,6 +357,12 @@ export function animateRig(
 ): void {
   {
     if (!h.mixer || !h.actions) return;
+
+    // a situation clip owns the whole skeleton: just advance the mixer
+    if (h.action) {
+      h.mixer.update(dt);
+      return;
+    }
 
     // gait by the original velocity bands, variant by the angle quadrant
     let gait =
@@ -483,5 +476,6 @@ export function poseIdleRig(h: RigHolder): void {
   h.variant = "idle";
   h.bridging = null;
   h.pending = null;
+  h.action = null;
   h.mixer.update(0);
 }

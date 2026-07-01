@@ -406,7 +406,7 @@ export function refereeFoul(
     const info = fouler.get(PlayerInfo)!;
     const nm = fouler.get(Name);
     const foulerName = nm?.short ?? "";
-    const foulerSpoken = nm?.spoken ?? "";
+    const foulerSpoken = nm?.full || nm?.spoken || nm?.short || "";
     whistle(2);
     if (foulType >= 2) {
       banner("YELLOW CARD" + (foulerName ? ` — ${foulerName}` : ""), 2.5);
@@ -438,7 +438,7 @@ export function refereeFoul(
     const second = foulType === 2 && info.yellows >= 1;
     const nm = fouler.get(Name);
     const foulerName = nm?.short ?? ""; // banner (visual): initial + surname
-    const foulerSpoken = nm?.spoken ?? ""; // radio (TTS): surname only
+    const foulerSpoken = nm?.full || nm?.spoken || nm?.short || "";
     const red = foulType === 3 || second;
     if (red) {
       banner(
@@ -701,7 +701,8 @@ function penaltyDive(world: World, attackingTeam: number): void {
     if (e.has(KeeperDive)) continue;
     const side = save ? shotSide : Math.random() < 0.5 ? -1 : 1;
     e.add(KeeperDive);
-    e.set(KeeperDive, { t: 0, side });
+    // penalties: fling high or mid, like the original's deflect picks
+    e.set(KeeperDive, { t: 0, side, kind: Math.random() < 0.5 ? 0 : 1 });
     const v = e.get(Velocity)!;
     // a SLOW, watchable dive that reaches the post over its flight instead of
     // fusing across the goal in a blink (the big catch radius makes the save)
@@ -916,7 +917,7 @@ export function refereeSystem(world: World, dt: number): void {
       radio("goal", {
         team: scorer,
         score: newScore,
-        player: ownGoal ? "" : (kNm?.spoken ?? ""), // radio (TTS): surname
+        player: ownGoal ? "" : (kNm?.full || kNm?.spoken || kNm?.short || ""),
       });
       b.bs.owner = null;
       // celebration runs in "goal" mode where movement (and its pose timers)
@@ -1062,7 +1063,8 @@ function startShootoutKick(world: World): void {
     refState.ceremony.taker = taker;
     const slot = humanSlotFor(team);
     if (slot !== null) setSelected(world, taker, slot);
-    radio("penTaker", { player: taker.get(Name)?.spoken ?? "" });
+    const takerName = taker.get(Name);
+    radio("penTaker", { player: takerName?.full || takerName?.spoken || takerName?.short || "" });
   }
 
   // stage the scene: ceremonies are too short to run across the pitch, so
