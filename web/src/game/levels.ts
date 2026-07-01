@@ -1,5 +1,6 @@
 import type { Entity, World } from "koota";
 import { useStore } from "./store";
+import { configureMatchSidesFor, getConfiguredMatchTeam, getDefaultLineupNames } from "./teams";
 import {
   BallRef,
   BallState,
@@ -127,12 +128,18 @@ export function loadMatch(world: World): void {
   world.spawn(IsReferee, Position, Velocity, Heading, MeshRef);
 
   const takenNames = new Set<string>();
-  const lineupNames = useStore.getState().lineupNames;
+  const { lineupNames, humanTeam, nationalTeam, opponentTeam } = useStore.getState();
+  configureMatchSidesFor(nationalTeam, opponentTeam, humanTeam);
+  const teamLineups: [string[], string[]] = [
+    getDefaultLineupNames(getConfiguredMatchTeam(0).id),
+    getDefaultLineupNames(getConfiguredMatchTeam(1).id),
+  ];
+  teamLineups[humanTeam] = lineupNames.length === FORMATION.length ? lineupNames : teamLineups[humanTeam];
   for (let team = 0; team < 2; team++) {
     for (let i = 0; i < FORMATION.length; i++) {
       const role = FORMATION[i]!.role;
       const seed = team * 31 + i;
-      const chosenName = team === 0 ? lineupNames[i] : "";
+      const chosenName = teamLineups[team]![i] ?? "";
       const name = chosenName ? makeLineupName(chosenName) : makeName(seed, takenNames);
       // role-flavored ratings: attackers shoot, defenders tackle, mids pass
       const r = (n: number): number => 0.3 + statRand(seed * 7 + n) * 0.6;

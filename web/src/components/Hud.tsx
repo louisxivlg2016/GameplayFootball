@@ -1,11 +1,24 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { TEAMS, useStore } from "../game/store";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useStore } from "../game/store";
 import { TouchControls } from "./TouchControls";
 import { DragShoot, KeeperArrows, humanSetPieceActive } from "./DragShoot";
 import { world } from "../game/world";
 import { skipCinematic } from "../game/systems/cinematic";
 import { audioMuted, initAudio, primeAudioOutput, resumeAudio, setAudioMuted } from "../game/audio";
 import { RADIO_STATE_EVENT, radio, radioEnabled, resumeRadio, toggleRadio, warmupRadioVoice } from "../game/radio";
+import {
+  LINEUP_SLOT_LAYOUT,
+  NATIONAL_TEAM_OPTIONS,
+  TEAM_FLAG,
+  getDefaultLineupIds,
+  getNationalTeam,
+  getOpponentTeamId,
+  getPreviewMatchSides,
+  getTeamCaptain,
+  getTeamOverall,
+  type NationalTeam,
+  type NationalTeamId,
+} from "../game/teams";
 import playButtonUrl from "../assets/play-button.png";
 import trainingButtonUrl from "../assets/training-button.png";
 import worldCupButtonUrl from "../assets/worldcup-button.png";
@@ -55,7 +68,6 @@ const MENU_THEME_BY_LANGUAGE: Partial<Record<AppLanguage, string>> = {
 };
 const LANGUAGE_PROMPT_STORAGE_KEY = "gpf-language-prompt-v1";
 
-type MenuTab = "home" | "training" | "worldcup" | "lineup";
 type LineupDrag = {
   playerId: number;
   x: number;
@@ -133,90 +145,36 @@ const MENU_LEGENDS = [
   },
 ];
 
-const LINEUP_PLAYERS = [
-  { id: 1, name: "Mike Maignan", pos: "GB", rating: 87, x: 50, y: 90 },
-  { id: 2, name: "Jules Koundé", pos: "DD", rating: 85, x: 18, y: 69 },
-  { id: 3, name: "William Saliba", pos: "DC", rating: 88, x: 38, y: 72 },
-  { id: 4, name: "Dayot Upamecano", pos: "DC", rating: 86, x: 62, y: 72 },
-  { id: 5, name: "Lucas Digne", pos: "DG", rating: 82, x: 82, y: 69 },
-  { id: 6, name: "Aurélien Tchouaméni", pos: "MDC", rating: 86, x: 34, y: 49 },
-  { id: 7, name: "N'Golo Kanté", pos: "MC", rating: 85, x: 66, y: 49 },
-  { id: 8, name: "Rayan Cherki", pos: "MOC", rating: 84, x: 50, y: 42 },
-  { id: 9, name: "Bradley Barcola", pos: "AG", rating: 84, x: 24, y: 18 },
-  { id: 10, name: "Kylian Mbappé", pos: "BU", rating: 92, x: 50, y: 9 },
-  { id: 11, name: "Ousmane Dembélé", pos: "AD", rating: 88, x: 76, y: 18 },
-  { id: 12, name: "Brice Samba", pos: "GB", rating: 81 },
-  { id: 13, name: "Robin Risser", pos: "GB", rating: 74 },
-  { id: 14, name: "Malo Gusto", pos: "DD", rating: 80 },
-  { id: 15, name: "Ibrahima Konaté", pos: "DC", rating: 86 },
-  { id: 16, name: "Théo Hernandez", pos: "DG", rating: 86 },
-  { id: 17, name: "Lucas Hernandez", pos: "DG", rating: 84 },
-  { id: 18, name: "Maxence Lacroix", pos: "DC", rating: 80 },
-  { id: 19, name: "Manu Koné", pos: "MC", rating: 82 },
-  { id: 20, name: "Adrien Rabiot", pos: "MC", rating: 83 },
-  { id: 21, name: "Warren Zaïre-Emery", pos: "MC", rating: 82 },
-  { id: 22, name: "Maghnes Akliouche", pos: "MOC", rating: 80 },
-  { id: 23, name: "Marcus Thuram", pos: "BU", rating: 84 },
-  { id: 24, name: "Michael Olise", pos: "AD", rating: 84 },
-  { id: 25, name: "Désiré Doué", pos: "AG", rating: 82 },
-  { id: 26, name: "Jean-Philippe Mateta", pos: "BU", rating: 81 },
-  { id: 27, name: "Lucas Chevalier", pos: "GB", rating: 80 },
-  { id: 28, name: "Benjamin Pavard", pos: "DC", rating: 82 },
-  { id: 29, name: "Loïc Badé", pos: "DC", rating: 80 },
-  { id: 30, name: "Clément Lenglet", pos: "DC", rating: 79 },
-  { id: 31, name: "Jonathan Clauss", pos: "DD", rating: 80 },
-  { id: 32, name: "Pierre Kalulu", pos: "DD", rating: 79 },
-  { id: 33, name: "Eduardo Camavinga", pos: "MC", rating: 84 },
-  { id: 34, name: "Mattéo Guendouzi", pos: "MC", rating: 80 },
-  { id: 35, name: "Khéphren Thuram", pos: "MC", rating: 81 },
-  { id: 36, name: "Florian Thauvin", pos: "AD", rating: 79 },
-  { id: 37, name: "Kingsley Coman", pos: "AG", rating: 84 },
-  { id: 38, name: "Randal Kolo Muani", pos: "BU", rating: 82 },
-  { id: 39, name: "Christopher Nkunku", pos: "MOC", rating: 83 },
-  {
-    id: 40,
-    name: "Hugo Ekitiké",
-    pos: "BU",
-    rating: 81,
-    photo:
-      "https://backend.liverpoolfc.com/sites/default/files/styles/xs/public/2026-06/hugo-ekitike-2026-27-body-shot_a170f152368cb434d055d6dd13698085.webp?itok=optavXDp",
-  },
+type MenuTab = "home" | "training" | "worldcup" | "lineup" | "matchup" | "club" | "national" | "challenge";
+
+const MENU_SIDEBAR_ITEMS: Array<{ id: MenuTab; icon: string; label: string }> = [
+  { id: "home", icon: "⌂", label: "MAIN" },
+  { id: "club", icon: "◎", label: "CLUB" },
+  { id: "national", icon: "◔", label: "NATIONAL" },
+  { id: "challenge", icon: "◌", label: "DEFI" },
 ];
 
-const LINEUP_SLOTS = LINEUP_PLAYERS.slice(0, 11).map((player) => ({
-  defaultId: player.id,
-  x: player.x!,
-  y: player.y!,
-}));
-const LINEUP_PLAYER_BY_ID = new Map(LINEUP_PLAYERS.map((player) => [player.id, player]));
-const DEFAULT_LINEUP = [
-  "Mike Maignan",
-  "Michael Olise",
-  "Désiré Doué",
-  "Dayot Upamecano",
-  "Lucas Digne",
-  "Aurélien Tchouaméni",
-  "Adrien Rabiot",
-  "Rayan Cherki",
-  "Bradley Barcola",
-  "Kylian Mbappé",
-  "Ousmane Dembélé",
-].map((name) => LINEUP_PLAYERS.find((player) => player.name === name)!.id);
-const LINEUP_STORAGE_KEY = "gpf-lineup-v1";
+const LINEUP_STORAGE_KEY_PREFIX = "gpf-lineup-v2-";
 
-function loadSavedLineup(): number[] {
-  if (typeof window === "undefined") return DEFAULT_LINEUP;
+function lineupStorageKey(teamId: NationalTeamId): string {
+  return `${LINEUP_STORAGE_KEY_PREFIX}${teamId}`;
+}
+
+function loadSavedLineup(teamId: NationalTeamId): number[] {
+  const team = getNationalTeam(teamId);
+  const defaultLineup = getDefaultLineupIds(teamId);
+  if (typeof window === "undefined") return defaultLineup;
   try {
-    const raw = window.localStorage.getItem(LINEUP_STORAGE_KEY);
-    if (!raw) return DEFAULT_LINEUP;
+    const raw = window.localStorage.getItem(lineupStorageKey(teamId));
+    if (!raw) return defaultLineup;
     const saved = JSON.parse(raw);
-    if (!Array.isArray(saved) || saved.length !== DEFAULT_LINEUP.length) return DEFAULT_LINEUP;
+    if (!Array.isArray(saved) || saved.length !== defaultLineup.length) return defaultLineup;
     const ids = saved.map((value) => Number(value));
     const unique = new Set(ids);
-    const validIds = ids.every((id) => LINEUP_PLAYER_BY_ID.has(id));
-    return validIds && unique.size === ids.length ? ids : DEFAULT_LINEUP;
+    const validIds = ids.every((id) => team.squad.some((player) => player.id === id));
+    return validIds && unique.size === ids.length ? ids : defaultLineup;
   } catch {
-    return DEFAULT_LINEUP;
+    return defaultLineup;
   }
 }
 
@@ -233,6 +191,77 @@ function playerInitials(name: string): string {
     .map((part) => part[0])
     .join("")
     .toUpperCase();
+}
+
+function teamCode(label: string): string {
+  return label
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.slice(0, 3))
+    .join("")
+    .slice(0, 3)
+    .toUpperCase();
+}
+
+const NATIONAL_CARD_META: Record<
+  NationalTeamId,
+  { nickname: string; edition: string; motto: string; stars: number }
+> = {
+  france: {
+    nickname: "Les Bleus",
+    edition: "Edition Elite",
+    motto: "vitesse + finition",
+    stars: 2,
+  },
+  england: {
+    nickname: "Three Lions",
+    edition: "Edition Royal",
+    motto: "impact + maitrise",
+    stars: 1,
+  },
+  argentina: {
+    nickname: "Albiceleste",
+    edition: "Edition Oro",
+    motto: "technique + genie",
+    stars: 3,
+  },
+  portugal: {
+    nickname: "Selecao",
+    edition: "Edition Captain",
+    motto: "dribble + frappe",
+    stars: 1,
+  },
+  norway: {
+    nickname: "Nordic Power",
+    edition: "Edition North",
+    motto: "puissance + course",
+    stars: 0,
+  },
+};
+
+function averageRating(players: Array<{ rating: number }>): number {
+  if (!players.length) return 0;
+  return Math.round(players.reduce((sum, player) => sum + player.rating, 0) / players.length);
+}
+
+function getNationalCardStats(team: NationalTeam): {
+  overall: number;
+  attack: number;
+  midfield: number;
+  defense: number;
+} {
+  const starters = team.defaultLineup
+    .map((id) => team.squad.find((player) => player.id === id))
+    .filter((player): player is NationalTeam["squad"][number] => Boolean(player));
+  const attack = starters.filter((player) => ["AG", "AD", "BU"].includes(player.pos));
+  const midfield = starters.filter((player) => ["MDC", "MC", "MOC"].includes(player.pos));
+  const defense = starters.filter((player) => ["GB", "DD", "DG", "DC"].includes(player.pos));
+  return {
+    overall: averageRating(starters),
+    attack: averageRating(attack),
+    midfield: averageRating(midfield),
+    defense: averageRating(defense),
+  };
 }
 
 const wikiPhotoCache = new Map<string, string>();
@@ -292,10 +321,26 @@ export function Hud(): React.ReactNode {
   const selectedName = useStore((s) => s.selectedName);
   const selectedName2 = useStore((s) => s.selectedName2);
   const players = useStore((s) => s.players);
+  const humanTeam = useStore((s) => s.humanTeam);
+  const nationalTeam = useStore((s) => s.nationalTeam);
+  const opponentTeam = useStore((s) => s.opponentTeam);
   const practice = useStore((s) => s.practice);
+  const currentNationalTeam = useMemo(() => getNationalTeam(nationalTeam), [nationalTeam]);
+  const previewMatchSides = useMemo(
+    () => getPreviewMatchSides(nationalTeam, humanTeam),
+    [humanTeam, nationalTeam],
+  );
+  const lineupPlayerById = useMemo(
+    () => new Map(currentNationalTeam.squad.map((player) => [player.id, player])),
+    [currentNationalTeam],
+  );
+  const opponentPreview = useMemo(
+    () => getNationalTeam(getOpponentTeamId(nationalTeam)),
+    [nationalTeam],
+  );
   const [menuTab, setMenuTab] = useState<MenuTab>("home");
-  const [selectedLineup, setSelectedLineup] = useState<number[]>(() => loadSavedLineup());
-  const [lineupFocus, setLineupFocus] = useState<number>(() => loadSavedLineup()[0] ?? DEFAULT_LINEUP[0]!);
+  const [selectedLineup, setSelectedLineup] = useState<number[]>(() => loadSavedLineup(nationalTeam));
+  const [lineupFocus, setLineupFocus] = useState<number>(() => loadSavedLineup(nationalTeam)[0] ?? 0);
   const [lineupDrag, setLineupDrag] = useState<LineupDrag | null>(null);
   const [matchSubOpen, setMatchSubOpen] = useState(false);
   const [muted, setMuted] = useState<boolean>(() => audioMuted());
@@ -308,9 +353,7 @@ export function Hud(): React.ReactNode {
   const translatedPhase = translatePhaseLabel(language, phaseLabel);
   const translatedBanner = translateBannerMessage(language, banner);
   const menuThemeSrc = MENU_THEME_BY_LANGUAGE[language] ?? menuThemeUrl;
-  const menuMusicActive =
-    mode === "menu" &&
-    (menuTab === "home" || menuTab === "training" || menuTab === "worldcup");
+  const menuMusicActive = mode === "menu";
 
   useEffect(() => {
     if (mode !== "menu") setMenuTab("home");
@@ -337,8 +380,15 @@ export function Hud(): React.ReactNode {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(LINEUP_STORAGE_KEY, JSON.stringify(selectedLineup));
-  }, [selectedLineup]);
+    window.localStorage.setItem(lineupStorageKey(nationalTeam), JSON.stringify(selectedLineup));
+  }, [nationalTeam, selectedLineup]);
+
+  useEffect(() => {
+    const lineup = loadSavedLineup(nationalTeam);
+    setSelectedLineup(lineup);
+    setLineupFocus(lineup[0] ?? 0);
+    setLineupDrag(null);
+  }, [nationalTeam]);
 
   useEffect(() => {
     const audio = menuMusicRef.current;
@@ -370,7 +420,7 @@ export function Hud(): React.ReactNode {
   }, [menuMusicActive, menuThemeSrc, muted]);
 
   const lineupPlayerNames = (): string[] =>
-    selectedLineup.map((id) => LINEUP_PLAYER_BY_ID.get(id)?.name ?? "");
+    selectedLineup.map((id) => lineupPlayerById.get(id)?.name ?? "");
 
   const confirmLanguagePrompt = (): void => {
     if (typeof window !== "undefined") {
@@ -456,15 +506,15 @@ export function Hud(): React.ReactNode {
               {mm}:{ss} {translatedPhase}
             </span>
             <span className="team">
-              <span className="swatch" style={{ background: TEAMS[0].color }} />
-              {TEAMS[0].name}
+              <span className="swatch" style={{ background: previewMatchSides[0].color }} />
+              {previewMatchSides[0].label}
             </span>
             <span className="score">
               {score[0]} - {score[1]}
             </span>
             <span className="team">
-              <span className="swatch" style={{ background: TEAMS[1].color }} />
-              {TEAMS[1].name}
+              <span className="swatch" style={{ background: previewMatchSides[1].color }} />
+              {previewMatchSides[1].label}
             </span>
             {pens && (
               <span className="score">
@@ -594,20 +644,22 @@ export function Hud(): React.ReactNode {
           <div className="menu-side menu-side-red" />
           <div className="menu-side menu-side-blue" />
           <div className="menu-shell">
-            <div className="menu-top-tools">
-              <SoundToggleButton
-                muted={muted}
-                onToggle={() => setMuted((current) => !current)}
-                variant="menu"
-              />
-              <RadioToggleButton
-                enabled={radioOn}
-                onToggle={() => toggleRadio()}
-                variant="menu"
-                longLabel
-              />
-              {menuTab === "home" && <LanguagePicker language={language} onChange={setLanguage} />}
-            </div>
+            {menuTab === "home" && (
+              <div className="menu-top-tools">
+                <SoundToggleButton
+                  muted={muted}
+                  onToggle={() => setMuted((current) => !current)}
+                  variant="menu"
+                />
+                <RadioToggleButton
+                  enabled={radioOn}
+                  onToggle={() => toggleRadio()}
+                  variant="menu"
+                  longLabel
+                />
+                <LanguagePicker language={language} onChange={setLanguage} />
+              </div>
+            )}
             {languagePromptOpen && (
               <LanguagePrompt
                 language={language}
@@ -615,237 +667,381 @@ export function Hud(): React.ReactNode {
                 onConfirm={confirmLanguagePrompt}
               />
             )}
-            {menuTab === "home" && (
-              <div className="legend-strip menu-hero-legends" aria-hidden="true">
-                {MENU_LEGENDS.map((legend) => (
-                  <div className="legend-card" key={legend.name}>
-                    <img className="legend-photo" src={legend.image} alt="" />
-                    <b>{legend.name}</b>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="menu-title-row">
-              <h1>
-                GAMEPLAY <span>FOOTBALL</span>
-              </h1>
-            </div>
-            {menuTab !== "home" && (
-              <button className="menu-back" onClick={() => setMenuTab("home")}>
-                {t("back")}
-              </button>
-            )}
-            {menuTab === "worldcup" && (
-              <div className="menu-premium-strip">
-                <span>{t("quickTactics")}</span>
-                <span>{t("stadiumRadio")}</span>
-                <span>{t("replayCards")}</span>
-              </div>
-            )}
-            {menuTab === "home" && (
-              <>
-                <div className="menu-main-actions">
-                  <MenuModeButton
-                    tone="yellow"
-                    kicker="MATCH"
-                    title={t("play")}
-                    note={t("playNote")}
-                    image={playButtonUrl}
-                    onClick={() => setMenuTab("lineup")}
-                  />
-                  <MenuModeButton
-                    tone="green"
-                    kicker="EXERCICES"
-                    title={t("training")}
-                    note={t("trainingNote")}
-                    image={trainingButtonUrl}
-                    onClick={() => setMenuTab("training")}
-                  />
-                  <MenuModeButton
-                    tone="blue"
-                    kicker="19 JUILLET"
-                    title={t("worldCup")}
-                    note={t("worldCupNote")}
-                    image={worldCupButtonUrl}
-                    onClick={() => setMenuTab("worldcup")}
-                  />
-                </div>
-                <div className="home-player-toggle">
-                  <PlayersToggle />
-                </div>
-              </>
-            )}
-            {menuTab === "training" && (
-              <div className="menu-panel">
-                <div className="menu-panel-head">
-                  <span>{t("trainingHeading")}</span>
-                  <b>{t("chooseExercise")}</b>
-                </div>
-                <div className="training-grid">
-                  {TRAINING_OPTIONS.map((option) => (
-                    <button
-                      key={option.id}
-                      className={`training-card${option.image ? " training-image-card" : ""}`}
-                      onClick={() => startMatch(option.id)}
-                    >
-                      {option.image ? (
-                        <>
-                          <img src={option.image} alt="" />
-                          <span className="training-image-label">{t(option.titleKey)}</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>{t(option.titleKey)}</span>
-                          <b>{t(option.noteKey)}</b>
-                        </>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {menuTab === "lineup" && (
-              <div className="lineup-panel">
-                <div className="lineup-top">
-                  <div>
-                    <span>{t("lineup")}</span>
-                    <b>{t("choosePlayers")}</b>
-                  </div>
-                  <button className="lineup-start" onClick={() => startMatch(0)}>
-                    {t("playMatch")}
-                  </button>
-                </div>
-                <div className="lineup-layout">
-                  <div className="lineup-pitch" aria-label={t("lineup")}>
-                    {LINEUP_SLOTS.map((slot, index) => {
-                      const player = LINEUP_PLAYER_BY_ID.get(selectedLineup[index]!)!;
-                      return (
-                        <button
-                          key={`${slot.defaultId}-${player.id}`}
-                          data-lineup-slot={index}
-                          className={`player-card ${lineupFocus === player.id ? "player-card-focused" : ""}${lineupDrag?.targetSlot === index ? " player-card-drop-target" : ""}`}
-                          style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
-                          onClick={() => setLineupFocus(player.id)}
-                        >
-                          <strong>{player.rating}</strong>
-                          <span>{player.pos}</span>
-                          <PlayerHead name={player.name} photoUrl={player.photo} />
-                          <b>{player.name}</b>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="lineup-bench">
-                    <span>{t("substitutes")}</span>
-                    {LINEUP_PLAYERS.filter((player) => !selectedLineup.includes(player.id)).map((player) => (
-                      <button
-                        key={player.id}
-                        className={`bench-card ${selectedLineup.includes(player.id) ? "selected" : ""}`}
-                        onPointerDown={(event) => {
-                          event.preventDefault();
-                          setLineupDrag({
-                            playerId: player.id,
-                            x: event.clientX,
-                            y: event.clientY,
-                            startX: event.clientX,
-                            startY: event.clientY,
-                            targetSlot: null,
-                            moved: false,
-                          });
-                        }}
-                        onClick={(event) => {
-                          if (suppressBenchClick.current) {
-                            event.preventDefault();
-                            return;
-                          }
-                          setSelectedLineup((current) => {
-                            if (current.includes(player.id)) return current;
-                            const next = current.map((id) => (id === lineupFocus ? player.id : id));
-                            return next.includes(player.id) ? next : current;
-                          });
-                          setLineupFocus(player.id);
-                        }}
-                      >
-                        <strong>{player.rating}</strong>
-                        <PlayerHead name={player.name} photoUrl={player.photo} />
-                        <b>{player.name}</b>
-                        <em>{player.pos}</em>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {lineupDrag && (
-                  <div
-                    className="lineup-drag-ghost"
-                    style={{
-                      left: lineupDrag.x,
-                      top: lineupDrag.y,
-                    }}
+            <div className="menu-layout">
+              <aside className="menu-sidebar">
+                {MENU_SIDEBAR_ITEMS.map((item) => (
+                  <button
+                    key={item.id}
+                    className={`menu-sidebar-button${menuTab === item.id ? " active" : ""}`}
+                    onClick={() => setMenuTab(item.id)}
                   >
-                    {(() => {
-                      const player = LINEUP_PLAYER_BY_ID.get(lineupDrag.playerId)!;
-                      return (
-                        <>
-                          <strong>{player.rating}</strong>
-                          <PlayerHead name={player.name} photoUrl={player.photo} />
-                          <b>{player.name}</b>
-                          <em>{player.pos}</em>
-                        </>
-                      );
-                    })()}
+                    <span className="menu-sidebar-icon">{item.icon}</span>
+                    <b>{item.label}</b>
+                  </button>
+                ))}
+              </aside>
+              <div className="menu-content">
+                {menuTab === "home" && (
+                  <>
+                    <div className="legend-strip menu-hero-legends" aria-hidden="true">
+                      {MENU_LEGENDS.map((legend) => (
+                        <div className="legend-card" key={legend.name}>
+                          <img className="legend-photo" src={legend.image} alt="" />
+                          <b>{legend.name}</b>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="menu-title-row">
+                      <h1>
+                        GAMEPLAY <span>FOOTBALL</span>
+                      </h1>
+                    </div>
+                    <div className="menu-main-actions">
+                      <MenuModeButton
+                        tone="yellow"
+                        kicker="MATCH"
+                        title={t("play")}
+                        note={t("playNote")}
+                        image={playButtonUrl}
+                        onClick={() => setMenuTab("matchup")}
+                      />
+                      <MenuModeButton
+                        tone="green"
+                        kicker="EXERCICES"
+                        title={t("training")}
+                        note={t("trainingNote")}
+                        image={trainingButtonUrl}
+                        onClick={() => setMenuTab("training")}
+                      />
+                      <MenuModeButton
+                        tone="blue"
+                        kicker="19 JUILLET"
+                        title={t("worldCup")}
+                        note={t("worldCupNote")}
+                        image={worldCupButtonUrl}
+                        onClick={() => setMenuTab("worldcup")}
+                      />
+                    </div>
+                    <div className="home-settings-strip home-settings-strip-solo">
+                      <PlayersToggle />
+                    </div>
+                    {players === 1 ? (
+                      <div className="controls">
+                        {t("soloControls1")}
+                        <br />
+                        {t("soloControls2")}
+                        <br />
+                        {t("soloControls3")}
+                        <br />
+                        {t("soloControls4")}
+                      </div>
+                    ) : (
+                      <div className="controls">
+                        {t("versusControls1")}
+                        <br />
+                        {t("versusControls2")}
+                        <br />
+                        {t("versusControls3")}
+                      </div>
+                    )}
+                  </>
+                )}
+                {menuTab === "club" && <EmptyMenu title="Club" />}
+                {menuTab === "challenge" && <EmptyMenu title="Defi" />}
+                {menuTab === "matchup" && (
+                  <div className="matchup">
+                    <div className="matchup-head">
+                      <b>{t("play")}</b>
+                      <span>
+                        {getNationalTeam(nationalTeam).label} vs {getNationalTeam(opponentTeam).label}
+                      </span>
+                    </div>
+                    <div className="matchup-grid">
+                      <MatchupTeamCard
+                        teamId={nationalTeam}
+                        side="home"
+                        badge={t("onePlayer")}
+                        onCycle={() => act().cycleNationalTeam()}
+                      />
+                      <div className="matchup-vs">VS</div>
+                      <MatchupTeamCard
+                        teamId={opponentTeam}
+                        side="away"
+                        badge="CPU"
+                        onCycle={() => act().cycleOpponentTeam()}
+                      />
+                    </div>
+                    <div className="matchup-actions">
+                      <button
+                        className="matchup-btn matchup-back"
+                        onClick={() => setMenuTab("home")}
+                        aria-label={t("back")}
+                      >
+                        ‹
+                      </button>
+                      <button
+                        className="matchup-btn matchup-lineup"
+                        onClick={() => setMenuTab("lineup")}
+                      >
+                        {t("lineup")}
+                      </button>
+                      <button
+                        className="matchup-btn matchup-play"
+                        onClick={() => startMatch(0)}
+                        aria-label={t("play")}
+                      >
+                        ⚽
+                      </button>
+                    </div>
                   </div>
                 )}
+                {menuTab === "national" && (
+                  <div className="menu-panel national-panel">
+                    <div className="menu-panel-head">
+                      <span>National</span>
+                      <b>
+                        {previewMatchSides[humanTeam].label} vs {previewMatchSides[1 - humanTeam].label}
+                      </b>
+                    </div>
+                    <div className="national-grid">
+                      {NATIONAL_TEAM_OPTIONS.map((option) => {
+                        const team = getNationalTeam(option.id);
+                        const opponent = getNationalTeam(getOpponentTeamId(option.id));
+                        const active = option.id === nationalTeam;
+                        const meta = NATIONAL_CARD_META[option.id];
+                        const stats = getNationalCardStats(team);
+                        return (
+                          <button
+                            key={option.id}
+                            className={`national-card${active ? " active" : ""}`}
+                            style={
+                              {
+                                "--team-color": team.color,
+                                "--opp-color": opponent.color,
+                              } as CSSProperties
+                            }
+                            onClick={() => act().setNationalTeam(option.id)}
+                          >
+                            <span className="national-card-foil">{meta.edition}</span>
+                            <span className="national-card-top">
+                              <em>{meta.nickname}</em>
+                              {active && <strong>ACTIF</strong>}
+                            </span>
+                            <span className="national-crest-shell">
+                              <span className="national-swatch-row">
+                                <i style={{ background: team.color }} />
+                                <i style={{ background: opponent.color }} />
+                              </span>
+                              <span className="national-crest-stars">
+                                {Array.from({ length: Math.max(meta.stars, 1) }, (_, i) => (
+                                  <i key={i}>{i < meta.stars ? "★" : "•"}</i>
+                                ))}
+                              </span>
+                              <span className="national-crest-core">
+                                <span>{teamCode(team.label)}</span>
+                                <small>{stats.overall}</small>
+                              </span>
+                              <span className="national-crest-ribbon">2026</span>
+                            </span>
+                            <b className="national-card-title">{team.label}</b>
+                            <span className="national-card-subtitle">{meta.motto}</span>
+                            <span className="national-matchup-pill">
+                              <small>VS</small>
+                              <span>{opponent.label}</span>
+                            </span>
+                            <span className="national-card-stats">
+                              <span>
+                                <small>ATT</small>
+                                <b>{stats.attack}</b>
+                              </span>
+                              <span>
+                                <small>MIL</small>
+                                <b>{stats.midfield}</b>
+                              </span>
+                              <span>
+                                <small>DEF</small>
+                                <b>{stats.defense}</b>
+                              </span>
+                            </span>
+                            <span className="national-card-bottom">
+                              <span className="national-color-chip">
+                                <i style={{ background: team.color }} />
+                                <i style={{ background: opponent.color }} />
+                              </span>
+                              <u>{stats.overall} GEN</u>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="national-actions">
+                      <button className="lineup-start" onClick={() => setMenuTab("lineup")}>
+                        {t("lineup")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {menuTab === "training" && (
+                  <div className="menu-panel">
+                    <div className="menu-panel-head">
+                      <span>{t("trainingHeading")}</span>
+                      <b>{t("chooseExercise")}</b>
+                    </div>
+                    <div className="training-grid">
+                      {TRAINING_OPTIONS.map((option) => (
+                        <button
+                          key={option.id}
+                          className={`training-card${option.image ? " training-image-card" : ""}`}
+                          onClick={() => startMatch(option.id)}
+                        >
+                          {option.image ? (
+                            <>
+                              <img src={option.image} alt="" />
+                              <span className="training-image-label">{t(option.titleKey)}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>{t(option.titleKey)}</span>
+                              <b>{t(option.noteKey)}</b>
+                            </>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {menuTab === "lineup" && (
+                  <div className="lineup-panel">
+                    <div className="lineup-top">
+                      <div>
+                        <span>{currentNationalTeam.label}</span>
+                        <b>{t("choosePlayers")}</b>
+                      </div>
+                      <button className="lineup-start" onClick={() => startMatch(0)}>
+                        {t("playMatch")}
+                      </button>
+                    </div>
+                    <div className="lineup-layout">
+                      <div className="lineup-pitch" aria-label={t("lineup")}>
+                        {LINEUP_SLOT_LAYOUT.map((slot, index) => {
+                          const player = lineupPlayerById.get(selectedLineup[index]!)!;
+                          return (
+                            <button
+                              key={`${slot.x}-${slot.y}-${player.id}`}
+                              data-lineup-slot={index}
+                              className={`player-card ${lineupFocus === player.id ? "player-card-focused" : ""}${lineupDrag?.targetSlot === index ? " player-card-drop-target" : ""}`}
+                              style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+                              onClick={() => setLineupFocus(player.id)}
+                            >
+                              <strong>{player.rating}</strong>
+                              <span>{player.pos}</span>
+                              <PlayerHead name={player.name} photoUrl={player.photo} />
+                              <b>{player.name}</b>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="lineup-bench">
+                        <span>{t("substitutes")}</span>
+                        {currentNationalTeam.squad
+                          .filter((player) => !selectedLineup.includes(player.id))
+                          .map((player) => (
+                            <button
+                              key={player.id}
+                              className={`bench-card ${selectedLineup.includes(player.id) ? "selected" : ""}`}
+                              onPointerDown={(event) => {
+                                event.preventDefault();
+                                setLineupDrag({
+                                  playerId: player.id,
+                                  x: event.clientX,
+                                  y: event.clientY,
+                                  startX: event.clientX,
+                                  startY: event.clientY,
+                                  targetSlot: null,
+                                  moved: false,
+                                });
+                              }}
+                              onClick={(event) => {
+                                if (suppressBenchClick.current) {
+                                  event.preventDefault();
+                                  return;
+                                }
+                                setSelectedLineup((current) => {
+                                  if (current.includes(player.id)) return current;
+                                  const next = current.map((id) => (id === lineupFocus ? player.id : id));
+                                  return next.includes(player.id) ? next : current;
+                                });
+                                setLineupFocus(player.id);
+                              }}
+                            >
+                              <strong>{player.rating}</strong>
+                              <PlayerHead name={player.name} photoUrl={player.photo} />
+                              <b>{player.name}</b>
+                              <em>{player.pos}</em>
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                    {lineupDrag && (
+                      <div
+                        className="lineup-drag-ghost"
+                        style={{
+                          left: lineupDrag.x,
+                          top: lineupDrag.y,
+                        }}
+                      >
+                        {(() => {
+                          const player = lineupPlayerById.get(lineupDrag.playerId)!;
+                          return (
+                            <>
+                              <strong>{player.rating}</strong>
+                              <PlayerHead name={player.name} photoUrl={player.photo} />
+                              <b>{player.name}</b>
+                              <em>{player.pos}</em>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {menuTab === "worldcup" && (
+                  <>
+                    <div className="menu-premium-strip">
+                      <span>{t("quickTactics")}</span>
+                      <span>{t("stadiumRadio")}</span>
+                      <span>{t("replayCards")}</span>
+                    </div>
+                    <div className="menu-panel worldcup-panel">
+                      <div className="menu-panel-head">
+                        <span>{t("worldCup2026")}</span>
+                        <b>{t("worldCupRange")}</b>
+                      </div>
+                      <div className="worldcup-list">
+                        {WORLD_CUP_FIXTURES.map((fixture) => (
+                          <button
+                            key={`${fixture.date}-${fixture.group}-${fixture.home}-${fixture.away}`}
+                            className="fixture-row"
+                            onClick={() => startMatch(0)}
+                          >
+                            <span className="fixture-date">{fixture.date}</span>
+                            <span className="fixture-main">
+                              <b>{fixture.home}</b>
+                              <em>vs</em>
+                              <b>{fixture.away}</b>
+                            </span>
+                            <span className="fixture-meta">
+                              {fixture.group} · {fixture.time} · {fixture.venue}
+                            </span>
+                            <span className="fixture-play">{t("playFixture")}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-            )}
-            {menuTab === "worldcup" && (
-              <div className="menu-panel worldcup-panel">
-                <div className="menu-panel-head">
-                  <span>{t("worldCup2026")}</span>
-                  <b>{t("worldCupRange")}</b>
-                </div>
-                <div className="worldcup-list">
-                  {WORLD_CUP_FIXTURES.map((fixture) => (
-                    <button
-                      key={`${fixture.date}-${fixture.group}-${fixture.home}-${fixture.away}`}
-                      className="fixture-row"
-                      onClick={() => startMatch(0)}
-                    >
-                      <span className="fixture-date">{fixture.date}</span>
-                      <span className="fixture-main">
-                        <b>{fixture.home}</b>
-                        <em>vs</em>
-                        <b>{fixture.away}</b>
-                      </span>
-                      <span className="fixture-meta">
-                        {fixture.group} · {fixture.time} · {fixture.venue}
-                      </span>
-                      <span className="fixture-play">{t("playFixture")}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {menuTab === "home" && (
-              players === 1 ? (
-                <div className="controls">
-                  {t("soloControls1")}
-                  <br />
-                  {t("soloControls2")}
-                  <br />
-                  {t("soloControls3")}
-                  <br />
-                  {t("soloControls4")}
-                </div>
-              ) : (
-                <div className="controls">
-                  {t("versusControls1")}
-                  <br />
-                  {t("versusControls2")}
-                  <br />
-                  {t("versusControls3")}
-                </div>
-              )
-            )}
+            </div>
           </div>
         </div>
       )}
@@ -1015,6 +1211,9 @@ function LanguagePrompt({
 /** The classic shoot-out tracker: a row of ticks/crosses per team. */
 function ShootoutBoard(): React.ReactNode {
   const detail = useStore((s) => s.pensDetail);
+  const humanTeam = useStore((s) => s.humanTeam);
+  const nationalTeam = useStore((s) => s.nationalTeam);
+  const sides = getPreviewMatchSides(nationalTeam, humanTeam);
   if (!detail) return null;
   const rounds = Math.max(5, detail[0].length, detail[1].length);
   return (
@@ -1039,7 +1238,7 @@ function ShootoutBoard(): React.ReactNode {
             style={{
               width: 11,
               height: 11,
-              background: TEAMS[t].color,
+              background: sides[t].color,
               borderRadius: 2,
               marginRight: 4,
             }}
@@ -1097,24 +1296,90 @@ function PlayersToggle(): React.ReactNode {
   );
 }
 
-function TeamChoice(): React.ReactNode {
+function NationalTeamSummary({
+  team,
+  opponent,
+  onOpen,
+}: {
+  team: string;
+  opponent: string;
+  onOpen: () => void;
+}): React.ReactNode {
   const { t } = useI18n();
-  const humanTeam = useStore((s) => s.humanTeam);
   return (
     <button
-      className={`menu-option ${humanTeam === 0 ? "tile-red" : "tile-blue"}`}
-      onClick={() => act().toggleHumanTeam()}
+      className="menu-option tile-red"
+      onClick={onOpen}
     >
       <span className="menu-key">E</span>
       <span className="menu-option-label">{t("team")}</span>
       <span className="menu-choice-line">
-        <span className={humanTeam === 0 ? "active-choice red-choice" : "muted-choice"}>RED</span>
-        <span className={humanTeam === 1 ? "active-choice blue-choice" : "muted-choice"}>BLU</span>
+        <span className="active-choice red-choice">{team}</span>
+        <span className="muted-choice">vs {opponent}</span>
       </span>
       <span className="menu-option-note">
-        {t("teamNote", { team: TEAMS[humanTeam].name })}
+        {t("teamNote", { team })}
       </span>
     </button>
+  );
+}
+
+function EmptyMenu({ title }: { title: string }): React.ReactNode {
+  return (
+    <div className="menu-panel">
+      <div className="menu-panel-head">
+        <span>{title}</span>
+        <b />
+      </div>
+      <div className="menu-empty-body" />
+    </div>
+  );
+}
+
+function MatchupTeamCard({
+  teamId,
+  side,
+  badge,
+  onCycle,
+}: {
+  teamId: NationalTeamId;
+  side: "home" | "away";
+  badge: string;
+  onCycle: () => void;
+}): React.ReactNode {
+  const team = getNationalTeam(teamId);
+  const captain = getTeamCaptain(teamId);
+  const ovr = getTeamOverall(teamId);
+  return (
+    <div className={`matchup-team matchup-team-${side}`} style={{ borderColor: team.color }}>
+      <span className="matchup-badge">{badge}</span>
+      <button className="matchup-change" onClick={onCycle} title="Changer d'équipe">
+        <span className="matchup-flag">{TEAM_FLAG[teamId]}</span>
+        <span className="matchup-change-hint">⟲</span>
+      </button>
+      <b className="matchup-name">{team.label}</b>
+      <div className="matchup-ovr">
+        <b>{ovr}</b>
+        <span>OVR</span>
+      </div>
+      <div className="matchup-captain">
+        <span className="matchup-cap-kit" style={{ background: team.color }}>
+          {captain.name
+            .split(" ")
+            .map((part) => part[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase()}
+        </span>
+        <div className="matchup-cap-text">
+          <span>Capitaine</span>
+          <b>{captain.name}</b>
+          <i>
+            {captain.pos} · {captain.rating}
+          </i>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1171,6 +1436,9 @@ const RADAR_H = 148;
 
 function Radar(): React.ReactNode {
   const radar = useStore((s) => s.radar);
+  const humanTeam = useStore((s) => s.humanTeam);
+  const nationalTeam = useStore((s) => s.nationalTeam);
+  const sides = getPreviewMatchSides(nationalTeam, humanTeam);
   const ref = useRef<HTMLCanvasElement>(null);
   // hide the radar while aiming a set piece — it sits right over the ball
   const [hidden, setHidden] = useState(false);
@@ -1207,7 +1475,7 @@ function Radar(): React.ReactNode {
         ctx.fillStyle = "#ffffff";
         ctx.arc(x, y, 2.6, 0, Math.PI * 2);
       } else {
-        ctx.fillStyle = TEAMS[(code % 2) as 0 | 1].color;
+        ctx.fillStyle = sides[(code % 2) as 0 | 1].color;
         ctx.arc(x, y, 3.4, 0, Math.PI * 2);
       }
       ctx.fill();

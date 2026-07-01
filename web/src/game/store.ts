@@ -1,5 +1,11 @@
 import { create } from "zustand";
 import { radioReset } from "./radio";
+import {
+  DEFAULT_NATIONAL_TEAM,
+  getOpponentTeamId,
+  isNationalTeamId,
+  type NationalTeamId,
+} from "./teams";
 
 export type Mode =
   | "menu"
@@ -25,8 +31,12 @@ interface Store {
   difficulty: number;
   /** 1 = solo vs the AI, 2 = local versus on one keyboard (P2 steers BLU) */
   players: number;
-  /** solo only: team controlled by player 1, 0 = RED, 1 = BLU */
+  /** solo only: side controlled by player 1, 0 = left scoreboard side, 1 = right */
   humanTeam: 0 | 1;
+  /** selected national side for menu, lineup and match presentation */
+  nationalTeam: NationalTeamId;
+  /** chosen opponent side (pre-match setup lets the player pick both) */
+  opponentTeam: NationalTeamId;
   /** starting eleven names chosen from the lineup screen */
   lineupNames: string[];
   /** game mode: 0 match, 1 shoot-out, 2 free-kick, 3 corner, 4 penalty, 5 offside drill, 6 tackle drill, 7 dribble drill */
@@ -56,6 +66,10 @@ interface Store {
   togglePlayers: () => void;
   toggleHumanTeam: () => void;
   setHumanTeam: (team: 0 | 1) => void;
+  cycleNationalTeam: () => void;
+  setNationalTeam: (team: NationalTeamId) => void;
+  cycleOpponentTeam: () => void;
+  setOpponentTeam: (team: NationalTeamId) => void;
   setLineupNames: (lineupNames: string[]) => void;
   cyclePractice: () => void;
   setPractice: (practice: number) => void;
@@ -74,6 +88,45 @@ interface Store {
   setOffsidePlayer: (offsidePlayerX: number | null) => void;
 }
 
+const NATIONAL_TEAM_STORAGE_KEY = "gpf-national-team-v1";
+const NATIONAL_TEAM_ORDER: NationalTeamId[] = ["france", "england", "argentina", "portugal", "norway"];
+
+function loadNationalTeam(): NationalTeamId {
+  if (typeof window === "undefined") return DEFAULT_NATIONAL_TEAM;
+  const saved = window.localStorage.getItem(NATIONAL_TEAM_STORAGE_KEY);
+  return saved && isNationalTeamId(saved) ? saved : DEFAULT_NATIONAL_TEAM;
+}
+
+function saveNationalTeam(team: NationalTeamId): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(NATIONAL_TEAM_STORAGE_KEY, team);
+}
+
+const OPPONENT_TEAM_STORAGE_KEY = "gpf-opponent-team-v1";
+
+function loadOpponentTeam(ownTeam: NationalTeamId): NationalTeamId {
+  if (typeof window !== "undefined") {
+    const saved = window.localStorage.getItem(OPPONENT_TEAM_STORAGE_KEY);
+    if (saved && isNationalTeamId(saved) && saved !== ownTeam) return saved;
+  }
+  return getOpponentTeamId(ownTeam);
+}
+
+function saveOpponentTeam(team: NationalTeamId): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(OPPONENT_TEAM_STORAGE_KEY, team);
+}
+
+/** Next id in the cycle that isn't `avoid` (you can't play yourself). */
+function nextTeamId(current: NationalTeamId, avoid: NationalTeamId): NationalTeamId {
+  const start = NATIONAL_TEAM_ORDER.indexOf(current);
+  for (let step = 1; step <= NATIONAL_TEAM_ORDER.length; step++) {
+    const candidate = NATIONAL_TEAM_ORDER[(start + step) % NATIONAL_TEAM_ORDER.length]!;
+    if (candidate !== avoid) return candidate;
+  }
+  return current;
+}
+
 export const useStore = create<Store>((set) => ({
   mode: "menu",
   gen: 0,
@@ -81,6 +134,8 @@ export const useStore = create<Store>((set) => ({
   difficulty: 1,
   players: 1,
   humanTeam: 0,
+  nationalTeam: loadNationalTeam(),
+  opponentTeam: loadOpponentTeam(loadNationalTeam()),
   lineupNames: [],
   practice: 0,
   score: [0, 0],
@@ -100,6 +155,33 @@ export const useStore = create<Store>((set) => ({
   togglePlayers: () => set((s) => ({ players: s.players === 1 ? 2 : 1 })),
   toggleHumanTeam: () => set((s) => ({ humanTeam: s.humanTeam === 0 ? 1 : 0 })),
   setHumanTeam: (humanTeam) => set({ humanTeam }),
+  cycleNationalTeam: () =>
+    set((s) => {
+      const nationalTeam = nextTeamId(s.nationalTeam, s.opponentTeam);
+      saveNationalTeam(nationalTeam);
+      return { nationalTeam };
+    }),
+  setNationalTeam: (nationalTeam) =>
+    set((s) => {
+      saveNationalTeam(nationalTeam);
+      // never leave both sides on the same team
+      const opponentTeam =
+        s.opponentTeam === nationalTeam ? nextTeamId(nationalTeam, nationalTeam) : s.opponentTeam;
+      if (opponentTeam !== s.opponentTeam) saveOpponentTeam(opponentTeam);
+      return { nationalTeam, opponentTeam };
+    }),
+  cycleOpponentTeam: () =>
+    set((s) => {
+      const opponentTeam = nextTeamId(s.opponentTeam, s.nationalTeam);
+      saveOpponentTeam(opponentTeam);
+      return { opponentTeam };
+    }),
+  setOpponentTeam: (opponentTeam) =>
+    set((s) => {
+      const next = opponentTeam === s.nationalTeam ? nextTeamId(opponentTeam, s.nationalTeam) : opponentTeam;
+      saveOpponentTeam(next);
+      return { opponentTeam: next };
+    }),
   setLineupNames: (lineupNames) => set({ lineupNames }),
   cyclePractice: () => set((s) => ({ practice: (s.practice + 1) % 8 })),
   setPractice: (practice) => set({ practice }),
