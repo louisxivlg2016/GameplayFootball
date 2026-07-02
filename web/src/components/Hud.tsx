@@ -800,8 +800,8 @@ export function Hud(): React.ReactNode {
                       </button>
                       <button
                         className="matchup-btn matchup-play"
-                        onClick={() => startMatch(0)}
-                        aria-label={t("play")}
+                        onClick={() => setMenuTab("lineup")}
+                        aria-label={t("lineup")}
                       >
                         ⚽
                       </button>
