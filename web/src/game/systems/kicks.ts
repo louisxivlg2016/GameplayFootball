@@ -318,7 +318,7 @@ export function shoot(
   const scatter =
     (1 - kicker.get(Stats)!.shot) *
     2.2 *
-    (cannon ? 1.5 : 1) *
+    (cannon ? 1.25 : 1) *
     shotDiffErr *
     (Math.random() - 0.5) *
     2;
@@ -329,7 +329,8 @@ export function shoot(
   if (dist < 0.5) return;
   // loft01: how long the shoot button was CHARGED — a full hold trades pace
   // for a big skied ball. cannon: the T rocket — flat and vicious.
-  const speed = cannon ? 37 : 26 - loft01 * 7;
+  // the T rocket: 45 m/s (~160 km/h) — unmistakably harder than the 26 tap
+  const speed = cannon ? 45 : 26 - loft01 * 7;
   const lift = cannon
     ? Math.min(3.0, 1.3 + dist * 0.045)
     : Math.min(6.5, 2.2 + dist * 0.09) + loft01 * 9.5;

@@ -42,9 +42,34 @@ let playerGen = 0;
 let speechToken = 0;
 let lastOpeningAt = 0;
 
-function currentLanguage(): AppLanguage {
-  return getCurrentLanguage();
+/** Can this language actually SPEAK here? A Piper model, or a real browser
+ *  voice for it. Languages with neither fall back to the English commentary —
+ *  spoken beats silent. */
+function radioSpeakable(language: AppLanguage): boolean {
+  if (getPiperVoiceId(language)) return true;
+  return preferredSpeechVoice(language) !== null;
 }
+
+function currentLanguage(): AppLanguage {
+  const ui = getCurrentLanguage();
+  return radioSpeakable(ui) ? ui : "en";
+}
+
+/** The language the radio will actually speak (UI language, or English when
+ *  no voice exists for it) — commentary text must match the voice. */
+export function radioLanguage(): AppLanguage {
+  return currentLanguage();
+}
+
+// some Piper voices are mastered much quieter than tom/fr — per-voice boost
+// so every commentator hits the same broadcast loudness
+const VOICE_GAIN: Record<string, number> = {
+  "de_DE-thorsten-high": 1.5,
+  "no_NO-talesyntese-medium": 1.75,
+  "it_IT-paola-medium": 1.45,
+  "sr_RS-serbski_institut-medium": 1.4,
+  "nl_BE-rdh-medium": 1.25,
+};
 
 function speechFallbackAvailable(): boolean {
   return (
@@ -228,7 +253,8 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
     src.buffer = pcm;
     src.playbackRate.value = fx?.rate ?? 1; // pitch rides up with rate: the shout
     const gain = ctx.createGain();
-    gain.gain.value = (fx?.volume ?? 1) * 3.4; // LOUD — compressor catches peaks
+    const boost = VOICE_GAIN[requestedVoiceId ?? ""] ?? 1;
+    gain.gain.value = (fx?.volume ?? 1) * 3.4 * boost; // LOUD — compressor catches peaks
     src.connect(gain);
     gain.connect(radioOut!);
     currentSource = src;

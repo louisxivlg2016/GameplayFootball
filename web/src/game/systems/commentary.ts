@@ -1,5 +1,4 @@
 import type { World } from "koota";
-import { getCurrentLanguage } from "../../i18n";
 import { getRadioPack } from "../radioI18n";
 import {
   BallRef,
@@ -15,7 +14,7 @@ import {
 } from "../traits";
 import { PITCH, attackSign } from "../levels";
 import { useStore } from "../store";
-import { radioFlow, teamName } from "../radio";
+import { radioFlow, radioLanguage, teamName } from "../radio";
 import { refState } from "./referee";
 
 let gap = 0; // breathing time between lines, counts only while the mic is idle
@@ -49,7 +48,7 @@ export function commentarySystem(world: World, dt: number): void {
   const bs = ball?.get(BallState);
   if (!ball || !rb || !bs) return;
   const bp = rb.translation();
-  const language = getCurrentLanguage();
+  const language = radioLanguage();
   const copy = getRadioPack(language);
 
   // occasionally step back for the score (no ordinals — Piper mangles "2e")
