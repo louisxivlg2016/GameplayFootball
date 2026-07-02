@@ -484,7 +484,8 @@ function buildClubTeam(league: League, clubIndex: number): NationalTeam {
     let name = "";
     for (let attempt = 0; attempt < 8 && (!name || used.has(name)); attempt++) {
       const h = clubHash(`${seed}:${i}:${attempt}`);
-      name = `${firsts[h % firsts.length]} ${lasts[(h >> 8) % lasts.length]}`;
+      // unsigned shift: a signed >> can go negative and index undefined
+      name = `${firsts[h % firsts.length]} ${lasts[(h >>> 8) % lasts.length]}`;
     }
     used.add(name);
     const jitter = ((clubHash(`${seed}r${i}`) % 700) / 100) - 3; // -3..+4
