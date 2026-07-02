@@ -4,6 +4,7 @@ import {
   DEFAULT_NATIONAL_TEAM,
   getOpponentTeamId,
   isNationalTeamId,
+  nextMatchTeamId,
   type NationalTeamId,
 } from "./teams";
 
@@ -70,6 +71,7 @@ interface Store {
   setNationalTeam: (team: NationalTeamId) => void;
   cycleOpponentTeam: () => void;
   setOpponentTeam: (team: NationalTeamId) => void;
+  setMatchTeams: (team: NationalTeamId, opponent: NationalTeamId) => void;
   setLineupNames: (lineupNames: string[]) => void;
   cyclePractice: () => void;
   setPractice: (practice: number) => void;
@@ -89,8 +91,6 @@ interface Store {
 }
 
 const NATIONAL_TEAM_STORAGE_KEY = "gpf-national-team-v1";
-const NATIONAL_TEAM_ORDER: NationalTeamId[] = ["france", "england", "argentina", "portugal", "norway"];
-
 function loadNationalTeam(): NationalTeamId {
   if (typeof window === "undefined") return DEFAULT_NATIONAL_TEAM;
   const saved = window.localStorage.getItem(NATIONAL_TEAM_STORAGE_KEY);
@@ -117,15 +117,8 @@ function saveOpponentTeam(team: NationalTeamId): void {
   window.localStorage.setItem(OPPONENT_TEAM_STORAGE_KEY, team);
 }
 
-/** Next id in the cycle that isn't `avoid` (you can't play yourself). */
-function nextTeamId(current: NationalTeamId, avoid: NationalTeamId): NationalTeamId {
-  const start = NATIONAL_TEAM_ORDER.indexOf(current);
-  for (let step = 1; step <= NATIONAL_TEAM_ORDER.length; step++) {
-    const candidate = NATIONAL_TEAM_ORDER[(start + step) % NATIONAL_TEAM_ORDER.length]!;
-    if (candidate !== avoid) return candidate;
-  }
-  return current;
-}
+// next id in the group cycle that isn't `avoid` — see teams.nextMatchTeamId
+const nextTeamId = nextMatchTeamId;
 
 export const useStore = create<Store>((set) => ({
   mode: "menu",
@@ -181,6 +174,13 @@ export const useStore = create<Store>((set) => ({
       const next = opponentTeam === s.nationalTeam ? nextTeamId(opponentTeam, s.nationalTeam) : opponentTeam;
       saveOpponentTeam(next);
       return { opponentTeam: next };
+    }),
+  setMatchTeams: (nationalTeam, opponentTeam) =>
+    set(() => {
+      const safeOpponent = opponentTeam === nationalTeam ? nextTeamId(opponentTeam, nationalTeam) : opponentTeam;
+      saveNationalTeam(nationalTeam);
+      saveOpponentTeam(safeOpponent);
+      return { nationalTeam, opponentTeam: safeOpponent };
     }),
   setLineupNames: (lineupNames) => set({ lineupNames }),
   cyclePractice: () => set((s) => ({ practice: (s.practice + 1) % 8 })),

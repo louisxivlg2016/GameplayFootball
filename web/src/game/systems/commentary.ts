@@ -1,4 +1,6 @@
 import type { World } from "koota";
+import { getCurrentLanguage } from "../../i18n";
+import { getRadioPack } from "../radioI18n";
 import {
   BallRef,
   BallState,
@@ -15,9 +17,6 @@ import { PITCH, attackSign } from "../levels";
 import { useStore } from "../store";
 import { radioFlow, teamName } from "../radio";
 import { refState } from "./referee";
-
-const pick = (lines: string[]): string =>
-  lines[Math.floor(Math.random() * lines.length)]!;
 
 let gap = 0; // breathing time between lines, counts only while the mic is idle
 let lastKind = "";
@@ -50,19 +49,13 @@ export function commentarySystem(world: World, dt: number): void {
   const bs = ball?.get(BallState);
   if (!ball || !rb || !bs) return;
   const bp = rb.translation();
+  const language = getCurrentLanguage();
+  const copy = getRadioPack(language);
 
   // occasionally step back for the score (no ordinals — Piper mangles "2e")
   if (Math.random() < 0.12) {
     const { score } = useStore.getState();
-    const lead =
-      score[0] === score[1]
-        ? score[0] === 0
-          ? "Toujours zéro à zéro dans cette rencontre."
-          : `${score[0]} partout dans ce match.`
-        : score[0] > score[1]
-          ? `${teamName(0)} mènent ${score[0]} à ${score[1]}.`
-          : `${teamName(1)} mènent ${score[1]} à ${score[0]}.`;
-    radioFlow(lead);
+    radioFlow(copy.scoreStatus(score, teamName(0, language), teamName(1, language)));
     lastKind = "score";
     return;
   }
@@ -70,30 +63,20 @@ export function commentarySystem(world: World, dt: number): void {
   const owner = bs.owner;
   if (!owner || !owner.isAlive()) {
     if (lastKind !== "loose") {
-      radioFlow(
-        pick([
-          "Le ballon est libre !",
-          "Personne ne contrôle ce ballon.",
-          "Ballon disputé au milieu de tous ces joueurs !",
-        ]),
-      );
+      radioFlow(copy.loose);
       lastKind = "loose";
     }
     return;
   }
 
-  const name = owner.get(Name)?.spoken ?? "";
+  const ownerName = owner.get(Name);
+  const name = ownerName?.full || ownerName?.spoken || ownerName?.short || "";
   const teamId = owner.get(Team)!.id;
-  const team = teamName(teamId);
+  const team = teamName(teamId, language);
   if (!name) return;
 
   if (owner.get(PlayerInfo)!.role === Role.GK) {
-    radioFlow(
-      pick([
-        `Le gardien ${name} a le ballon dans les gants.`,
-        `${name} va relancer pour ${team}.`,
-      ]),
-    );
+    radioFlow(copy.keeper(name, team));
     lastKind = "keeper";
     return;
   }
@@ -113,66 +96,37 @@ export function commentarySystem(world: World, dt: number): void {
     const d = Math.hypot(op.x - p.x, op.z - p.z);
     if (d < oppDist) {
       oppDist = d;
-      oppName = e.get(Name)?.spoken ?? "";
+      const opp = e.get(Name);
+      oppName = opp?.full || opp?.spoken || opp?.short || "";
     }
   }
 
   if (oppDist < 2.5 && oppName && lastKind !== "duel") {
-    radioFlow(
-      pick([
-        `${name} est pressé par ${oppName} !`,
-        `${oppName} vient au duel sur ${name} !`,
-        `Attention, ${oppName} est sur ${name} !`,
-      ]),
-    );
+    radioFlow(copy.duel(name, oppName));
     lastKind = "duel";
     return;
   }
 
   if (speed > 6 && lastKind !== "run") {
-    radioFlow(
-      pick([
-        `${name} accélère !`,
-        `Quelle chevauchée de ${name} !`,
-        `${name} prend la profondeur pour ${team} !`,
-      ]),
-    );
+    radioFlow(copy.run(name, team));
     lastKind = "run";
     return;
   }
 
   if (depth > PITCH.halfLength - 25 && lastKind !== "danger") {
-    radioFlow(
-      pick([
-        `${name} approche de la surface !`,
-        `${name} dans le dernier tiers, ça devient chaud !`,
-        `Le porteur ${name} est aux abords de la surface adverse !`,
-      ]),
-    );
+    radioFlow(copy.danger(name));
     lastKind = "danger";
     return;
   }
 
   if (depth < -PITCH.halfLength + 25 && lastKind !== "build") {
-    radioFlow(
-      pick([
-        `${name} relance proprement depuis la défense.`,
-        `${team} repartent de derrière avec ${name}.`,
-      ]),
-    );
+    radioFlow(copy.build(name, team));
     lastKind = "build";
     return;
   }
 
   if (lastKind !== "carry") {
-    radioFlow(
-      pick([
-        `${name} au ballon pour ${team}.`,
-        `${name} porte le ballon au milieu de terrain.`,
-        `${name} en possession, ${team} font circuler.`,
-        `Le jeu passe par ${name}.`,
-      ]),
-    );
+    radioFlow(copy.carry(name, team));
     lastKind = "carry";
   }
 }

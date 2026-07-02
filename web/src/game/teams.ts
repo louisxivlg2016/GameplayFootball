@@ -1,4 +1,10 @@
-export type NationalTeamId = "france" | "england" | "argentina" | "portugal" | "norway";
+/** Any playable side: the five hand-built nationals, or a generated
+ *  `club-…` id for every club of the CLUB-tab catalog. */
+export type NationalTeamId = string;
+
+export const NATIONAL_IDS = ["france", "england", "argentina", "portugal", "norway"] as const;
+
+import { LEAGUES, type League } from "./clubs";
 
 export interface NationalTeamPlayer {
   id: number;
@@ -310,7 +316,10 @@ export function getNationalTeam(id: NationalTeamId): NationalTeam {
 }
 
 export function getOpponentTeamId(id: NationalTeamId): NationalTeamId {
-  return OPPONENT_BY_TEAM[id];
+  const fixed = OPPONENT_BY_TEAM[id];
+  if (fixed) return fixed;
+  // a club's default rival: the next club of its own league
+  return nextMatchTeamId(id, id);
 }
 
 export function getPreviewMatchSides(
@@ -319,6 +328,16 @@ export function getPreviewMatchSides(
 ): [NationalTeam, NationalTeam] {
   const human = getNationalTeam(selectedTeam);
   const ai = getNationalTeam(getOpponentTeamId(selectedTeam));
+  return humanSide === 0 ? [human, ai] : [ai, human];
+}
+
+export function getPreviewMatchSidesFor(
+  humanTeamId: NationalTeamId,
+  opponentTeamId: NationalTeamId,
+  humanSide: 0 | 1,
+): [NationalTeam, NationalTeam] {
+  const human = getNationalTeam(humanTeamId);
+  const ai = getNationalTeam(opponentTeamId);
   return humanSide === 0 ? [human, ai] : [ai, human];
 }
 
@@ -346,9 +365,7 @@ export function configureMatchSidesFor(
   opponentTeamId: NationalTeamId,
   humanSide: 0 | 1,
 ): [NationalTeam, NationalTeam] {
-  const human = getNationalTeam(humanTeamId);
-  const ai = getNationalTeam(opponentTeamId);
-  const sides: [NationalTeam, NationalTeam] = humanSide === 0 ? [human, ai] : [ai, human];
+  const sides = getPreviewMatchSidesFor(humanTeamId, opponentTeamId, humanSide);
   configuredSides = [sides[0].id, sides[1].id];
   return sides;
 }
@@ -397,4 +414,126 @@ export function getDefaultLineupNames(teamId: NationalTeamId): string[] {
 
 export function isNationalTeamId(value: string): value is NationalTeamId {
   return value in NATIONAL_TEAMS;
+}
+
+// ---------------------------------------------------------------------------
+// Club teams: every club of the CLUB-tab catalog is a playable side. Squads
+// are generated deterministically — names flavored by the league's country,
+// ratings from the club's fame (catalog order) — and registered alongside the
+// nationals so the whole match pipeline (lineup, kits, radio) just works.
+// ---------------------------------------------------------------------------
+
+const CLUB_POSITIONS = [
+  "GB", "DD", "DC", "DC", "DG", "MDC", "MC", "MOC", "AG", "BU", "AD",
+  "GB", "DD", "DC", "DG", "MC", "MOC", "BU",
+];
+
+const CLUB_FIRST: Record<string, string[]> = {
+  fr: ["Lucas", "Hugo", "Théo", "Enzo", "Léo", "Nathan", "Tom", "Mathis", "Noah", "Ethan", "Louis", "Jules", "Adam", "Maël", "Rayan", "Sacha"],
+  en: ["Jack", "Harry", "Oliver", "George", "Charlie", "Jacob", "Alfie", "Freddie", "Oscar", "Archie", "Henry", "Theo", "Leo", "Finley", "Mason", "Callum"],
+  es: ["Pablo", "Álvaro", "Hugo", "Mario", "Daniel", "Javier", "Adrián", "Diego", "Marcos", "Iker", "Sergio", "Carlos", "Rubén", "Iván", "Raúl", "Mikel"],
+  it: ["Marco", "Luca", "Alessandro", "Andrea", "Matteo", "Lorenzo", "Davide", "Simone", "Federico", "Riccardo", "Gabriele", "Antonio", "Giuseppe", "Nicolò", "Tommaso", "Pietro"],
+  de: ["Leon", "Finn", "Jonas", "Luis", "Paul", "Felix", "Maximilian", "Elias", "Julian", "Moritz", "Niklas", "Tim", "Jan", "Fabian", "David", "Nico"],
+  eu: ["João", "Rúben", "Sven", "Daan", "Callum", "Ewan", "Emre", "Kaan", "Thibaut", "Milan", "Mateo", "Nicolás", "Kaio", "Rafael", "Omar", "Diego"],
+};
+const CLUB_LAST: Record<string, string[]> = {
+  fr: ["Martin", "Bernard", "Dubois", "Moreau", "Laurent", "Garnier", "Rousseau", "Blanc", "Guérin", "Chevalier", "Perrin", "Marchand", "Dupont", "Fontaine", "Lambert", "Renard"],
+  en: ["Smith", "Jones", "Taylor", "Brown", "Wilson", "Evans", "Walker", "Wright", "Hughes", "Turner", "Parker", "Collins", "Bennett", "Murphy", "Cooper", "Foster"],
+  es: ["García", "López", "Martínez", "Sánchez", "Pérez", "Gómez", "Fernández", "Torres", "Ramírez", "Navarro", "Moreno", "Ortega", "Delgado", "Castro", "Vargas", "Molina"],
+  it: ["Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci", "Marino", "Greco", "Bruno", "Gallo", "Conti", "De Luca", "Costa", "Rizzo"],
+  de: ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Wagner", "Becker", "Hoffmann", "Koch", "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Braun", "Krüger"],
+  eu: ["Silva", "Santos", "De Jong", "Van Dijk", "MacLeod", "Yilmaz", "Öztürk", "Peeters", "Kovač", "Fernández", "Costa", "Oliveira", "Souza", "Petrov", "Papas", "Haddad"],
+};
+
+/** Deterministic string hash (fnv-ish) for stable generated squads. */
+function clubHash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function clubSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+/** Stable playable-team id for a catalog club. */
+export function clubTeamId(name: string): NationalTeamId {
+  return `club-${clubSlug(name)}`;
+}
+
+const LEAGUE_BY_TEAM_ID = new Map<string, League>();
+
+function buildClubTeam(league: League, clubIndex: number): NationalTeam {
+  const club = league.clubs[clubIndex]!;
+  const id = clubTeamId(club.name);
+  const firsts = CLUB_FIRST[league.id] ?? CLUB_FIRST.eu!;
+  const lasts = CLUB_LAST[league.id] ?? CLUB_LAST.eu!;
+  // fame: catalog order (PSG/Real/Arsenal first) sets the squad's level
+  const prestige = Math.max(74, (league.id === "eu" ? 85 : 88) - clubIndex * 0.7);
+  const seed = clubHash(club.name);
+  const used = new Set<string>();
+  const players = CLUB_POSITIONS.map((pos, i) => {
+    let name = "";
+    for (let attempt = 0; attempt < 8 && (!name || used.has(name)); attempt++) {
+      const h = clubHash(`${seed}:${i}:${attempt}`);
+      name = `${firsts[h % firsts.length]} ${lasts[(h >> 8) % lasts.length]}`;
+    }
+    used.add(name);
+    const jitter = ((clubHash(`${seed}r${i}`) % 700) / 100) - 3; // -3..+4
+    const bench = i >= 11 ? -2 : 0;
+    return {
+      name,
+      pos,
+      rating: Math.round(Math.min(93, Math.max(70, prestige + jitter + bench))),
+    };
+  });
+  return buildTeam({
+    id,
+    label: club.name,
+    radioLabel: club.name,
+    color: club.color,
+    shorts: club.color2,
+    players,
+  });
+}
+
+for (const league of LEAGUES) {
+  for (let i = 0; i < league.clubs.length; i++) {
+    const team = buildClubTeam(league, i);
+    (NATIONAL_TEAMS as Record<string, NationalTeam>)[team.id] = team;
+    LEAGUE_BY_TEAM_ID.set(team.id, league);
+  }
+}
+
+/** Kind of side an id is: hand-built national or generated club. */
+export function isClubTeamId(id: NationalTeamId): boolean {
+  return LEAGUE_BY_TEAM_ID.has(id);
+}
+
+/** Flag for the matchup screen: national flag, or the club's league flag. */
+export function getTeamFlag(id: NationalTeamId): string {
+  return TEAM_FLAG[id] ?? LEAGUE_BY_TEAM_ID.get(id)?.flag ?? "⚽";
+}
+
+/** Cycle to the next side in the SAME group (nationals, or the club's league),
+ *  never landing on `avoid` — the matchup screen's change buttons. */
+export function nextMatchTeamId(current: NationalTeamId, avoid: NationalTeamId): NationalTeamId {
+  const league = LEAGUE_BY_TEAM_ID.get(current);
+  const order: NationalTeamId[] = league
+    ? league.clubs.map((club) => clubTeamId(club.name))
+    : [...NATIONAL_IDS];
+  const start = order.indexOf(current);
+  for (let step = 1; step <= order.length; step++) {
+    const candidate = order[(start + step) % order.length]!;
+    if (candidate !== avoid) return candidate;
+  }
+  return current;
 }

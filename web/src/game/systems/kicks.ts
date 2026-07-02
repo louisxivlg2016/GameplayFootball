@@ -209,8 +209,8 @@ export function executePass(world: World, kicker: Entity, choice: PassChoice): v
   bsAfter.passHomingT = 4;
   bsAfter.passProtected = choice.protected ?? false;
   radio("pass", {
-    player: kicker.get(Name)?.spoken ?? "",
-    target: choice.mate.get(Name)?.spoken ?? "",
+    player: kicker.get(Name)?.full || kicker.get(Name)?.spoken || kicker.get(Name)?.short || "",
+    target: choice.mate.get(Name)?.full || choice.mate.get(Name)?.spoken || choice.mate.get(Name)?.short || "",
   });
 }
 
@@ -322,7 +322,10 @@ export function shoot(world: World, kicker: Entity, aimZ: number): void {
     y: lift,
     z: (dz / dist) * speed,
   });
-  if (dist < 32) radio("shot", { player: kicker.get(Name)?.spoken ?? "" });
+  if (dist < 32) {
+    const kickerName = kicker.get(Name);
+    radio("shot", { player: kickerName?.full || kickerName?.spoken || kickerName?.short || "" });
+  }
 }
 
 /**
@@ -354,7 +357,10 @@ export function strikeToward(
     y: lift,
     z: (dz / dist) * speed,
   });
-  if (!loft && dist < 34) radio("shot", { player: kicker.get(Name)?.spoken ?? "" });
+  if (!loft && dist < 34) {
+    const kickerName = kicker.get(Name);
+    radio("shot", { player: kickerName?.full || kickerName?.spoken || kickerName?.short || "" });
+  }
 }
 
 /**
@@ -394,7 +400,10 @@ export function header(
     vx = (dx / d) * speed;
     vz = (dz / d) * speed;
     vy = -1; // headed down
-    if (distGoal < 32) radio("shot", { player: player.get(Name)?.spoken ?? "" });
+    if (distGoal < 32) {
+      const playerName = player.get(Name);
+      radio("shot", { player: playerName?.full || playerName?.spoken || playerName?.short || "" });
+    }
   } else {
     // a directional flick / clearance up the pitch
     const h = player.get(Heading)!.angle;

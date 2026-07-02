@@ -1,14 +1,14 @@
 /**
- * Radio commentary: a French play-by-play voice. Piper neural TTS
- * (fr_FR-tom-medium) synthesized in a Web Worker, WASM runtimes self-hosted
- * by serve.ts. There is deliberately NO robotic fallback: if the neural voice
- * cannot load, the radio stays silent (see console [radio] lines for why).
- * Urgent events (goals, cards) interrupt; chatter only plays when the
- * commentator is quiet. Toggle with R.
+ * Radio commentary: one play-by-play voice per language when Piper has a
+ * matching model, otherwise the browser voice for that language. Urgent events
+ * interrupt; chatter only plays when the commentator is quiet. Toggle with R.
  */
 import { remove as removeVoice } from "@mintplex-labs/piper-tts-web";
 import goalButButUrl from "../assets/audio/goal-but-but.mp3";
+import { getCurrentLanguage, type AppLanguage } from "../i18n";
 import { audioMuted, sharedAudioContext, sharedAudioOutput } from "./audio";
+import { getGoalCall, getPiperVoiceId, getRadioPack, getSpeechLocale, getTeamDisplayName } from "./radioI18n";
+import { getConfiguredMatchTeam } from "./teams";
 
 let enabled = true;
 export const RADIO_STATE_EVENT = "gpf-radio-statechange";
@@ -42,6 +42,10 @@ let playerGen = 0;
 let speechToken = 0;
 let lastOpeningAt = 0;
 
+function currentLanguage(): AppLanguage {
+  return getCurrentLanguage();
+}
+
 function speechFallbackAvailable(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -50,23 +54,37 @@ function speechFallbackAvailable(): boolean {
   );
 }
 
-function preferredSpeechVoice(): SpeechSynthesisVoice | null {
+function preferredSpeechVoice(language: AppLanguage): SpeechSynthesisVoice | null {
   if (!speechFallbackAvailable()) return null;
+  const wanted = getSpeechLocale(language).toLowerCase();
+  const wantedPrefix = wanted.split("-")[0]!;
   const voices = window.speechSynthesis.getVoices();
   const scoreVoice = (voice: SpeechSynthesisVoice): number => {
     const name = voice.name.toLowerCase();
-    let score = voice.lang.toLowerCase().startsWith("fr") ? 100 : 0;
-    if (/(thomas|daniel|nicolas|paul|vincent|antoine|xavier|alexandre|yann|julien)/i.test(name)) score += 40;
-    if (/(female|femme|woman|amelie|amélie|hortense|audrey|claire|julie|marie)/i.test(name)) score -= 60;
+    const lang = voice.lang.toLowerCase();
+    let score = 0;
+    if (lang === wanted) score += 120;
+    else if (lang.startsWith(`${wantedPrefix}-`) || lang === wantedPrefix) score += 100;
+    if (voice.localService) score += 10;
+    if (
+      /(male|man|masc|thomas|tom|daniel|nicolas|paul|vincent|antoine|xavier|alexandre|yann|julien|thorsten|alan|ryan|kareem|denis|dmitri|fahrettin|riccardo|faber)/i.test(
+        name,
+      )
+    ) {
+      score += 40;
+    }
+    if (/(female|femme|woman|amelie|amélie|hortense|audrey|claire|julie|marie|eva|kerstin|nathalie|paola|lada|amy|jenny|irina)/i.test(name)) {
+      score -= 60;
+    }
     return score;
   };
-  const ranked = voices
-    .filter((voice) => voice.lang.toLowerCase().startsWith("fr"))
-    .sort((a, b) => scoreVoice(b) - scoreVoice(a));
-  return (
-    ranked[0] ??
-    null
-  );
+  const matching = voices.filter((voice) => {
+    const lang = voice.lang.toLowerCase();
+    return lang === wanted || lang.startsWith(`${wantedPrefix}-`) || lang === wantedPrefix;
+  });
+  if (!matching.length) return null;
+  const ranked = [...matching].sort((a, b) => scoreVoice(b) - scoreVoice(a));
+  return ranked[0] ?? null;
 }
 
 function stopSpeechFallback(): void {
@@ -233,7 +251,7 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
   }
 }
 
-function playSpeechFallback(text: string, gen: number, fx?: VoiceFx): void {
+function playSpeechFallback(text: string, gen: number, language: AppLanguage, fx?: VoiceFx): void {
   if (gen !== playerGen) return;
   if (!enabled || !speechFallbackAvailable()) {
     playerBusy = false;
@@ -242,9 +260,9 @@ function playSpeechFallback(text: string, gen: number, fx?: VoiceFx): void {
   const synth = window.speechSynthesis;
   const token = ++speechToken;
   const utterance = new SpeechSynthesisUtterance(text);
-  const voice = preferredSpeechVoice();
+  const voice = preferredSpeechVoice(language);
   if (voice) utterance.voice = voice;
-  utterance.lang = voice?.lang || "fr-FR";
+  utterance.lang = voice?.lang || getSpeechLocale(language);
   utterance.rate = Math.max(0.8, Math.min(1.25, fx?.rate ?? 1));
   utterance.pitch = 0.82;
   utterance.volume = audioMuted() ? 0 : Math.max(0.35, Math.min(1, fx?.volume ?? 1));
@@ -263,7 +281,7 @@ function playSpeechFallback(text: string, gen: number, fx?: VoiceFx): void {
     playerBusyAt = Date.now();
     radioDebug.lastPlayAt = Date.now();
     radioDebug.ctxState = "speech";
-    (globalThis as Record<string, unknown>).__radioEngine = "speech-fr";
+    (globalThis as Record<string, unknown>).__radioEngine = `speech-${utterance.lang}`;
   } catch (err) {
     radioDebug.lastError = String(err);
     if (gen === playerGen) playerBusy = false;
@@ -408,14 +426,23 @@ function speakPending(): void {
   }
 }
 
-// ---- Piper neural voice (free model from huggingface.co/rhasspy/piper-voices) ----
+// ---- Piper neural voice (free models from huggingface.co/rhasspy/piper-voices) ----
 // Runs inside a Web Worker: multi-second WASM inference must never block the
-// game loop. Note: Kokoro-82M was evaluated for an even more natural voice,
-// but its browser phonemizer builds are English-only — no French possible.
+// game loop.
 let piperWorker: Worker | null = null;
 let piperState: "idle" | "loading" | "ready" | "failed" = "idle";
 let sayId = 0;
 const sayWaiters = new Map<number, (wav: Blob | null) => void>();
+let requestedVoiceId: string | null = null;
+let predictFails = 0;
+// `workerEverSpoke` tightens the mic watchdog once the worker is warm (a cold
+// start can take ~15s; a warm sentence is a couple seconds).
+let workerEverSpoke = false;
+let lastWorkerReplyAt = 0; // when the worker last produced a real clip
+// bounded respawns: a worker that worked and then crashes/hangs (the "talks at
+// first, then goes silent" bug) gets restarted — but cap it so a genuinely
+// broken engine can't respawn forever.
+let workerRespawns = 0;
 
 // A load that fails once (worker fetched mid server-restart, a transient HF
 // hiccup, a half-written OPFS cache) used to leave the radio silent for the
@@ -429,11 +456,28 @@ const sayWaiters = new Map<number, (wav: Blob | null) => void>();
 // once a couple of retries have failed we PURGE the cached voice from OPFS
 // before the next attempt: the model re-downloads clean and the radio heals
 // itself, with no "clear site data" needed from the user.
-const VOICE_ID = "fr_FR-tom-medium";
 let warmAttempts = 0;
 let piperLoadStartedAt = 0;
 const PIPER_FALLBACK_DELAY_MS = 12000;
+
+function piperReadyForLanguage(language: AppLanguage): boolean {
+  const voiceId = getPiperVoiceId(language);
+  return !!voiceId && piperState === "ready" && requestedVoiceId === voiceId;
+}
+
+function ensureVoiceForCurrentLanguage(): AppLanguage {
+  const language = currentLanguage();
+  const voiceId = getPiperVoiceId(language);
+  if (!voiceId) return language;
+  if (requestedVoiceId !== voiceId || piperState === "idle" || piperState === "failed") {
+    if (piperState === "failed") warmAttempts = 0;
+    warmupPiper(language);
+  }
+  return language;
+}
+
 function scheduleWarmupRetry(why: string): void {
+  if (!requestedVoiceId) return;
   if (warmAttempts >= 10) return; // a couple of minutes of tries, then give up
   warmAttempts++;
   const delay = Math.min(1500 * warmAttempts, 10000);
@@ -455,12 +499,39 @@ function scheduleWarmupRetry(why: string): void {
       piperState = "idle";
       warmupPiper();
     };
-    if (purge) void removeVoice(VOICE_ID).catch(() => {}).finally(restart);
+    if (purge && requestedVoiceId) void removeVoice(requestedVoiceId).catch(() => {}).finally(restart);
     else restart();
   }, delay);
 }
 
-function warmupPiper(): void {
+function warmupPiper(language: AppLanguage = currentLanguage()): void {
+  const voiceId = getPiperVoiceId(language);
+  if (!voiceId) {
+    requestedVoiceId = null;
+    return;
+  }
+  if (requestedVoiceId !== voiceId) {
+    try {
+      piperWorker?.terminate();
+    } catch {
+      /* already gone */
+    }
+    piperWorker = null;
+    piperState = "idle";
+    workerEverSpoke = false;
+    lastWorkerReplyAt = 0;
+    predictFails = 0;
+  }
+  requestedVoiceId = voiceId;
+  if (piperState === "failed") {
+    try {
+      piperWorker?.terminate();
+    } catch {
+      /* already gone */
+    }
+    piperWorker = null;
+    piperState = "idle";
+  }
   if (piperState !== "idle") return;
   piperState = "loading";
   piperLoadStartedAt = Date.now();
@@ -489,11 +560,8 @@ function warmupPiper(): void {
     if (msg.type === "ready") {
       piperState = "ready";
       warmAttempts = 0; // proven alive — reset the retry budget
-      console.info("[radio] piper french voice on air (worker)");
-      (globalThis as Record<string, unknown>).__radioEngine = "piper-fr";
-      void removeVoice("fr_FR-gilles-low").catch(() => {});
-      void removeVoice("fr_FR-siwis-medium").catch(() => {});
-      void removeVoice("fr_FR-upmc-medium").catch(() => {});
+      console.info(`[radio] piper voice on air (${voiceId})`);
+      (globalThis as Record<string, unknown>).__radioEngine = `piper-${voiceId}`;
       speakPending();
     } else if (msg.type === "error") {
       console.info("[radio] piper failed:", msg.error);
@@ -509,11 +577,9 @@ function warmupPiper(): void {
       sayWaiters.delete(msg.id);
     }
   };
-  // tom-medium remains the safest French Piper choice here. WASM runtimes are
-  // served locally by serve.ts — third-party CDNs are blocked on some networks.
   piperWorker.postMessage({
     type: "init",
-    voiceId: VOICE_ID,
+    voiceId,
     wasmPaths: {
       onnxWasm: "/tts/onnx/",
       piperData: "/tts/piper_phonemize.data",
@@ -529,16 +595,6 @@ export function warmupRadioVoice(): void {
 }
 if (typeof window !== "undefined") warmupRadioVoice();
 if (typeof window !== "undefined") void fetchGoalClipBytes();
-
-let predictFails = 0;
-// `workerEverSpoke` tightens the mic watchdog once the worker is warm (a cold
-// start can take ~15s; a warm sentence is a couple seconds).
-let workerEverSpoke = false;
-let lastWorkerReplyAt = 0; // when the worker last produced a real clip
-// bounded respawns: a worker that worked and then crashes/hangs (the "talks at
-// first, then goes silent" bug) gets restarted — but cap it so a genuinely
-// broken engine can't respawn forever.
-let workerRespawns = 0;
 
 function restartWorker(reason: string): void {
   workerRespawns++;
@@ -617,6 +673,7 @@ export function radioEnabled(): boolean {
  *  buffered line) would carry over and start the new match silent. Reset the
  *  player + queue, wake the context, and make sure the engine is warming. */
 export function radioReset(): void {
+  const language = currentLanguage();
   enabled = true; // a new match always re-enables the radio (R may have cut it)
   stopCurrent(); // frees currentSource + playerBusy
   playerBusy = false;
@@ -626,11 +683,11 @@ export function radioReset(): void {
   predictFails = 0;
   playerGen++; // orphan any in-flight clip that resolves late
   resumeRadio();
-  if (piperState === "idle" || piperState === "failed") {
+  const voiceId = getPiperVoiceId(language);
+  if (voiceId && (requestedVoiceId !== voiceId || piperState === "idle" || piperState === "failed")) {
     warmAttempts = 0;
     workerRespawns = 0;
-    piperState = "idle";
-    warmupPiper(); // engine died/never started — bring it back for this match
+    warmupPiper(language); // engine died/never started — bring it back for this match
   }
   dispatchRadioState();
 }
@@ -638,18 +695,21 @@ export function radioReset(): void {
 /** Is the commentator free to take a play-by-play line right now? */
 export function radioIdle(): boolean {
   if (!enabled) return false;
-  return (piperState === "ready" || speechFallbackAvailable()) && !playerBusy;
+  const language = ensureVoiceForCurrentLanguage();
+  return (piperReadyForLanguage(language) || speechFallbackAvailable()) && !playerBusy;
 }
 
 /** Continuous play-by-play line. If the mic is busy, the line is synthesized
  *  right away (the worker is free while audio plays) and chained next. */
 export function radioFlow(text: string): void {
   if (!enabled) return;
-  if (piperState !== "ready") {
+  const language = ensureVoiceForCurrentLanguage();
+  const usingPiper = !!getPiperVoiceId(language);
+  if (!piperReadyForLanguage(language)) {
     if (
       speechFallbackAvailable() &&
       !playerBusy &&
-      (piperState === "failed" || Date.now() - piperLoadStartedAt > PIPER_FALLBACK_DELAY_MS)
+      (!usingPiper || piperState === "failed" || Date.now() - piperLoadStartedAt > PIPER_FALLBACK_DELAY_MS)
     ) {
       say(text, 1);
     }
@@ -677,7 +737,7 @@ export function toggleRadio(): boolean {
     pendingText = null;
     queuedFlow = null;
   } else {
-    say("La radio du match est de retour à l'antenne !", 2);
+    say(getRadioPack(ensureVoiceForCurrentLanguage()).rejoin, 2);
   }
   dispatchRadioState();
   return enabled;
@@ -685,19 +745,21 @@ export function toggleRadio(): boolean {
 
 function say(text: string, priority = 1, fx?: VoiceFx): void {
   if (!enabled) return;
+  const language = ensureVoiceForCurrentLanguage();
+  const usingPiper = !!getPiperVoiceId(language);
   radioDebug.lastSay = text.slice(0, 60);
   radioDebug.lastSayAt = Date.now();
 
-  if (piperState === "ready") {
+  if (piperReadyForLanguage(language)) {
     void sayPiper(text, priority, fx);
     return;
   }
   if (
     speechFallbackAvailable() &&
-    (piperState === "failed" || Date.now() - piperLoadStartedAt > PIPER_FALLBACK_DELAY_MS)
+    (!usingPiper || piperState === "failed" || Date.now() - piperLoadStartedAt > PIPER_FALLBACK_DELAY_MS)
   ) {
     const gen = takeMic(priority);
-    if (gen !== null) playSpeechFallback(text, gen, fx);
+    if (gen !== null) playSpeechFallback(text, gen, language, fx);
     return;
   }
   // still loading: hold the latest urgent line for the good voice
@@ -713,11 +775,8 @@ const SHOUT: VoiceFx = { rate: 1.04, volume: 1.3 };
 /** Rising excitement, not quite full scream. */
 const EXCITED: VoiceFx = { rate: 1.02, volume: 1.15 };
 
-const pick = (lines: string[]): string =>
-  lines[Math.floor(Math.random() * lines.length)]!;
-
-export const teamName = (id: number): string =>
-  id === 0 ? "les Rouges" : "les Bleus";
+export const teamName = (id: number, language: AppLanguage = currentLanguage()): string =>
+  getTeamDisplayName(language, getConfiguredMatchTeam(id as 0 | 1).id);
 
 export type RadioEvent =
   | "opening"
@@ -752,7 +811,9 @@ export function radio(
     target?: string;
   } = {},
 ): void {
-  const team = info.team !== undefined ? teamName(info.team) : "";
+  const language = ensureVoiceForCurrentLanguage();
+  const copy = getRadioPack(language);
+  const team = info.team !== undefined ? teamName(info.team, language) : "";
   const score = info.score;
   const player = info.player ?? "";
   const target = info.target ?? "";
@@ -760,166 +821,79 @@ export function radio(
     case "opening":
       if (Date.now() - lastOpeningAt < 4500) break;
       lastOpeningAt = Date.now();
-      say(
-        pick([
-          "Bienvenue à toutes et à tous ! Aujourd'hui, nous allons assister à un match passionnant !",
-          "Bonjour à toutes et à tous ! Installez-vous bien, ce match s'annonce passionnant !",
-          "Bienvenue en direct du stade ! Aujourd'hui, on vous promet une rencontre passionnante !",
-        ]),
-        2,
-      );
+      say(copy.opening, 2);
       break;
     case "kickoff":
-      say(
-        pick([
-          `Et c'est parti, coup d'envoi pour ${team} !`,
-          `Le ballon roule, ${team} engagent !`,
-        ]),
-      );
+      if (team) say(copy.kickoff(team));
       break;
     case "goal":
-      void playGoalClip();
+      if (language === "fr") void playGoalClip();
+      else say(getGoalCall(language, team || undefined), 3, SHOUT);
       break;
     case "foul":
-      say(
-        team
-          ? pick([`Faute ! Coup franc pour ${team}.`, `L'arbitre siffle, coup franc pour ${team} !`])
-          : pick(["Faute sifflée !", "L'arbitre arrête le jeu, faute !"]),
-        2,
-      );
+      say(copy.foul(team || undefined), 2);
       break;
     case "yellow":
-      say(
-        player
-          ? `Carton jaune pour ${player} !`
-          : pick(["Carton jaune, il est averti !", "Le jaune sort de la poche de l'arbitre !"]),
-        2,
-      );
+      say(copy.yellow(player || undefined), 2);
       break;
     case "red":
-      say(
-        player
-          ? `Carton rouge ! ${player} prend la direction des vestiaires !`
-          : pick([
-              "Carton rouge ! Il prend la direction des vestiaires !",
-              "Expulsé ! Son match s'arrête là !",
-            ]),
-        2,
-      );
+      say(copy.red(player || undefined), 2);
       break;
     case "penalty":
-      say(
-        team
-          ? pick([`Penalty pour ${team} !`, `L'arbitre désigne le point de penalty, penalty pour ${team} !`])
-          : pick(["Penalty ! C'est penalty !", "L'arbitre désigne le point de penalty !"]),
-        2,
-      );
+      say(copy.penalty(team || undefined), 2, SHOUT);
       break;
     case "offside":
-      say(pick(["Signalé hors-jeu !", "Le drapeau se lève, hors-jeu !"]), 2);
+      say(copy.offside, 2);
       break;
     case "corner":
-      say(pick([`Corner pour ${team}.`, `Le ballon sort, corner ${team}.`]));
+      if (team) say(copy.corner(team));
       break;
     case "goalkick":
-      if (Math.random() < 0.4) say("Six mètres, le gardien va relancer.");
+      if (Math.random() < 0.4) say(copy.goalkick);
       break;
     case "throwin":
-      if (Math.random() < 0.25) say(`Touche pour ${team}.`);
+      if (team && Math.random() < 0.25) say(copy.throwin(team));
       break;
     case "pass":
-      if (player && target && radioIdle())
-        say(
-          pick([
-            `${player} pour ${target}.`,
-            `${player} trouve ${target}.`,
-            `${player}... ${target}.`,
-          ]),
-        );
+      if (player && target && radioIdle()) say(copy.pass(player, target));
       break;
     case "shot":
-      // the rising moment: interrupt the chatter, voice climbs
-      say(
-        player
-          ? pick([`La frappe de ${player} !`, `${player} arme... ça part !`, `Attention, ${player} tente sa chance !`])
-          : pick(["La frappe !", "Ça part au but !"]),
-        2,
-        EXCITED,
-      );
+      say(copy.shot(player || undefined), 2, EXCITED);
       break;
     case "miss":
-      say(
-        pick([
-          "Oh ! À côté ! Il s'en faut de rien !",
-          "Au-dessus ! On a cru au but !",
-          "Oh là là, ça passe tout près du poteau !",
-        ]),
-        2,
-        SHOUT,
-      );
+      say(copy.miss, 2, SHOUT);
       break;
     case "save":
-      say(
-        pick([
-          "Quel arrêt du gardien ! Incroyable !",
-          "Le portier dit non ! Quelle parade !",
-          "Arrêt énorme ! On a cru au but !",
-        ]),
-        2,
-        SHOUT,
-      );
+      say(copy.save, 2, SHOUT);
       break;
     case "halftime":
-      say(
-        `Mi-temps${score ? `, ${score[0]} à ${score[1]}` : ""}. On se retrouve dans quelques instants.`,
-        2,
-      );
+      say(copy.halftime(score), 2);
       break;
     case "extratime":
-      say("Et nous voilà en prolongation !", 2);
+      say(copy.extratime, 2);
       break;
     case "fulltime":
-      say(
-        `C'est terminé !${score ? ` Score final, ${score[0]} à ${score[1]}.` : ""} Merci de nous avoir suivis à la radio du match !`,
-        2,
-      );
+      say(copy.fulltime(score), 2);
       break;
     case "shootout":
-      say("Tout va se jouer aux tirs au but, accrochez-vous !", 2);
+      say(copy.shootout, 2);
       break;
     case "penTaker":
-      say(
-        pick([
-          `C'est ${player} qui s'avance... Le stade retient son souffle.`,
-          `${player} face au gardien... Silence dans les tribunes.`,
-          `Tout repose sur les épaules de ${player}...`,
-        ]),
-        2,
-      );
+      if (player) say(copy.penTaker(player), 2);
       break;
     case "penGoal":
-      say(pick(["Transformé ! C'est au fond !", "Le tir au but est au fond ! Quelle pression !"]), 2, SHOUT);
+      say(copy.penGoal, 2, SHOUT);
       break;
     case "penMiss":
-      say(
-        pick(["Raté ! Il passe à côté !", "Arrêté ! Le gardien s'envole !"]),
-        2,
-        SHOUT,
-      );
+      say(copy.penMiss, 2, SHOUT);
       break;
   }
 }
 
 /** Occasional score reminder between actions. */
 export function radioScore(score: [number, number], gameMinute: number): void {
-  // no ordinal ("Xe minute") — Piper mangles it; a round-minute phrase reads clean
-  const lead =
-    score[0] === score[1]
-      ? score[0] === 0
-        ? "toujours zéro à zéro"
-        : `toujours ${score[0]} partout`
-      : score[0] > score[1]
-        ? `${teamName(0)} mènent ${score[0]} à ${score[1]}`
-        : `${teamName(1)} mènent ${score[1]} à ${score[0]}`;
-  say(`Après ${Math.max(1, Math.floor(gameMinute))} minutes de jeu, ${lead}.`);
+  const language = ensureVoiceForCurrentLanguage();
+  const copy = getRadioPack(language);
+  const minute = Math.max(1, Math.floor(gameMinute));
+  say(copy.scoreReminder(score, minute, teamName(0, language), teamName(1, language)));
 }

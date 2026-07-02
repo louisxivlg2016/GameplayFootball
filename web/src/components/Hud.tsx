@@ -10,7 +10,8 @@ import {
   getConfiguredMatchSides,
   LINEUP_SLOT_LAYOUT,
   NATIONAL_TEAM_OPTIONS,
-  TEAM_FLAG,
+  clubTeamId,
+  getTeamFlag,
   getDefaultLineupIds,
   getNationalTeam,
   getOpponentTeamId,
@@ -762,7 +763,7 @@ export function Hud(): React.ReactNode {
                     )}
                   </>
                 )}
-                {menuTab === "club" && <ClubsMenu />}
+                {menuTab === "club" && <ClubsMenu onPlay={() => setMenuTab("matchup")} />}
                 {menuTab === "challenge" && <EmptyMenu title="Defi" />}
                 {menuTab === "matchup" && (
                   <div className="matchup">
@@ -796,12 +797,6 @@ export function Hud(): React.ReactNode {
                         aria-label={t("back")}
                       >
                         ‹
-                      </button>
-                      <button
-                        className="matchup-btn matchup-lineup"
-                        onClick={() => setMenuTab("lineup")}
-                      >
-                        {t("lineup")}
                       </button>
                       <button
                         className="matchup-btn matchup-play"
@@ -1373,16 +1368,18 @@ function EmptyMenu({ title }: { title: string }): React.ReactNode {
 }
 
 /** CLUB tab: every club of the big five leagues + Europe's famous names,
- *  grouped by country, each with its kit-colored crest. */
-function ClubsMenu(): React.ReactNode {
+ *  grouped by country — and PLAYABLE: pick yours, pick the opponent, play. */
+function ClubsMenu({ onPlay }: { onPlay: () => void }): React.ReactNode {
   const [league, setLeague] = useState<string>(LEAGUES[0]!.id);
+  const nationalTeam = useStore((s) => s.nationalTeam);
+  const opponentTeam = useStore((s) => s.opponentTeam);
   const current = LEAGUES.find((l) => l.id === league) ?? LEAGUES[0]!;
   return (
     <div className="menu-panel club-panel">
       <div className="menu-panel-head">
         <span>Clubs</span>
         <b>
-          {current.flag} {current.name} · {current.clubs.length} clubs
+          {getNationalTeam(nationalTeam).label} vs {getNationalTeam(opponentTeam).label}
         </b>
       </div>
       <div className="club-league-tabs">
@@ -1396,21 +1393,45 @@ function ClubsMenu(): React.ReactNode {
             <b>{l.country}</b>
           </button>
         ))}
+        <button className="club-play-now" onClick={onPlay}>
+          JOUER ⚽
+        </button>
       </div>
       <div className="club-grid">
-        {current.clubs.map((club) => (
-          <div
-            key={club.name}
-            className="club-card"
-            style={{ "--club-color": club.color, "--club-color2": club.color2 } as CSSProperties}
-          >
-            <span className="club-crest">
-              <span>{club.code}</span>
-            </span>
-            <b>{club.name}</b>
-            <small>{club.city}</small>
-          </div>
-        ))}
+        {current.clubs.map((club) => {
+          const id = clubTeamId(club.name);
+          const mine = id === nationalTeam;
+          const rival = id === opponentTeam;
+          return (
+            <div
+              key={club.name}
+              className={`club-card${mine ? " club-card-mine" : ""}${rival ? " club-card-rival" : ""}`}
+              style={{ "--club-color": club.color, "--club-color2": club.color2 } as CSSProperties}
+            >
+              <span className="club-crest">
+                <span>{club.code}</span>
+              </span>
+              <b>{club.name}</b>
+              <small>{club.city}</small>
+              <span className="club-actions">
+                <button
+                  className={mine ? "on" : ""}
+                  onClick={() => act().setNationalTeam(id)}
+                  title="Jouer avec ce club"
+                >
+                  {mine ? "✓ MOI" : "JOUER"}
+                </button>
+                <button
+                  className={rival ? "on" : ""}
+                  onClick={() => act().setOpponentTeam(id)}
+                  title="Affronter ce club"
+                >
+                  {rival ? "✓ ADV" : "VS"}
+                </button>
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1439,7 +1460,7 @@ function MatchupTeamCard({
         {isControlled ? "P1" : "CPU"}
       </span>
       <button className="matchup-change" onClick={onCycle} title="Changer d'équipe">
-        <span className="matchup-flag">{TEAM_FLAG[teamId]}</span>
+        <span className="matchup-flag">{getTeamFlag(teamId)}</span>
         <span className="matchup-change-hint">⟲</span>
       </button>
       <b className="matchup-name">{team.label}</b>
