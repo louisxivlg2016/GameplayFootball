@@ -1,10 +1,11 @@
-/** Any playable side: the five hand-built nationals, or a generated
- *  `club-…` id for every club of the CLUB-tab catalog. */
+/** Any playable side: the five hand-built nationals, or a curated
+ *  `club-…` id for clubs that have a real-player squad. */
 export type NationalTeamId = string;
 
 export const NATIONAL_IDS = ["france", "england", "argentina", "portugal", "norway"] as const;
 
 import { LEAGUES, type League } from "./clubs";
+import { REAL_CLUB_SQUADS } from "./clubSquads";
 
 export interface NationalTeamPlayer {
   id: number;
@@ -417,43 +418,9 @@ export function isNationalTeamId(value: string): value is NationalTeamId {
 }
 
 // ---------------------------------------------------------------------------
-// Club teams: every club of the CLUB-tab catalog is a playable side. Squads
-// are generated deterministically — names flavored by the league's country,
-// ratings from the club's fame (catalog order) — and registered alongside the
-// nationals so the whole match pipeline (lineup, kits, radio) just works.
+// Club teams: only clubs with curated real-player squads are registered as
+// playable sides, so the club menu never falls back to invented footballers.
 // ---------------------------------------------------------------------------
-
-const CLUB_POSITIONS = [
-  "GB", "DD", "DC", "DC", "DG", "MDC", "MC", "MOC", "AG", "BU", "AD",
-  "GB", "DD", "DC", "DG", "MC", "MOC", "BU",
-];
-
-const CLUB_FIRST: Record<string, string[]> = {
-  fr: ["Lucas", "Hugo", "Théo", "Enzo", "Léo", "Nathan", "Tom", "Mathis", "Noah", "Ethan", "Louis", "Jules", "Adam", "Maël", "Rayan", "Sacha"],
-  en: ["Jack", "Harry", "Oliver", "George", "Charlie", "Jacob", "Alfie", "Freddie", "Oscar", "Archie", "Henry", "Theo", "Leo", "Finley", "Mason", "Callum"],
-  es: ["Pablo", "Álvaro", "Hugo", "Mario", "Daniel", "Javier", "Adrián", "Diego", "Marcos", "Iker", "Sergio", "Carlos", "Rubén", "Iván", "Raúl", "Mikel"],
-  it: ["Marco", "Luca", "Alessandro", "Andrea", "Matteo", "Lorenzo", "Davide", "Simone", "Federico", "Riccardo", "Gabriele", "Antonio", "Giuseppe", "Nicolò", "Tommaso", "Pietro"],
-  de: ["Leon", "Finn", "Jonas", "Luis", "Paul", "Felix", "Maximilian", "Elias", "Julian", "Moritz", "Niklas", "Tim", "Jan", "Fabian", "David", "Nico"],
-  eu: ["João", "Rúben", "Sven", "Daan", "Callum", "Ewan", "Emre", "Kaan", "Thibaut", "Milan", "Mateo", "Nicolás", "Kaio", "Rafael", "Omar", "Diego"],
-};
-const CLUB_LAST: Record<string, string[]> = {
-  fr: ["Martin", "Bernard", "Dubois", "Moreau", "Laurent", "Garnier", "Rousseau", "Blanc", "Guérin", "Chevalier", "Perrin", "Marchand", "Dupont", "Fontaine", "Lambert", "Renard"],
-  en: ["Smith", "Jones", "Taylor", "Brown", "Wilson", "Evans", "Walker", "Wright", "Hughes", "Turner", "Parker", "Collins", "Bennett", "Murphy", "Cooper", "Foster"],
-  es: ["García", "López", "Martínez", "Sánchez", "Pérez", "Gómez", "Fernández", "Torres", "Ramírez", "Navarro", "Moreno", "Ortega", "Delgado", "Castro", "Vargas", "Molina"],
-  it: ["Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci", "Marino", "Greco", "Bruno", "Gallo", "Conti", "De Luca", "Costa", "Rizzo"],
-  de: ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Wagner", "Becker", "Hoffmann", "Koch", "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Braun", "Krüger"],
-  eu: ["Silva", "Santos", "De Jong", "Van Dijk", "MacLeod", "Yilmaz", "Öztürk", "Peeters", "Kovač", "Fernández", "Costa", "Oliveira", "Souza", "Petrov", "Papas", "Haddad"],
-};
-
-/** Deterministic string hash (fnv-ish) for stable generated squads. */
-function clubHash(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
 
 function clubSlug(name: string): string {
   return name
@@ -469,35 +436,125 @@ export function clubTeamId(name: string): NationalTeamId {
   return `club-${clubSlug(name)}`;
 }
 
-const LEAGUE_BY_TEAM_ID = new Map<string, League>();
+export function hasRealClubSquad(name: string): boolean {
+  return Boolean(REAL_CLUB_SQUADS[name]?.length);
+}
 
-function buildClubTeam(league: League, clubIndex: number): NationalTeam {
-  const club = league.clubs[clubIndex]!;
-  const id = clubTeamId(club.name);
-  const firsts = CLUB_FIRST[league.id] ?? CLUB_FIRST.eu!;
-  const lasts = CLUB_LAST[league.id] ?? CLUB_LAST.eu!;
-  // fame: catalog order (PSG/Real/Arsenal first) sets the squad's level
-  const prestige = Math.max(74, (league.id === "eu" ? 85 : 88) - clubIndex * 0.7);
-  const seed = clubHash(club.name);
-  const used = new Set<string>();
-  const players = CLUB_POSITIONS.map((pos, i) => {
-    let name = "";
-    for (let attempt = 0; attempt < 8 && (!name || used.has(name)); attempt++) {
-      const h = clubHash(`${seed}:${i}:${attempt}`);
-      // unsigned shift: a signed >> can go negative and index undefined
-      name = `${firsts[h % firsts.length]} ${lasts[(h >>> 8) % lasts.length]}`;
+const LEAGUE_BY_TEAM_ID = new Map<string, League>();
+const PLAYABLE_CLUB_IDS_BY_LEAGUE = new Map<string, NationalTeamId[]>();
+const TEAM_BADGE_URL_CACHE = new Map<NationalTeamId, string | null>();
+const TEAM_BADGE_PENDING = new Map<NationalTeamId, Promise<string | null>>();
+
+const TEAM_WIKIPEDIA_PAGE_BY_ID: Partial<Record<NationalTeamId, string>> = {
+  france: "France_national_football_team",
+  england: "England_national_football_team",
+  argentina: "Argentina_national_football_team",
+  portugal: "Portugal_national_football_team",
+  norway: "Norway_national_football_team",
+  [clubTeamId("Paris Saint-Germain")]: "Paris_Saint-Germain_FC",
+  [clubTeamId("Olympique de Marseille")]: "Olympique_de_Marseille",
+  [clubTeamId("Olympique Lyonnais")]: "Olympique_Lyonnais",
+  [clubTeamId("AS Monaco")]: "AS_Monaco_FC",
+  [clubTeamId("LOSC Lille")]: "Lille_OSC",
+  [clubTeamId("OGC Nice")]: "OGC_Nice",
+  [clubTeamId("RC Lens")]: "RC_Lens",
+  [clubTeamId("Stade Rennais")]: "Stade_Rennais_FC",
+  [clubTeamId("RC Strasbourg")]: "RC_Strasbourg_Alsace",
+  [clubTeamId("Toulouse FC")]: "Toulouse_FC",
+  [clubTeamId("FC Nantes")]: "FC_Nantes",
+  [clubTeamId("Stade Brestois")]: "Stade_Brestois_29",
+  [clubTeamId("Arsenal")]: "Arsenal_F.C.",
+  [clubTeamId("Liverpool")]: "Liverpool_F.C.",
+  [clubTeamId("Manchester City")]: "Manchester_City_F.C.",
+  [clubTeamId("Manchester United")]: "Manchester_United_F.C.",
+  [clubTeamId("Chelsea")]: "Chelsea_F.C.",
+  [clubTeamId("Tottenham Hotspur")]: "Tottenham_Hotspur_F.C.",
+  [clubTeamId("Real Madrid")]: "Real_Madrid_CF",
+  [clubTeamId("FC Barcelone")]: "FC_Barcelona",
+  [clubTeamId("Atlético Madrid")]: "Atlético_Madrid",
+  [clubTeamId("Inter Milan")]: "Inter_Milan",
+  [clubTeamId("AC Milan")]: "AC_Milan",
+  [clubTeamId("Juventus")]: "Juventus_FC",
+  [clubTeamId("Napoli")]: "SSC_Napoli",
+  [clubTeamId("Bayern Munich")]: "FC_Bayern_Munich",
+  [clubTeamId("Borussia Dortmund")]: "Borussia_Dortmund",
+  [clubTeamId("Bayer Leverkusen")]: "Bayer_04_Leverkusen",
+  [clubTeamId("Galatasaray")]: "Galatasaray_S.K._(football)",
+  [clubTeamId("Al-Nassr")]: "Al-Nassr_FC",
+  [clubTeamId("Inter Miami")]: "Inter_Miami_CF",
+};
+
+interface WikipediaSummaryResponse {
+  thumbnail?: { source?: string };
+  originalimage?: { source?: string };
+}
+
+interface WikipediaSearchResponse {
+  query?: {
+    search?: Array<{ title?: string }>;
+  };
+}
+
+async function fetchWikipediaBadgeForPage(pageTitle: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(pageTitle)}`,
+    );
+    if (!response.ok) return null;
+    const data = (await response.json()) as WikipediaSummaryResponse;
+    return data.thumbnail?.source ?? data.originalimage?.source ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function searchWikipediaPageTitle(teamId: NationalTeamId): Promise<string | null> {
+  const team = NATIONAL_TEAMS[teamId];
+  if (!team) return null;
+  const query = isClubTeamId(teamId)
+    ? `${team.label} football club`
+    : `${team.label} national football team`;
+  try {
+    const response = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`,
+    );
+    if (!response.ok) return null;
+    const data = (await response.json()) as WikipediaSearchResponse;
+    return data.query?.search?.[0]?.title?.replace(/ /g, "_") ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function getCachedTeamBadgeUrl(teamId: NationalTeamId): string | null | undefined {
+  return TEAM_BADGE_URL_CACHE.get(teamId);
+}
+
+export async function loadTeamBadgeUrl(teamId: NationalTeamId): Promise<string | null> {
+  if (TEAM_BADGE_URL_CACHE.has(teamId)) return TEAM_BADGE_URL_CACHE.get(teamId) ?? null;
+  const pending = TEAM_BADGE_PENDING.get(teamId);
+  if (pending) return pending;
+  const load = (async () => {
+    const directPage = TEAM_WIKIPEDIA_PAGE_BY_ID[teamId];
+    let badgeUrl = directPage ? await fetchWikipediaBadgeForPage(directPage) : null;
+    if (!badgeUrl) {
+      const searchTitle = await searchWikipediaPageTitle(teamId);
+      if (searchTitle) badgeUrl = await fetchWikipediaBadgeForPage(searchTitle);
     }
-    used.add(name);
-    const jitter = ((clubHash(`${seed}r${i}`) % 700) / 100) - 3; // -3..+4
-    const bench = i >= 11 ? -2 : 0;
-    return {
-      name,
-      pos,
-      rating: Math.round(Math.min(93, Math.max(70, prestige + jitter + bench))),
-    };
-  });
+    TEAM_BADGE_URL_CACHE.set(teamId, badgeUrl);
+    TEAM_BADGE_PENDING.delete(teamId);
+    return badgeUrl;
+  })();
+  TEAM_BADGE_PENDING.set(teamId, load);
+  return load;
+}
+
+function buildClubTeam(league: League, clubIndex: number): NationalTeam | null {
+  const club = league.clubs[clubIndex]!;
+  const players = REAL_CLUB_SQUADS[club.name];
+  if (!players?.length) return null;
   return buildTeam({
-    id,
+    id: clubTeamId(club.name),
     label: club.name,
     radioLabel: club.name,
     color: club.color,
@@ -507,14 +564,18 @@ function buildClubTeam(league: League, clubIndex: number): NationalTeam {
 }
 
 for (const league of LEAGUES) {
+  const teamIds: NationalTeamId[] = [];
   for (let i = 0; i < league.clubs.length; i++) {
     const team = buildClubTeam(league, i);
+    if (!team) continue;
     (NATIONAL_TEAMS as Record<string, NationalTeam>)[team.id] = team;
     LEAGUE_BY_TEAM_ID.set(team.id, league);
+    teamIds.push(team.id);
   }
+  if (teamIds.length) PLAYABLE_CLUB_IDS_BY_LEAGUE.set(league.id, teamIds);
 }
 
-/** Kind of side an id is: hand-built national or generated club. */
+/** Kind of side an id is: hand-built national or curated club. */
 export function isClubTeamId(id: NationalTeamId): boolean {
   return LEAGUE_BY_TEAM_ID.has(id);
 }
@@ -529,8 +590,9 @@ export function getTeamFlag(id: NationalTeamId): string {
 export function nextMatchTeamId(current: NationalTeamId, avoid: NationalTeamId): NationalTeamId {
   const league = LEAGUE_BY_TEAM_ID.get(current);
   const order: NationalTeamId[] = league
-    ? league.clubs.map((club) => clubTeamId(club.name))
+    ? (PLAYABLE_CLUB_IDS_BY_LEAGUE.get(league.id) ?? [])
     : [...NATIONAL_IDS];
+  if (!order.length) return current;
   const start = order.indexOf(current);
   for (let step = 1; step <= order.length; step++) {
     const candidate = order[(start + step) % order.length]!;

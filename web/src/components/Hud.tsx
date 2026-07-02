@@ -11,6 +11,7 @@ import {
   LINEUP_SLOT_LAYOUT,
   NATIONAL_TEAM_OPTIONS,
   clubTeamId,
+  getCachedTeamBadgeUrl,
   getTeamFlag,
   getDefaultLineupIds,
   getNationalTeam,
@@ -18,6 +19,8 @@ import {
   getPreviewMatchSidesFor,
   getTeamCaptain,
   getTeamOverall,
+  hasRealClubSquad,
+  loadTeamBadgeUrl,
   type NationalTeam,
   type NationalTeamId,
 } from "../game/teams";
@@ -312,6 +315,36 @@ function PlayerHead({ name, photoUrl = "" }: { name: string; photoUrl?: string }
       {photo ? <img src={photo} alt="" /> : playerInitials(name)}
     </i>
   );
+}
+
+function TeamBadge({
+  teamId,
+  className,
+  fallback,
+  alt,
+}: {
+  teamId: NationalTeamId;
+  className: string;
+  fallback: React.ReactNode;
+  alt: string;
+}): React.ReactNode {
+  const [src, setSrc] = useState<string | null>(() => getCachedTeamBadgeUrl(teamId) ?? null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const cached = getCachedTeamBadgeUrl(teamId);
+    setSrc(cached ?? null);
+    if (cached !== undefined) return;
+    loadTeamBadgeUrl(teamId).then((next) => {
+      if (!cancelled) setSrc(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId]);
+
+  if (!src) return fallback;
+  return <img className={className} src={src} alt={alt} loading="lazy" />;
 }
 
 export function Hud(): React.ReactNode {
@@ -1367,23 +1400,31 @@ function EmptyMenu({ title }: { title: string }): React.ReactNode {
   );
 }
 
-/** CLUB tab: every club of the big five leagues + Europe's famous names,
- *  grouped by country — and PLAYABLE: pick yours, pick the opponent, play. */
+/** CLUB tab: curated clubs with real-player squads, grouped by country. */
 function ClubsMenu({ onPlay }: { onPlay: () => void }): React.ReactNode {
-  const [league, setLeague] = useState<string>(LEAGUES[0]!.id);
+  const playableLeagues = useMemo(
+    () =>
+      LEAGUES.map((entry) => ({
+        ...entry,
+        clubs: entry.clubs.filter((club) => hasRealClubSquad(club.name)),
+      })).filter((entry) => entry.clubs.length > 0),
+    [],
+  );
+  const [league, setLeague] = useState<string>(playableLeagues[0]?.id ?? LEAGUES[0]!.id);
   const nationalTeam = useStore((s) => s.nationalTeam);
   const opponentTeam = useStore((s) => s.opponentTeam);
-  const current = LEAGUES.find((l) => l.id === league) ?? LEAGUES[0]!;
+  const current = playableLeagues.find((l) => l.id === league) ?? playableLeagues[0];
+  if (!current) return <EmptyMenu title="Clubs" />;
   return (
     <div className="menu-panel club-panel">
       <div className="menu-panel-head">
-        <span>Clubs</span>
+        <span>Clubs · effectifs réels</span>
         <b>
           {getNationalTeam(nationalTeam).label} vs {getNationalTeam(opponentTeam).label}
         </b>
       </div>
       <div className="club-league-tabs">
-        {LEAGUES.map((l) => (
+        {playableLeagues.map((l) => (
           <button
             key={l.id}
             className={`club-league-tab${l.id === league ? " active" : ""}`}
@@ -1409,7 +1450,12 @@ function ClubsMenu({ onPlay }: { onPlay: () => void }): React.ReactNode {
               style={{ "--club-color": club.color, "--club-color2": club.color2 } as CSSProperties}
             >
               <span className="club-crest">
-                <span>{club.code}</span>
+                <TeamBadge
+                  teamId={id}
+                  className="club-crest-img"
+                  alt={`Blason ${club.name}`}
+                  fallback={<span>{club.code}</span>}
+                />
               </span>
               <b>{club.name}</b>
               <small>{club.city}</small>
@@ -1460,7 +1506,14 @@ function MatchupTeamCard({
         {isControlled ? "P1" : "CPU"}
       </span>
       <button className="matchup-change" onClick={onCycle} title="Changer d'équipe">
-        <span className="matchup-flag">{getTeamFlag(teamId)}</span>
+        <span className="matchup-flag">
+          <TeamBadge
+            teamId={teamId}
+            className="matchup-flag-img"
+            alt={`Blason ${team.label}`}
+            fallback={getTeamFlag(teamId)}
+          />
+        </span>
         <span className="matchup-change-hint">⟲</span>
       </button>
       <b className="matchup-name">{team.label}</b>

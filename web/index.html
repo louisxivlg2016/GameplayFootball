@@ -758,8 +758,18 @@
         place-items: center;
       }
       .matchup-flag {
+        width: 74px;
+        height: 74px;
+        display: grid;
+        place-items: center;
         font-size: 62px;
         line-height: 1;
+      }
+      .matchup-flag-img {
+        width: 68px;
+        height: 68px;
+        object-fit: contain;
+        filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
       }
       .matchup-change-hint {
         position: absolute;
@@ -1427,8 +1437,14 @@
         display: grid;
         place-items: center;
         border-radius: 50%;
-        background: linear-gradient(135deg, var(--club-color) 0 50%, var(--club-color2) 50% 100%);
+        background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.98), rgba(224, 232, 238, 0.88));
         box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.25), 0 6px 12px rgba(0, 0, 0, 0.35);
+      }
+      .club-crest-img {
+        width: 42px;
+        height: 42px;
+        object-fit: contain;
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28));
       }
       .club-crest span {
         font-size: 13px;
