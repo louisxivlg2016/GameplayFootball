@@ -367,9 +367,10 @@ export function cinematicSystem(world: World, dt: number): void {
     if (h.value) {
       faceCamera(h.value, dt);
       h.value.position.y = 0;
-      // the original celebration anim (happy_normal): one clean full-body beat
-      // of joy, then the final pose held — no procedural arm waving
-      playActionClip(h, "celebrate", { duration: 1.4, fade: 0.18 });
+      // the original BIG celebration (happy_extreme): arrival, both arms to
+      // the sky, the airplane spin, fist pumps and a wave to the crowd —
+      // 3.05s that fill the whole goal scene before the replay takes over
+      playActionClip(h, "celebrate_big", { fade: 0.15 });
       animateRig(h, 0, 0, dt); // action path: advances the mixer
     }
     return;

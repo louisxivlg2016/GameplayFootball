@@ -776,6 +776,8 @@ for (const gait of ["dribble", "walk", "sprint"]) {
 const ACTION_SOURCES: Array<{ name: string; file: string; preMirror?: boolean; mirrorAs?: string }> = [
   { name: "showcard", file: "special/000_showcard.anim" },
   { name: "celebrate", file: "celebration/happy_normal/000.anim" },
+  // the BIG one: sprint-arrival decel into ~2.5s of full-body joy
+  { name: "celebrate_big", file: "celebration/happy_extreme/000_decel_decel.anim" },
   { name: "sad", file: "celebration/sad_normal/000.anim" },
   { name: "dive_high", file: "deflect/idle/090_high_deflect_far.anim", mirrorAs: "dive_high_m" },
   { name: "dive_mid", file: "deflect/idle/090_midheight_deflect_far.anim", mirrorAs: "dive_mid_m" },
