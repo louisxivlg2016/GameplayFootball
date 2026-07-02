@@ -37,6 +37,7 @@ const en = {
   lineup: "Lineup",
   choosePlayers: "Choose your players before the match",
   playMatch: "Play Match",
+  resumeMatch: "BACK TO THE MATCH",
   substitutes: "Substitutes",
   worldCup2026: "World Cup 2026",
   worldCupRange: "From June 11 to July 19, playable anytime",
@@ -132,6 +133,7 @@ const fr: TranslationTable = {
   lineup: "Composition",
   choosePlayers: "Choisis tes joueurs avant le match",
   playMatch: "Jouer le match",
+  resumeMatch: "REPRENDRE LE MATCH",
   substitutes: "Remplacants",
   worldCup2026: "Coupe du monde 2026",
   worldCupRange: "Du 11 juin au 19 juillet, jouable quand tu veux",
@@ -223,6 +225,7 @@ const es: TranslationTable = {
   lineup: "Alineacion",
   choosePlayers: "Elige tus jugadores antes del partido",
   playMatch: "Jugar partido",
+  resumeMatch: "VOLVER AL PARTIDO",
   substitutes: "Suplentes",
   worldCup2026: "Copa del Mundo 2026",
   worldCupRange: "Del 11 de junio al 19 de julio, jugable cuando quieras",
@@ -308,6 +311,7 @@ const pt: TranslationTable = {
   lineup: "Escalacao",
   choosePlayers: "Escolhe teus jogadores antes da partida",
   playMatch: "Jogar partida",
+  resumeMatch: "VOLTAR AO JOGO",
   substitutes: "Reservas",
   worldCup2026: "Copa do Mundo 2026",
   worldCupRange: "De 11 de junho a 19 de julho, jogavel a qualquer momento",
@@ -1822,6 +1826,10 @@ const translations = {
 
 export type AppLanguage = keyof typeof translations;
 
+export function isAppLanguage(value: string): value is AppLanguage {
+  return value in translations;
+}
+
 export const LANGUAGE_OPTIONS: Array<{ code: AppLanguage; label: string }> = [
   { code: "fr", label: "Francais" },
   { code: "en", label: "English" },
@@ -1851,11 +1859,19 @@ export const LANGUAGE_OPTIONS: Array<{ code: AppLanguage; label: string }> = [
 function detectLanguage(): AppLanguage {
   if (typeof window === "undefined") return "fr";
   const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  if (saved && saved in translations) return saved as AppLanguage;
+  if (saved && isAppLanguage(saved)) return saved;
   const browser = navigator.language;
-  if (browser in translations) return browser as AppLanguage;
+  if (isAppLanguage(browser)) return browser;
   const prefix = LANGUAGE_OPTIONS.find((option) => browser.startsWith(option.code.split("-")[0]!));
   return prefix?.code ?? "fr";
+}
+
+export function getCurrentLanguage(): AppLanguage {
+  if (typeof document !== "undefined") {
+    const docLang = document.documentElement.lang;
+    if (docLang && isAppLanguage(docLang)) return docLang;
+  }
+  return detectLanguage();
 }
 
 function formatMessage(template: string, vars?: Record<string, string | number>): string {

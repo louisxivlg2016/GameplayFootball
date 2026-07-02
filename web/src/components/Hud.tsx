@@ -50,6 +50,7 @@ import {
   type AppLanguage,
 } from "../i18n";
 import { LEAGUES } from "../game/clubs";
+import { applyLineupToMatch } from "../game/levels";
 
 const act = () => useStore.getState();
 const MENU_THEME_BY_LANGUAGE: Partial<Record<AppLanguage, string>> = {
@@ -341,6 +342,9 @@ export function Hud(): React.ReactNode {
   const [lineupFocus, setLineupFocus] = useState<number>(() => loadSavedLineup(nationalTeam)[0] ?? 0);
   const [lineupDrag, setLineupDrag] = useState<LineupDrag | null>(null);
   const [matchSubOpen, setMatchSubOpen] = useState(false);
+  // in-match substitution: COMPOSITION jumped here from a RUNNING match, so
+  // the lineup screen must resume that match (subs applied live), not restart
+  const [subFromMatch, setSubFromMatch] = useState(false);
   const [muted, setMuted] = useState<boolean>(() => audioMuted());
   const [radioOn, setRadioOn] = useState<boolean>(() => radioEnabled());
   const [languagePromptOpen, setLanguagePromptOpen] = useState<boolean>(() => shouldPromptForLanguage());
@@ -429,6 +433,7 @@ export function Hud(): React.ReactNode {
 
   const startMatch = (practiceId = 0): void => {
     ensureInteractiveAudio();
+    setSubFromMatch(false); // a fresh match ends any pending in-match sub flow
     act().setLineupNames(lineupPlayerNames());
     act().setPractice(practiceId);
     act().newMatch();
@@ -557,6 +562,8 @@ export function Hud(): React.ReactNode {
               <button onClick={() => setMatchSubOpen(false)}>{t("keep")}</button>
               <button
                 onClick={() => {
+                  setSubFromMatch(true); // come back to THIS match, subs applied
+                  setMatchSubOpen(false);
                   setMenuTab("lineup");
                   act().setMode("menu");
                 }}
@@ -679,7 +686,10 @@ export function Hud(): React.ReactNode {
                   <button
                     key={item.id}
                     className={`menu-sidebar-button${menuTab === item.id ? " active" : ""}`}
-                    onClick={() => setMenuTab(item.id)}
+                    onClick={() => {
+                      setSubFromMatch(false); // browsing the menu ends the sub flow
+                      setMenuTab(item.id);
+                    }}
                   >
                     <span className="menu-sidebar-icon">{item.icon}</span>
                     <b>{item.label}</b>
@@ -925,8 +935,21 @@ export function Hud(): React.ReactNode {
                         <span>{currentNationalTeam.label}</span>
                         <b>{t("choosePlayers")}</b>
                       </div>
-                      <button className="lineup-start" onClick={() => startMatch(0)}>
-                        {t("playMatch")}
+                      <button
+                        className="lineup-start"
+                        onClick={() => {
+                          if (subFromMatch) {
+                            // live substitution: rename the changed slots on the
+                            // pitch and resume — score, clock and play carry on
+                            applyLineupToMatch(world, lineupPlayerNames());
+                            setSubFromMatch(false);
+                            act().setMode("play");
+                          } else {
+                            startMatch(0);
+                          }
+                        }}
+                      >
+                        {subFromMatch ? t("resumeMatch") : t("playMatch")}
                       </button>
                     </div>
                     <div className="lineup-layout">

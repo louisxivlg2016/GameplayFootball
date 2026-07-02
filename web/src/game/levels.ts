@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import type { Entity, World } from "koota";
 import { useStore } from "./store";
 import { configureMatchSidesFor, getConfiguredMatchTeam, getDefaultLineupNames } from "./teams";
@@ -175,6 +176,59 @@ export function loadMatch(world: World): void {
   // created, never on a stale set about to be destroyed by a remount.
   const g = globalThis as { __gpfEpoch?: number };
   g.__gpfEpoch = (g.__gpfEpoch ?? 0) + 1;
+}
+
+/**
+ * Live substitutions: apply an edited lineup to the RUNNING match. Each slot
+ * whose name changed keeps its entity (position, role, physics) — the incoming
+ * player takes over the shirt with fresh legs. Returns how many came on.
+ */
+export function applyLineupToMatch(world: World, names: string[]): number {
+  const { humanTeam } = useStore.getState();
+  if (names.length !== FORMATION.length) return 0;
+  let subs = 0;
+  for (const e of world.query(IsPlayer)) {
+    if (e.get(Team)!.id !== humanTeam) continue;
+    const i = e.get(PlayerInfo)!.index;
+    const next = names[i] ?? "";
+    if (!next || e.get(Name)!.full === next) continue;
+    e.set(Name, makeLineupName(next));
+    e.set(Stats, { energy: 1 }); // a sub comes on with fresh legs
+    const h = e.get(MeshRef);
+    if (h?.tag) {
+      // the overhead tag sprite is baked at spawn — repaint it for the new man
+      (h.tag.material as THREE.SpriteMaterial).map = nameTexture(
+        e.get(Name)!.short,
+      );
+      (h.tag.material as THREE.SpriteMaterial).needsUpdate = true;
+    }
+    subs++;
+  }
+  useStore.getState().setLineupNames([...names]);
+  return subs;
+}
+
+// tag repaint for live subs — same look as the spawn-time sprite in Players.tsx
+const nameTextureCache = new Map<string, THREE.CanvasTexture>();
+function nameTexture(name: string): THREE.CanvasTexture {
+  let tex = nameTextureCache.get(name);
+  if (tex) return tex;
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 56;
+  const ctx = canvas.getContext("2d")!;
+  ctx.font = "bold 30px 'Segoe UI', Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "rgba(0,0,0,0.75)";
+  ctx.strokeText(name, 128, 28);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(name, 128, 28);
+  tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  nameTextureCache.set(name, tex);
+  return tex;
 }
 
 /** Everyone to their own half, ball dead on the centre spot, one striker on it. */
