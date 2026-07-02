@@ -670,7 +670,7 @@
       .menu-hero-legends + .menu-title-row + .menu-main-actions {
         margin-top: auto;
         margin-bottom: 0;
-        transform: translateY(96px);
+        transform: translateY(170px);
       }
       .home-settings-strip {
         margin-top: auto;
@@ -743,6 +743,7 @@
         border-radius: 999px;
         text-transform: uppercase;
       }
+      .matchup-badge-cpu,
       .matchup-team-away .matchup-badge {
         color: #fff;
         background: #2459d6;
@@ -808,16 +809,36 @@
         max-width: 240px;
       }
       .matchup-cap-kit {
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
         display: grid;
         place-items: center;
-        font-weight: 900;
-        font-size: 14px;
-        color: #fff;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
         flex-shrink: 0;
+        position: relative;
+        overflow: hidden;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+      }
+      .matchup-cap-kit .player-head {
+        width: 40px;
+        height: 40px;
+        border: 2px solid rgba(255,255,255,0.3);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.26);
+      }
+      .matchup-cap-band {
+        position: absolute;
+        right: -3px;
+        bottom: -3px;
+        width: 19px;
+        height: 19px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        background: #ffe94a;
+        color: #0b140d;
+        font-size: 10px;
+        font-weight: 1000;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.35);
       }
       .matchup-cap-text {
         display: flex;
@@ -849,6 +870,22 @@
         font-weight: 900;
         color: #fff;
         text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+      }
+      .matchup-pick {
+        cursor: pointer;
+        pointer-events: auto;
+        min-width: 138px;
+        min-height: 44px;
+        padding: 0 18px;
+        border: 2px solid rgba(255,255,255,0.16);
+        border-radius: 999px;
+        background: linear-gradient(180deg, #ffe977, #d8af32);
+        color: #0b140d;
+        font-family: inherit;
+        font-size: 15px;
+        font-weight: 1000;
+        letter-spacing: 0.6px;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.24);
       }
       .matchup-actions {
         display: grid;
@@ -2068,6 +2105,15 @@
         .menu-title-row {
           grid-template-columns: 1fr;
           gap: 8px;
+        }
+        .matchup-grid {
+          grid-template-columns: 1fr;
+        }
+        .matchup-vs {
+          font-size: 24px;
+        }
+        .matchup-actions {
+          grid-template-columns: 64px 1fr 88px;
         }
         .menu-team-mark {
           display: none;
