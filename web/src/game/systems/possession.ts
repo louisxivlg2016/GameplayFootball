@@ -233,7 +233,13 @@ export function possessionSystem(world: World, dt: number): void {
     const parryMul = isAIKeeper ? 0.45 : 0.3;
     let hardness = pace * (0.04 + 0.45 * stretch) * beatMul;
     hardness += frontPressure * pace * (isAIKeeper ? 0.09 : 0.05);
-    hardness = clamp(hardness, 0, isAIKeeper ? 0.42 : 0.26);
+    // scoring must stay a real possibility: a genuine strike on target has
+    // at least ~1-in-4 odds of beating the AI keeper even when he reaches it
+    // (36% facile / 25% normal / 18% difficile). The floor fades to zero on
+    // slow rollers so he never comically lets a creeping ball trickle past.
+    if (isAIKeeper)
+      hardness = Math.max(hardness, (0.25 / difficulty().keeperSave) * clamp(pace * 3, 0, 1));
+    hardness = clamp(hardness, 0, isAIKeeper ? 0.55 : 0.26);
     const roll = Math.random();
     if (roll < hardness) {
       // beaten: the ball flies past — but he still hurls himself at it
