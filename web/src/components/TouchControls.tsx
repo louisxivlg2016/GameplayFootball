@@ -33,6 +33,7 @@ export function TouchControls(): React.ReactNode {
           tackle: t("tackle"),
           pass: t("pass"),
           shoot: t("shoot"),
+          power: t("power"),
         }}
       />
     </div>
@@ -204,6 +205,7 @@ function Actions({
     tackle: string;
     pass: string;
     shoot: string;
+    power: string;
   };
 }): React.ReactNode {
   return (
@@ -244,6 +246,10 @@ function Actions({
         </div>
         <div style={{ position: "absolute", top: 58, right: 0 }}>
           <Btn label={labels.pass} color="#ffe94a" size={60} onDown={() => tapKey("KeyX")} />
+        </div>
+        <div style={{ position: "absolute", bottom: 6, right: -20 }}>
+          {/* the cannonball: instant flat rocket (keyboard T) */}
+          <Btn label={labels.power} color="#ff3b30" size={54} onDown={() => tapKey("KeyT")} />
         </div>
         <div style={{ position: "absolute", bottom: 0, left: 50 }}>
           {/* hold to charge: a long press sends the ball very high */}

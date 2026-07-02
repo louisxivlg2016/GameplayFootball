@@ -224,6 +224,11 @@ function controlSlot(
     (hasBall || bs.owner === null) && dBall < 1.5 && bp.y < 1 && bs.kickCooldown <= 0;
 
   if (kickable) {
+    // T: the cannonball — an instant flat rocket, no charging
+    if (consumePress(pad.power)) {
+      shoot(world, sel, dir.z * PITCH.goalHalfWidth * 0.85 + (Math.random() - 0.5), 0, true);
+      return;
+    }
     // the shot fires on RELEASE: holding the button charges it — a long hold
     // (~1s) sends the ball VERY high, a tap stays the flat drilled shot
     const charge = consumeRelease(pad.shoot);

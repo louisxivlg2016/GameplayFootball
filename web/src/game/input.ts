@@ -111,6 +111,8 @@ export interface Pad {
   lob: string;
   tackle: string;
   head: string;
+  /** cannonball: instant full-power drilled rocket */
+  power: string;
   /** player 1 only: the on-screen joystick feeds movement to this pad */
   solo?: boolean;
 }
@@ -127,6 +129,7 @@ const SOLO_PAD: Pad = {
   lob: "KeyC",
   tackle: "KeyE",
   head: "KeyV",
+  power: "KeyT",
   solo: true,
 };
 
@@ -165,6 +168,7 @@ export const PADS: [Pad, Pad] = [
     lob: "KeyC",
     tackle: "KeyE",
     head: "KeyV",
+    power: "KeyT",
   },
   {
     up: ["ArrowUp"],
@@ -177,6 +181,7 @@ export const PADS: [Pad, Pad] = [
     lob: "KeyM",
     tackle: "KeyI",
     head: "KeyO",
+    power: "KeyP",
   },
 ];
 

@@ -300,25 +300,39 @@ export function shotOdds(
   return { aimZ: bestAim, odds: bestOdds, idealFactor };
 }
 
-export function shoot(world: World, kicker: Entity, aimZ: number, loft01 = 0): void {
+export function shoot(
+  world: World,
+  kicker: Entity,
+  aimZ: number,
+  loft01 = 0,
+  cannon = false,
+): void {
   const ball = world.queryFirst(IsBall);
   const rb = ball?.get(BallRef)!.value;
   if (!ball || !rb) return;
   const bp = rb.translation();
   const goalX = attackSign(kicker.get(Team)!.id) * PITCH.halfLength;
-  // technical_shot scatter: poor shooters spray wide and high
+  // technical_shot scatter: poor shooters spray wide and high. A cannonball
+  // is even harder to place — extra spray keeps it from dominating
   const shotDiffErr = kicker.get(Team)!.id === aiTeam() ? difficulty().aiErr : 1;
   const scatter =
-    (1 - kicker.get(Stats)!.shot) * 2.2 * shotDiffErr * (Math.random() - 0.5) * 2;
+    (1 - kicker.get(Stats)!.shot) *
+    2.2 *
+    (cannon ? 1.5 : 1) *
+    shotDiffErr *
+    (Math.random() - 0.5) *
+    2;
   const tz = clamp(aimZ + scatter, -PITCH.goalHalfWidth - 0.6, PITCH.goalHalfWidth + 0.6);
   const dx = goalX - bp.x;
   const dz = tz - bp.z;
   const dist = Math.hypot(dx, dz);
   if (dist < 0.5) return;
   // loft01: how long the shoot button was CHARGED — a full hold trades pace
-  // for a big skied ball that sails high over everyone
-  const speed = 26 - loft01 * 7;
-  const lift = Math.min(6.5, 2.2 + dist * 0.09) + loft01 * 9.5;
+  // for a big skied ball. cannon: the T rocket — flat and vicious.
+  const speed = cannon ? 37 : 26 - loft01 * 7;
+  const lift = cannon
+    ? Math.min(3.0, 1.3 + dist * 0.045)
+    : Math.min(6.5, 2.2 + dist * 0.09) + loft01 * 9.5;
   releaseBall(world, kicker, {
     x: (dx / dist) * speed,
     y: lift,
