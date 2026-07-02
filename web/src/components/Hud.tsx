@@ -7,13 +7,14 @@ import { skipCinematic } from "../game/systems/cinematic";
 import { audioMuted, initAudio, primeAudioOutput, resumeAudio, setAudioMuted } from "../game/audio";
 import { RADIO_STATE_EVENT, radio, radioEnabled, resumeRadio, toggleRadio, warmupRadioVoice } from "../game/radio";
 import {
+  getConfiguredMatchSides,
   LINEUP_SLOT_LAYOUT,
   NATIONAL_TEAM_OPTIONS,
   TEAM_FLAG,
   getDefaultLineupIds,
   getNationalTeam,
   getOpponentTeamId,
-  getPreviewMatchSides,
+  getPreviewMatchSidesFor,
   getTeamCaptain,
   getTeamOverall,
   type NationalTeam,
@@ -48,6 +49,7 @@ import {
   useI18n,
   type AppLanguage,
 } from "../i18n";
+import { LEAGUES } from "../game/clubs";
 
 const act = () => useStore.getState();
 const MENU_THEME_BY_LANGUAGE: Partial<Record<AppLanguage, string>> = {
@@ -327,16 +329,12 @@ export function Hud(): React.ReactNode {
   const practice = useStore((s) => s.practice);
   const currentNationalTeam = useMemo(() => getNationalTeam(nationalTeam), [nationalTeam]);
   const previewMatchSides = useMemo(
-    () => getPreviewMatchSides(nationalTeam, humanTeam),
-    [humanTeam, nationalTeam],
+    () => getPreviewMatchSidesFor(nationalTeam, opponentTeam, humanTeam),
+    [humanTeam, nationalTeam, opponentTeam],
   );
   const lineupPlayerById = useMemo(
     () => new Map(currentNationalTeam.squad.map((player) => [player.id, player])),
     [currentNationalTeam],
-  );
-  const opponentPreview = useMemo(
-    () => getNationalTeam(getOpponentTeamId(nationalTeam)),
-    [nationalTeam],
   );
   const [menuTab, setMenuTab] = useState<MenuTab>("home");
   const [selectedLineup, setSelectedLineup] = useState<number[]>(() => loadSavedLineup(nationalTeam));
@@ -437,6 +435,14 @@ export function Hud(): React.ReactNode {
     radio("opening");
   };
 
+  const pickControlledTeam = (teamId: NationalTeamId): void => {
+    if (teamId === nationalTeam) return;
+    act().setMatchTeams(teamId, nationalTeam);
+  };
+
+  const displayMatchSides =
+    mode === "menu" ? previewMatchSides : getConfiguredMatchSides();
+
   const replaceLineupSlot = (slotIndex: number, playerId: number): void => {
     if (selectedLineup.includes(playerId)) return;
     setSelectedLineup((current) => current.map((id, index) => (index === slotIndex ? playerId : id)));
@@ -506,15 +512,15 @@ export function Hud(): React.ReactNode {
               {mm}:{ss} {translatedPhase}
             </span>
             <span className="team">
-              <span className="swatch" style={{ background: previewMatchSides[0].color }} />
-              {previewMatchSides[0].label}
+              <span className="swatch" style={{ background: displayMatchSides[0].color }} />
+              {displayMatchSides[0].label}
             </span>
             <span className="score">
               {score[0]} - {score[1]}
             </span>
             <span className="team">
-              <span className="swatch" style={{ background: previewMatchSides[1].color }} />
-              {previewMatchSides[1].label}
+              <span className="swatch" style={{ background: displayMatchSides[1].color }} />
+              {displayMatchSides[1].label}
             </span>
             {pens && (
               <span className="score">
@@ -746,7 +752,7 @@ export function Hud(): React.ReactNode {
                     )}
                   </>
                 )}
-                {menuTab === "club" && <EmptyMenu title="Club" />}
+                {menuTab === "club" && <ClubsMenu />}
                 {menuTab === "challenge" && <EmptyMenu title="Defi" />}
                 {menuTab === "matchup" && (
                   <div className="matchup">
@@ -760,15 +766,17 @@ export function Hud(): React.ReactNode {
                       <MatchupTeamCard
                         teamId={nationalTeam}
                         side="home"
-                        badge={t("onePlayer")}
+                        isControlled
                         onCycle={() => act().cycleNationalTeam()}
+                        onPlay={() => pickControlledTeam(nationalTeam)}
                       />
                       <div className="matchup-vs">VS</div>
                       <MatchupTeamCard
                         teamId={opponentTeam}
                         side="away"
-                        badge="CPU"
+                        isControlled={false}
                         onCycle={() => act().cycleOpponentTeam()}
+                        onPlay={() => pickControlledTeam(opponentTeam)}
                       />
                     </div>
                     <div className="matchup-actions">
@@ -1213,7 +1221,12 @@ function ShootoutBoard(): React.ReactNode {
   const detail = useStore((s) => s.pensDetail);
   const humanTeam = useStore((s) => s.humanTeam);
   const nationalTeam = useStore((s) => s.nationalTeam);
-  const sides = getPreviewMatchSides(nationalTeam, humanTeam);
+  const opponentTeam = useStore((s) => s.opponentTeam);
+  const mode = useStore((s) => s.mode);
+  const sides =
+    mode === "menu"
+      ? getPreviewMatchSidesFor(nationalTeam, opponentTeam, humanTeam)
+      : getConfiguredMatchSides();
   if (!detail) return null;
   const rounds = Math.max(5, detail[0].length, detail[1].length);
   return (
@@ -1336,23 +1349,72 @@ function EmptyMenu({ title }: { title: string }): React.ReactNode {
   );
 }
 
+/** CLUB tab: every club of the big five leagues + Europe's famous names,
+ *  grouped by country, each with its kit-colored crest. */
+function ClubsMenu(): React.ReactNode {
+  const [league, setLeague] = useState<string>(LEAGUES[0]!.id);
+  const current = LEAGUES.find((l) => l.id === league) ?? LEAGUES[0]!;
+  return (
+    <div className="menu-panel club-panel">
+      <div className="menu-panel-head">
+        <span>Clubs</span>
+        <b>
+          {current.flag} {current.name} · {current.clubs.length} clubs
+        </b>
+      </div>
+      <div className="club-league-tabs">
+        {LEAGUES.map((l) => (
+          <button
+            key={l.id}
+            className={`club-league-tab${l.id === league ? " active" : ""}`}
+            onClick={() => setLeague(l.id)}
+          >
+            <span>{l.flag}</span>
+            <b>{l.country}</b>
+          </button>
+        ))}
+      </div>
+      <div className="club-grid">
+        {current.clubs.map((club) => (
+          <div
+            key={club.name}
+            className="club-card"
+            style={{ "--club-color": club.color, "--club-color2": club.color2 } as CSSProperties}
+          >
+            <span className="club-crest">
+              <span>{club.code}</span>
+            </span>
+            <b>{club.name}</b>
+            <small>{club.city}</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MatchupTeamCard({
   teamId,
   side,
-  badge,
+  isControlled,
   onCycle,
+  onPlay,
 }: {
   teamId: NationalTeamId;
   side: "home" | "away";
-  badge: string;
+  isControlled: boolean;
   onCycle: () => void;
+  onPlay: () => void;
 }): React.ReactNode {
+  const { t } = useI18n();
   const team = getNationalTeam(teamId);
   const captain = getTeamCaptain(teamId);
   const ovr = getTeamOverall(teamId);
   return (
     <div className={`matchup-team matchup-team-${side}`} style={{ borderColor: team.color }}>
-      <span className="matchup-badge">{badge}</span>
+      <span className={`matchup-badge${isControlled ? "" : " matchup-badge-cpu"}`}>
+        {isControlled ? "P1" : "CPU"}
+      </span>
       <button className="matchup-change" onClick={onCycle} title="Changer d'équipe">
         <span className="matchup-flag">{TEAM_FLAG[teamId]}</span>
         <span className="matchup-change-hint">⟲</span>
@@ -1364,12 +1426,8 @@ function MatchupTeamCard({
       </div>
       <div className="matchup-captain">
         <span className="matchup-cap-kit" style={{ background: team.color }}>
-          {captain.name
-            .split(" ")
-            .map((part) => part[0])
-            .join("")
-            .slice(0, 2)
-            .toUpperCase()}
+          <PlayerHead name={captain.name} photoUrl={captain.photo} />
+          <span className="matchup-cap-band">C</span>
         </span>
         <div className="matchup-cap-text">
           <span>Capitaine</span>
@@ -1379,6 +1437,11 @@ function MatchupTeamCard({
           </i>
         </div>
       </div>
+      {!isControlled && (
+        <button className="matchup-pick" onClick={onPlay}>
+          {t("play")}
+        </button>
+      )}
     </div>
   );
 }
@@ -1438,7 +1501,12 @@ function Radar(): React.ReactNode {
   const radar = useStore((s) => s.radar);
   const humanTeam = useStore((s) => s.humanTeam);
   const nationalTeam = useStore((s) => s.nationalTeam);
-  const sides = getPreviewMatchSides(nationalTeam, humanTeam);
+  const opponentTeam = useStore((s) => s.opponentTeam);
+  const mode = useStore((s) => s.mode);
+  const sides =
+    mode === "menu"
+      ? getPreviewMatchSidesFor(nationalTeam, opponentTeam, humanTeam)
+      : getConfiguredMatchSides();
   const ref = useRef<HTMLCanvasElement>(null);
   // hide the radar while aiming a set piece — it sits right over the ball
   const [hidden, setHidden] = useState(false);

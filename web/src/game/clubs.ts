@@ -1,0 +1,192 @@
+/** Club catalog for the CLUB menu tab: the big five leagues in full, plus the
+ *  famous clubs of the other football countries. Colors are the home kits. */
+
+export interface Club {
+  name: string;
+  /** crest initials */
+  code: string;
+  city: string;
+  color: string;
+  color2: string;
+}
+
+export interface League {
+  id: string;
+  country: string;
+  flag: string;
+  name: string;
+  clubs: Club[];
+}
+
+const c = (name: string, code: string, city: string, color: string, color2: string): Club => ({
+  name,
+  code,
+  city,
+  color,
+  color2,
+});
+
+export const LEAGUES: League[] = [
+  {
+    id: "fr",
+    country: "France",
+    flag: "🇫🇷",
+    name: "Ligue 1",
+    clubs: [
+      c("Paris Saint-Germain", "PSG", "Paris", "#004170", "#da291c"),
+      c("Olympique de Marseille", "OM", "Marseille", "#2faee0", "#ffffff"),
+      c("Olympique Lyonnais", "OL", "Lyon", "#da001a", "#153d8a"),
+      c("AS Monaco", "ASM", "Monaco", "#e51b22", "#ffffff"),
+      c("LOSC Lille", "LOSC", "Lille", "#e01e13", "#20214e"),
+      c("OGC Nice", "OGCN", "Nice", "#d00027", "#000000"),
+      c("RC Lens", "RCL", "Lens", "#fff200", "#ec1c24"),
+      c("Stade Rennais", "SRFC", "Rennes", "#e13327", "#000000"),
+      c("RC Strasbourg", "RCSA", "Strasbourg", "#009fe3", "#ffffff"),
+      c("Toulouse FC", "TFC", "Toulouse", "#6a2c91", "#ffffff"),
+      c("FC Nantes", "FCN", "Nantes", "#fcd405", "#008d3f"),
+      c("Stade Brestois", "SB29", "Brest", "#e30613", "#ffffff"),
+      c("AJ Auxerre", "AJA", "Auxerre", "#1d4e9b", "#ffffff"),
+      c("Angers SCO", "SCO", "Angers", "#000000", "#ffffff"),
+      c("Le Havre AC", "HAC", "Le Havre", "#89cff0", "#00205b"),
+      c("FC Metz", "FCM", "Metz", "#8b1d3f", "#ffffff"),
+      c("FC Lorient", "FCL", "Lorient", "#ff6600", "#000000"),
+      c("Paris FC", "PFC", "Paris", "#1d3c8f", "#ffffff"),
+    ],
+  },
+  {
+    id: "en",
+    country: "Angleterre",
+    flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    name: "Premier League",
+    clubs: [
+      c("Arsenal", "ARS", "Londres", "#ef0107", "#ffffff"),
+      c("Liverpool", "LIV", "Liverpool", "#c8102e", "#ffffff"),
+      c("Manchester City", "MCI", "Manchester", "#6cabdd", "#ffffff"),
+      c("Manchester United", "MUN", "Manchester", "#da291c", "#000000"),
+      c("Chelsea", "CHE", "Londres", "#034694", "#ffffff"),
+      c("Tottenham Hotspur", "TOT", "Londres", "#ffffff", "#132257"),
+      c("Newcastle United", "NEW", "Newcastle", "#241f20", "#ffffff"),
+      c("Aston Villa", "AVL", "Birmingham", "#95bfe5", "#670e36"),
+      c("Brighton", "BHA", "Brighton", "#0057b8", "#ffffff"),
+      c("West Ham United", "WHU", "Londres", "#7a263a", "#1bb1e7"),
+      c("Crystal Palace", "CRY", "Londres", "#1b458f", "#c4122e"),
+      c("Everton", "EVE", "Liverpool", "#003399", "#ffffff"),
+      c("Fulham", "FUL", "Londres", "#ffffff", "#000000"),
+      c("Brentford", "BRE", "Londres", "#e30613", "#ffffff"),
+      c("Nottingham Forest", "NFO", "Nottingham", "#dd0000", "#ffffff"),
+      c("Wolverhampton", "WOL", "Wolverhampton", "#fdb913", "#231f20"),
+      c("Bournemouth", "BOU", "Bournemouth", "#da291c", "#000000"),
+      c("Burnley", "BUR", "Burnley", "#6c1d45", "#99d6ea"),
+      c("Leeds United", "LEE", "Leeds", "#ffffff", "#1d428a"),
+      c("Sunderland", "SUN", "Sunderland", "#eb172b", "#ffffff"),
+    ],
+  },
+  {
+    id: "es",
+    country: "Espagne",
+    flag: "🇪🇸",
+    name: "La Liga",
+    clubs: [
+      c("Real Madrid", "RMA", "Madrid", "#ffffff", "#febe10"),
+      c("FC Barcelone", "BAR", "Barcelone", "#a50044", "#004d98"),
+      c("Atlético Madrid", "ATM", "Madrid", "#cb3524", "#ffffff"),
+      c("Athletic Bilbao", "ATH", "Bilbao", "#ee2523", "#ffffff"),
+      c("Real Sociedad", "RSO", "Saint-Sébastien", "#0067b1", "#ffffff"),
+      c("Villarreal", "VIL", "Villarreal", "#ffe667", "#005187"),
+      c("Real Betis", "BET", "Séville", "#00954c", "#ffffff"),
+      c("Séville FC", "SEV", "Séville", "#ffffff", "#d8121a"),
+      c("Valence CF", "VAL", "Valence", "#ffffff", "#ee3524"),
+      c("Celta Vigo", "CEL", "Vigo", "#8ac3ee", "#ffffff"),
+      c("Osasuna", "OSA", "Pampelune", "#d91a21", "#0a346f"),
+      c("Rayo Vallecano", "RAY", "Madrid", "#ffffff", "#e53027"),
+      c("Majorque", "MLL", "Palma", "#e20613", "#000000"),
+      c("Getafe", "GET", "Getafe", "#005999", "#ffffff"),
+      c("Alavés", "ALA", "Vitoria", "#0761af", "#ffffff"),
+      c("Espanyol", "ESP", "Barcelone", "#007fc8", "#ffffff"),
+      c("Girona", "GIR", "Girona", "#cd2534", "#ffffff"),
+      c("Levante", "LEV", "Valence", "#005999", "#b4053f"),
+      c("Elche", "ELC", "Elche", "#00954c", "#ffffff"),
+      c("Real Oviedo", "OVI", "Oviedo", "#0f4797", "#ffffff"),
+    ],
+  },
+  {
+    id: "it",
+    country: "Italie",
+    flag: "🇮🇹",
+    name: "Serie A",
+    clubs: [
+      c("Inter Milan", "INT", "Milan", "#0068a8", "#000000"),
+      c("AC Milan", "MIL", "Milan", "#fb090b", "#000000"),
+      c("Juventus", "JUV", "Turin", "#ffffff", "#000000"),
+      c("Napoli", "NAP", "Naples", "#12a0d7", "#ffffff"),
+      c("AS Roma", "ROM", "Rome", "#8e1f2f", "#f0bc42"),
+      c("Lazio", "LAZ", "Rome", "#87d8f7", "#ffffff"),
+      c("Atalanta", "ATA", "Bergame", "#1e71b8", "#000000"),
+      c("Fiorentina", "FIO", "Florence", "#61328c", "#ffffff"),
+      c("Bologne", "BOL", "Bologne", "#a21c26", "#1b2838"),
+      c("Torino", "TOR", "Turin", "#881f19", "#ffffff"),
+      c("Udinese", "UDI", "Udine", "#000000", "#ffffff"),
+      c("Genoa", "GEN", "Gênes", "#a71930", "#00205b"),
+      c("Côme", "COM", "Côme", "#0f1e46", "#ffffff"),
+      c("Cagliari", "CAG", "Cagliari", "#8b2942", "#00205b"),
+      c("Hellas Vérone", "VER", "Vérone", "#003399", "#ffe500"),
+      c("Parme", "PAR", "Parme", "#ffe500", "#004c99"),
+      c("Lecce", "LEC", "Lecce", "#ffe500", "#e30613"),
+      c("Sassuolo", "SAS", "Sassuolo", "#00a752", "#000000"),
+      c("Pise", "PIS", "Pise", "#00205b", "#000000"),
+      c("Cremonese", "CRE", "Crémone", "#ed1c24", "#8c8c8c"),
+    ],
+  },
+  {
+    id: "de",
+    country: "Allemagne",
+    flag: "🇩🇪",
+    name: "Bundesliga",
+    clubs: [
+      c("Bayern Munich", "FCB", "Munich", "#dc052d", "#ffffff"),
+      c("Borussia Dortmund", "BVB", "Dortmund", "#fde100", "#000000"),
+      c("Bayer Leverkusen", "B04", "Leverkusen", "#e32221", "#000000"),
+      c("RB Leipzig", "RBL", "Leipzig", "#dd0741", "#ffffff"),
+      c("Eintracht Francfort", "SGE", "Francfort", "#e1000f", "#000000"),
+      c("VfB Stuttgart", "VFB", "Stuttgart", "#ffffff", "#e32219"),
+      c("SC Fribourg", "SCF", "Fribourg", "#e6001e", "#000000"),
+      c("VfL Wolfsburg", "WOB", "Wolfsburg", "#65b32e", "#ffffff"),
+      c("Mönchengladbach", "BMG", "Mönchengladbach", "#ffffff", "#000000"),
+      c("Mayence 05", "M05", "Mayence", "#c3141e", "#ffffff"),
+      c("FC Augsbourg", "FCA", "Augsbourg", "#ba3733", "#46714d"),
+      c("Werder Brême", "SVW", "Brême", "#1d9053", "#ffffff"),
+      c("Hoffenheim", "TSG", "Sinsheim", "#1c63b7", "#ffffff"),
+      c("Union Berlin", "FCU", "Berlin", "#eb1923", "#ffe500"),
+      c("St. Pauli", "STP", "Hambourg", "#624737", "#e2001a"),
+      c("Heidenheim", "FCH", "Heidenheim", "#e30613", "#003c7e"),
+      c("FC Cologne", "KOE", "Cologne", "#ffffff", "#ed1c24"),
+      c("Hambourg SV", "HSV", "Hambourg", "#0a3f86", "#ffffff"),
+    ],
+  },
+  {
+    id: "eu",
+    country: "Autres pays",
+    flag: "🌍",
+    name: "Grands clubs d'Europe",
+    clubs: [
+      c("FC Porto", "POR", "Porto 🇵🇹", "#00428c", "#ffffff"),
+      c("Benfica", "SLB", "Lisbonne 🇵🇹", "#e30613", "#ffffff"),
+      c("Sporting CP", "SCP", "Lisbonne 🇵🇹", "#008658", "#ffffff"),
+      c("Ajax", "AJX", "Amsterdam 🇳🇱", "#d2122e", "#ffffff"),
+      c("PSV Eindhoven", "PSV", "Eindhoven 🇳🇱", "#ed1c24", "#ffffff"),
+      c("Feyenoord", "FEY", "Rotterdam 🇳🇱", "#e30613", "#000000"),
+      c("Celtic", "CEL", "Glasgow 🏴󠁧󠁢󠁳󠁣󠁴󠁿", "#018749", "#ffffff"),
+      c("Rangers", "RAN", "Glasgow 🏴󠁧󠁢󠁳󠁣󠁴󠁿", "#1b458f", "#ffffff"),
+      c("Galatasaray", "GAL", "Istanbul 🇹🇷", "#a90432", "#fdb912"),
+      c("Fenerbahçe", "FEN", "Istanbul 🇹🇷", "#ffed00", "#00205b"),
+      c("Club Bruges", "BRU", "Bruges 🇧🇪", "#0055a4", "#000000"),
+      c("Anderlecht", "AND", "Bruxelles 🇧🇪", "#61328c", "#ffffff"),
+      c("Boca Juniors", "BOC", "Buenos Aires 🇦🇷", "#103f79", "#ffe500"),
+      c("River Plate", "RIV", "Buenos Aires 🇦🇷", "#ffffff", "#e30613"),
+      c("Flamengo", "FLA", "Rio de Janeiro 🇧🇷", "#e30613", "#000000"),
+      c("Al-Nassr", "NAS", "Riyad 🇸🇦", "#ffe500", "#00205b"),
+      c("Inter Miami", "MIA", "Miami 🇺🇸", "#f7b5cd", "#000000"),
+      c("Olympiakos", "OLY", "Le Pirée 🇬🇷", "#d6001c", "#ffffff"),
+    ],
+  },
+];
