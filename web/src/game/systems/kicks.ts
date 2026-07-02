@@ -300,7 +300,7 @@ export function shotOdds(
   return { aimZ: bestAim, odds: bestOdds, idealFactor };
 }
 
-export function shoot(world: World, kicker: Entity, aimZ: number): void {
+export function shoot(world: World, kicker: Entity, aimZ: number, loft01 = 0): void {
   const ball = world.queryFirst(IsBall);
   const rb = ball?.get(BallRef)!.value;
   if (!ball || !rb) return;
@@ -315,8 +315,10 @@ export function shoot(world: World, kicker: Entity, aimZ: number): void {
   const dz = tz - bp.z;
   const dist = Math.hypot(dx, dz);
   if (dist < 0.5) return;
-  const speed = 26;
-  const lift = Math.min(6.5, 2.2 + dist * 0.09);
+  // loft01: how long the shoot button was CHARGED — a full hold trades pace
+  // for a big skied ball that sails high over everyone
+  const speed = 26 - loft01 * 7;
+  const lift = Math.min(6.5, 2.2 + dist * 0.09) + loft01 * 9.5;
   releaseBall(world, kicker, {
     x: (dx / dist) * speed,
     y: lift,

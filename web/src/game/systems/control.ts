@@ -1,5 +1,5 @@
 import type { Entity, World } from "koota";
-import { consumePress, isSprintingFor, moveDirFor, padFor } from "../input";
+import { consumePress, consumeRelease, heldFor, isSprintingFor, moveDirFor, padFor } from "../input";
 import {
   BallRef,
   BallState,
@@ -224,15 +224,20 @@ function controlSlot(
     (hasBall || bs.owner === null) && dBall < 1.5 && bp.y < 1 && bs.kickCooldown <= 0;
 
   if (kickable) {
-    if (consumePress(pad.shoot)) {
+    // the shot fires on RELEASE: holding the button charges it — a long hold
+    // (~1s) sends the ball VERY high, a tap stays the flat drilled shot
+    const charge = consumeRelease(pad.shoot);
+    if (charge !== null) {
+      consumePress(pad.shoot); // clear the press bookkeeping
       if (!penaltyTaker && !isKeeper && ownGoalDist < 24 && isSprintingFor(pad)) {
         panicClear(world, sel, nearestOpp < 2.3 ? 1 : 0);
         return;
       }
+      const loft = Math.min(1, Math.max(0, (charge - 0.18) / 0.8));
       // vertical input steers toward a corner, like the original's aim bias
       // (aimZ is world-z in the goal mouth, the same axis for either goal)
-      shoot(world, sel, dir.z * PITCH.goalHalfWidth * 0.85 + (Math.random() - 0.5));
-    } else if (!penaltyTaker && consumePress(pad.pass)) {
+      shoot(world, sel, dir.z * PITCH.goalHalfWidth * 0.85 + (Math.random() - 0.5), loft);
+    } else if (!penaltyTaker && heldFor(pad.shoot) === 0 && consumePress(pad.pass)) {
       pass(world, sel, fx, fz, false);
     } else if (!penaltyTaker && consumePress(pad.lob)) {
       pass(world, sel, fx, fz, true);

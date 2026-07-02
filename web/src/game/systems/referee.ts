@@ -1,5 +1,6 @@
 import type { Entity, World } from "koota";
 import {
+  Celebrate,
   HomePos,
   BallRef,
   BallState,
@@ -1120,6 +1121,12 @@ function shootoutSystem(
     so.scores[so.turn] += 1;
     banner("GOAL!");
     radio("penGoal");
+    // the taker turns to the crowd with the big celebration
+    const kicker = ballOf(world)?.bs.lastKicker;
+    if (kicker?.isAlive() && !kicker.has(Celebrate)) {
+      kicker.add(Celebrate);
+      kicker.set(Celebrate, { t: 0 });
+    }
   } else {
     banner("MISSED!");
     radio("penMiss");
@@ -1501,6 +1508,10 @@ function dribbleDrillTick(world: World): void {
     store.addGoalQuiet(store.humanTeam);
     store.setBanner("PARCOURS RÉUSSI !");
     refState.practiceResetT = 1.8;
+    if (!runner.has(Celebrate)) {
+      runner.add(Celebrate);
+      runner.set(Celebrate, { t: 0 });
+    }
     return;
   }
 
@@ -1512,6 +1523,10 @@ function dribbleDrillTick(world: World): void {
       store.addGoalQuiet(store.humanTeam);
       store.setBanner("PARCOURS RÉUSSI !");
       refState.practiceResetT = 1.8;
+      if (!runner.has(Celebrate)) {
+        runner.add(Celebrate);
+        runner.set(Celebrate, { t: 0 });
+      }
       return;
     }
     store.setBanner("BIEN !");
@@ -1582,6 +1597,12 @@ function practiceSystem(
     banner("BUT !", 1.4);
     b.bs.owner = null;
     refState.practiceResetT = 1.6;
+    // celebrate the training goal too — joy is not penalty-only
+    const kicker = b.bs.lastKicker;
+    if (kicker?.isAlive() && !kicker.has(Celebrate)) {
+      kicker.add(Celebrate);
+      kicker.set(Celebrate, { t: 0 });
+    }
   } else if (gathered || out || idleFree) {
     banner(gathered ? "ARRÊT !" : "RATÉ !", 1.2);
     refState.practiceResetT = 1.4;

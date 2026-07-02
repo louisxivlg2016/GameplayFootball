@@ -246,7 +246,14 @@ function Actions({
           <Btn label={labels.pass} color="#ffe94a" size={60} onDown={() => tapKey("KeyX")} />
         </div>
         <div style={{ position: "absolute", bottom: 0, left: 50 }}>
-          <Btn label={labels.shoot} color="#2eb84a" size={76} onDown={() => tapKey("Space")} />
+          {/* hold to charge: a long press sends the ball very high */}
+          <Btn
+            label={labels.shoot}
+            color="#2eb84a"
+            size={76}
+            onDown={() => holdKey("Space")}
+            onUp={() => releaseKey("Space")}
+          />
         </div>
       </div>
     </div>

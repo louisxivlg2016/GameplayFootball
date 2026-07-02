@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { Entity, World } from "koota";
 import {
   BallState,
+  Celebrate,
   Heading,
   IsBall,
   IsPlayer,
@@ -197,6 +198,26 @@ export function movementSystem(world: World, dt: number): void {
       }
     }
 
+    // live-play celebration (shoot-out kicks, training goals): the big
+    // original clip, then back to the game
+    let cele = e.get(Celebrate);
+    if (cele) {
+      const t = cele.t + dt;
+      if (t > 2.8) {
+        e.remove(Celebrate);
+        cele = undefined;
+        const hh = e.get(MeshRef);
+        if (hh?.action === "celebrate_big") stopActionClip(hh, 0.25);
+      } else {
+        e.set(Celebrate, { t });
+        cele = { t };
+        // he stops to soak it in instead of jogging through the joy
+        const f = Math.pow(0.02, dt);
+        v.x *= f;
+        v.z *= f;
+      }
+    }
+
     // heading lags velocity — the original turns through animation, not snapping
     let heading = e.get(Heading)!.angle;
     let angleDiff = 0;
@@ -276,7 +297,7 @@ export function movementSystem(world: World, dt: number): void {
     // skeleton. Back in live play with no owning component, ANY lingering
     // one-shot (a yanked dive, a celebrate that outlived its scene) must
     // release the rig here or the body would stay clamped forever.
-    if (!dive && !slide && !jump && h.action) stopActionClip(h);
+    if (!dive && !slide && !jump && !cele && h.action) stopActionClip(h);
     if (dive) {
       // base clips dive to the actor's RIGHT; world-side vs facing picks the
       // mirror (right_world = (-cos θ, 0, sin θ), dive dir = (0,0,side))
@@ -291,6 +312,8 @@ export function movementSystem(world: World, dt: number): void {
       playActionClip(h, jump.header === 1 ? "header_jump" : "header_still", {
         fade: 0.08, // the ball is already mid-air — snap into the leap
       });
+    } else if (cele) {
+      playActionClip(h, "celebrate_big", { fade: 0.15 });
     }
     animateRig(h, slide || dive || (speed < 1.2 && h.variant !== "idle") ? 0 : posed ? 0.3 : speed, angleDiff, dt);
     if (trip && trip.fall > 0.75 && h.bones) {

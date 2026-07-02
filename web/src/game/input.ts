@@ -4,6 +4,10 @@ import { radio, resumeRadio, toggleRadio, warmupRadioVoice } from "./radio";
 
 const held = new Set<string>();
 const pressed = new Set<string>();
+// charge tracking: when each key went down, and the duration of the last
+// release — the shoot button charges a high ball the longer it is held
+const downAt = new Map<string, number>();
+const releases = new Map<string, { dur: number; at: number }>();
 
 const MOVE_KEYS = new Set([
   "ArrowUp",
@@ -35,6 +39,7 @@ export function initInput(): void {
     unlockAudio(); // browsers unlock audio on the first user gesture
     held.add(e.code);
     pressed.add(e.code);
+    downAt.set(e.code, performance.now());
 
     const {
       mode,
@@ -64,8 +69,34 @@ export function initInput(): void {
     }
     if (e.code === "KeyR") toggleRadio();
   });
-  window.addEventListener("keyup", (e) => held.delete(e.code));
-  window.addEventListener("blur", () => held.clear());
+  window.addEventListener("keyup", (e) => {
+    held.delete(e.code);
+    const t0 = downAt.get(e.code);
+    if (t0 !== undefined) {
+      downAt.delete(e.code);
+      releases.set(e.code, { dur: (performance.now() - t0) / 1000, at: performance.now() });
+    }
+  });
+  window.addEventListener("blur", () => {
+    held.clear();
+    downAt.clear();
+  });
+}
+
+/** Seconds the key has been held so far (0 if not down). */
+export function heldFor(code: string): number {
+  const t0 = downAt.get(code);
+  return t0 === undefined ? 0 : (performance.now() - t0) / 1000;
+}
+
+/** Consume the last release of `code`: how long it was held, in seconds.
+ *  Stale releases (older than ~a quarter second) are dropped — a release
+ *  must fire the shot NOW, never seconds later. */
+export function consumeRelease(code: string): number | null {
+  const r = releases.get(code);
+  if (!r) return null;
+  releases.delete(code);
+  return performance.now() - r.at < 250 ? r.dur : null;
 }
 
 /** Per-player key layouts for local two-player mode. */
@@ -105,9 +136,20 @@ const SOLO_PAD: Pad = {
 export const touchMove = { x: 0, z: 0, active: false };
 
 /** Hold a virtual key down (sprint button). */
-export const holdKey = (code: string): void => void held.add(code);
-/** Release a virtual key (sprint button up / pointer cancel). */
-export const releaseKey = (code: string): void => void held.delete(code);
+export const holdKey = (code: string): void => {
+  held.add(code);
+  pressed.add(code);
+  if (!downAt.has(code)) downAt.set(code, performance.now());
+};
+/** Release a virtual key (sprint/shoot button up / pointer cancel). */
+export const releaseKey = (code: string): void => {
+  held.delete(code);
+  const t0 = downAt.get(code);
+  if (t0 !== undefined) {
+    downAt.delete(code);
+    releases.set(code, { dur: (performance.now() - t0) / 1000, at: performance.now() });
+  }
+};
 /** Fire a one-shot virtual key press (action buttons). */
 export const tapKey = (code: string): void => void pressed.add(code);
 
