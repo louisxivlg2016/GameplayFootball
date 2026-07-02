@@ -14,6 +14,7 @@ import {
   Selected2,
   SlideTackle,
   Stats,
+  Team,
   Tripped,
   Velocity,
 } from "../traits";
@@ -336,6 +337,11 @@ export function movementSystem(world: World, dt: number): void {
 function separatePlayers(world: World, owner: Entity | null): void {
   const BODY = 0.34; // shoulder radius; the min gap between two bodies is 2×
   const MIN = BODY * 2;
+  // an OPPONENT closing on the carrier is kept a proper arm's length away —
+  // at the plain body gap the two meshes visually merge chest-to-chest and
+  // the defender looks planted "inside" you
+  const MIN_VS_CARRIER = 1.0;
+  const ownerTeam = owner?.get(Team)!.id;
   const list: Entity[] = [];
   for (const e of world.query(IsPlayer)) list.push(e);
   for (let i = 0; i < list.length; i++) {
@@ -347,8 +353,12 @@ function separatePlayers(world: World, owner: Entity | null): void {
       let dx = pb.x - pa.x;
       let dz = pb.z - pa.z;
       const d = Math.hypot(dx, dz);
-      if (d >= MIN || d < 1e-5) continue;
-      const overlap = MIN - d;
+      const withCarrier =
+        (a === owner && b.get(Team)!.id !== ownerTeam) ||
+        (b === owner && a.get(Team)!.id !== ownerTeam);
+      const min = withCarrier ? MIN_VS_CARRIER : MIN;
+      if (d >= min || d < 1e-5) continue;
+      const overlap = min - d;
       dx /= d;
       dz /= d;
       // the carrier holds his ground; everyone else yields around him, so a

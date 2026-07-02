@@ -592,7 +592,10 @@ function defendPosition(
       // press tight (right on top of him, to nick the ball) most of the time;
       // only briefly drop off to contain so he's never left to stroll about
       const pressTight = danger > 0.2 || spell > -0.45;
-      const off = pressTight ? 0.7 : 1.6; // engage vs stand off and contain
+      // engage vs stand off and contain — never INSIDE the carrier's body
+      // space (the solid-body floor is 1.0m; pressing tighter than that just
+      // glues the defender chest-to-chest in front of you)
+      const off = pressTight ? 1.15 : 1.6;
       // approach across a shoulder (alternating) rather than tailing his wake
       const side = Math.sin(state.time * 0.35 + e.get(PlayerInfo)!.index * 1.9);
       const lateral = side * 1.4;
