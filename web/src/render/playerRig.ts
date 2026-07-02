@@ -37,6 +37,19 @@ interface AnimsData {
 
 const modelData = modelJson as unknown as ModelData;
 const animData = animsJson as unknown as AnimsData;
+import messiJson from "../assets/players/messi.json";
+import messiKitUrl from "../assets/players/messi_kit.jpg";
+
+/** Hunyuan Messi mesh auto-skinned onto the game skeleton (tools/convert-messi). */
+interface MessiData {
+  bind: { armTilt: number };
+  positions: number[];
+  uvs: number[];
+  skinIndices: number[];
+  skinWeights: number[];
+  index: number[];
+}
+const messiData = messiJson as unknown as MessiData;
 import goalieKitUrl from "../assets/players/goalie_kit.png";
 import refereeKitUrl from "../assets/players/referee_kit.png";
 import skin01Url from "../assets/players/skin01.png";
@@ -118,6 +131,33 @@ const sharedInverses: THREE.Matrix4[] = (() => {
   return skinBones.map((b) => b.matrixWorld.clone().invert());
 })();
 
+// Messi's mesh was skinned against the skeleton posed to MATCH the scan
+// (arms tilted out by bind.armTilt, elbows straight) — its bind inverses come
+// from that same pose, so the clips deform it exactly like the stock body.
+const messiInverses: THREE.Matrix4[] = (() => {
+  const { rootBone, skinBones } = buildBones();
+  const by = new Map(skinBones.map((b) => [b.name, b]));
+  const Y = new THREE.Vector3(0, 1, 0);
+  const tilt = messiData.bind.armTilt;
+  by.get("left_shoulder")?.quaternion.setFromAxisAngle(Y, -tilt);
+  by.get("right_shoulder")?.quaternion.setFromAxisAngle(Y, tilt);
+  by.get("left_elbow")?.quaternion.identity();
+  by.get("right_elbow")?.quaternion.identity();
+  rootBone.updateMatrixWorld(true);
+  return skinBones.map((b) => b.matrixWorld.clone().invert());
+})();
+
+const messiGeometry: THREE.BufferGeometry = (() => {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(messiData.positions, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(messiData.uvs, 2));
+  geo.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(messiData.skinIndices, 4));
+  geo.setAttribute("skinWeight", new THREE.Float32BufferAttribute(messiData.skinWeights, 4));
+  geo.setIndex(messiData.index);
+  geo.computeVertexNormals();
+  return geo;
+})();
+
 // hair geometries: the converter already exports them in neck-local space
 // (cap centred ~0.25 above the joint) — re-basing them again with the neck
 // bind inverse shoved every haircut down to the ankles (the "dark ball
@@ -175,6 +215,15 @@ const clips: THREE.AnimationClip[] = animData.clips.map((c) => {
 
 const shoeMat = new THREE.MeshStandardMaterial({ map: shoeTex, roughness: 0.7 });
 const soleMat = new THREE.MeshStandardMaterial({ map: soleTex, roughness: 0.9 });
+let messiMat: THREE.MeshStandardMaterial | null = null;
+function messiMaterial(): THREE.MeshStandardMaterial {
+  if (!messiMat) {
+    const tex = loadTex(messiKitUrl);
+    tex.flipY = false; // glTF UV convention (v origin at the top)
+    messiMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 });
+  }
+  return messiMat;
+}
 const skinMats = skinTex.map(
   (t) => new THREE.MeshStandardMaterial({ map: t, roughness: 0.75 }),
 );
@@ -235,34 +284,46 @@ export function createPlayerRig(
   teamColor: string,
   variant: number,
   heightScale: number,
+  special?: "messi",
 ): PlayerRig {
   const { rootBone, skinBones } = buildBones();
 
-  const groupOrder = bodyGeometry.userData.groupOrder as string[];
-  const skinIdx = variant % skinMats.length;
-  const materials = groupOrder.map((name) => {
-    if (name === "kit") return kitMaterial(kitKind, teamColor);
-    if (name === "shoe") return shoeMat;
-    if (name === "sole") return soleMat;
-    return skinMats[skinIdx]!;
-  });
+  let skinned: THREE.SkinnedMesh;
+  if (special === "messi") {
+    // the scanned Messi body: one textured mesh on the SAME skeleton, so every
+    // clip (run, tackle, celebrate, dives...) drives it like any other player
+    skinned = new THREE.SkinnedMesh(messiGeometry, messiMaterial());
+    skinned.castShadow = true;
+    skinned.frustumCulled = false;
+    skinned.add(rootBone);
+    skinned.bind(new THREE.Skeleton(skinBones, messiInverses));
+  } else {
+    const groupOrder = bodyGeometry.userData.groupOrder as string[];
+    const skinIdx = variant % skinMats.length;
+    const materials = groupOrder.map((name) => {
+      if (name === "kit") return kitMaterial(kitKind, teamColor);
+      if (name === "shoe") return shoeMat;
+      if (name === "sole") return soleMat;
+      return skinMats[skinIdx]!;
+    });
 
-  const skinned = new THREE.SkinnedMesh(bodyGeometry, materials);
-  skinned.castShadow = true;
-  skinned.frustumCulled = false;
-  skinned.add(rootBone);
-  skinned.bind(new THREE.Skeleton(skinBones, sharedInverses));
+    skinned = new THREE.SkinnedMesh(bodyGeometry, materials);
+    skinned.castShadow = true;
+    skinned.frustumCulled = false;
+    skinned.add(rootBone);
+    skinned.bind(new THREE.Skeleton(skinBones, sharedInverses));
 
-  const style = HAIR_STYLES[(variant * 5 + 3) % HAIR_STYLES.length]!;
-  const hairGeo = hairGeometries.get(style);
-  if (hairGeo && style !== "bald") {
-    const color = HAIR_COLORS[(variant * 3 + 1) % HAIR_COLORS.length]!;
-    const hair = new THREE.Mesh(
-      hairGeo,
-      new THREE.MeshStandardMaterial({ map: hairTex[color], roughness: 0.95 }),
-    );
-    hair.castShadow = true;
-    skinBones[2]!.add(hair); // neck
+    const style = HAIR_STYLES[(variant * 5 + 3) % HAIR_STYLES.length]!;
+    const hairGeo = hairGeometries.get(style);
+    if (hairGeo && style !== "bald") {
+      const color = HAIR_COLORS[(variant * 3 + 1) % HAIR_COLORS.length]!;
+      const hair = new THREE.Mesh(
+        hairGeo,
+        new THREE.MeshStandardMaterial({ map: hairTex[color], roughness: 0.95 }),
+      );
+      hair.castShadow = true;
+      skinBones[2]!.add(hair); // neck
+    }
   }
 
   // model space is Z-up facing -Y; this wrapper makes it Y-up facing +Z

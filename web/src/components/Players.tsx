@@ -12,7 +12,7 @@ import {
   Role,
   Team,
 } from "../game/traits";
-import { TEAMS } from "../game/store";
+import { getConfiguredMatchTeam } from "../game/teams";
 import { createPlayerRig } from "../render/playerRig";
 
 const nameTextureCache = new Map<string, THREE.CanvasTexture>();
@@ -93,8 +93,21 @@ function PlayerView({ entity }: { entity: Entity }): React.ReactNode {
         : "team1";
     const variant = info.index + team * 11;
     // heights vary like the original's per-player DB scaling (default 1.92m model)
-    const height = (1.78 + ((info.index * 37 + team * 13) % 16) / 100) / 1.92;
-    const r = createPlayerRig(kitKind, TEAMS[team]!.color, variant, height);
+    let height = (1.78 + ((info.index * 37 + team * 13) % 16) / 100) / 1.92;
+    // the scanned Messi body plays for Argentina's Messi (and only him)
+    const matchTeam = getConfiguredMatchTeam(team as 0 | 1);
+    const isMessi =
+      matchTeam.id === "argentina" &&
+      /messi/i.test(entity.get(Name)?.full ?? "") &&
+      !isKeeper;
+    if (isMessi) height = 1.7 / 1.92; // his real 1.70m
+    const r = createPlayerRig(
+      kitKind,
+      matchTeam.color,
+      variant,
+      height,
+      isMessi ? "messi" : undefined,
+    );
     const h = entity.get(MeshRef);
     if (h) {
       h.mixer = r.mixer;
