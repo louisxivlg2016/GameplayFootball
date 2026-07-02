@@ -5,6 +5,7 @@ import {
   HomePos,
   IsBall,
   IsPlayer,
+  Jump,
   KeeperDive,
   PlayerInfo,
   Position,
@@ -189,6 +190,9 @@ export function aiSystem(world: World, dt: number): void {
       const s = attackSign(near.get(Team)!.id);
       const onGoal = bp.x * s > PITCH.halfLength - 24;
       header(world, near, s, 0, onGoal);
+      // play the original header anim: leap for a high ball, nod for a low one
+      if (!near.has(Jump)) near.add(Jump);
+      near.set(Jump, { t: 0, header: bp.y >= 1.25 ? 1 : 2 });
       state.headerT = 0.6;
     }
   }

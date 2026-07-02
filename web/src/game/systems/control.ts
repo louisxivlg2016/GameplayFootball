@@ -211,9 +211,10 @@ function controlSlot(
       headed = true;
     }
     if (headed) {
-      // jump up to meet the ball (the leap pose lives in movementSystem)
+      // meet the ball with the original header anims (movementSystem plays
+      // them): leap-and-nod for a high ball, standing nod for a low one
       if (!sel.has(Jump)) sel.add(Jump);
-      sel.set(Jump, { t: 0 });
+      sel.set(Jump, { t: 0, header: bp.y >= 1.25 ? 1 : 2 });
     }
     return;
   }

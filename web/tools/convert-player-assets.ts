@@ -782,6 +782,9 @@ const ACTION_SOURCES: Array<{ name: string; file: string; preMirror?: boolean; m
   { name: "dive_low", file: "deflect/idle/090_ground_deflect_far.anim", preMirror: true, mirrorAs: "dive_low_m" },
   { name: "catch", file: "deflect/idle/000_high_holdball.anim" },
   { name: "sliding", file: "sliding/sprint/000.anim" },
+  // headers: crouch-leap-and-nod attacking a high ball, and the standing nod
+  { name: "header_jump", file: "pass/idle/nonbase/000_header_jump_forwards.anim" },
+  { name: "header_still", file: "pass/idle/nonbase/000_header.anim" },
 ];
 for (const src of ACTION_SOURCES) {
   const tracks = await parseAnim(path.join(animDir, src.file));

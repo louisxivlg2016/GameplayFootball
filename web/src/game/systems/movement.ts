@@ -179,13 +179,18 @@ export function movementSystem(world: World, dt: number): void {
       }
     }
 
-    // wall-jump timer: a quick ~0.7s leap to block the free kick
+    // jump timer: the wall's quick block leap (0.75s procedural hop) or a
+    // header playing the original anim (its natural length)
     let jump = e.get(Jump);
     if (jump) {
       const t = jump.t + dt;
-      if (t > 0.75) {
+      const total = jump.header === 1 ? 0.95 : jump.header === 2 ? 0.45 : 0.75;
+      if (t > total) {
         e.remove(Jump);
         jump = undefined;
+        if (e.get(MeshRef)?.action?.startsWith("header")) {
+          stopActionClip(e.get(MeshRef)!, 0.18);
+        }
       } else {
         e.set(Jump, { t });
         jump = { ...jump, t };
@@ -239,8 +244,12 @@ export function movementSystem(world: World, dt: number): void {
         h.value.position.set(p.x, -0.04 * amt, p.z);
         h.value.rotation.set(1.5 * amt, trip.yaw, 0.1 * amt, "YZX");
       } else if (jump) {
-        // a clean vertical leap — arms up implied, feet off the turf
-        const hop = Math.sin(Math.min(jump.t / 0.75, 1) * Math.PI) * 0.95;
+        // header: the original anim carries the crouch-leap-nod in its bone +
+        // root-height tracks, so the mesh stays grounded. Wall block: a plain
+        // procedural hop (no clip exists for it).
+        const hop = jump.header
+          ? 0
+          : Math.sin(Math.min(jump.t / 0.75, 1) * Math.PI) * 0.95;
         h.value.position.set(p.x, hop, p.z);
         h.value.rotation.set(0, heading, 0, "YZX");
       } else {
@@ -263,11 +272,11 @@ export function movementSystem(world: World, dt: number): void {
       }
     }
     if (h.tag) h.tag.visible = selected && !posed;
-    // situation clips: the original deflect/sliding anims own the skeleton.
-    // Back in live play with no dive/slide component, ANY lingering one-shot
-    // (a yanked dive, a celebrate that outlived its scene) must release the
-    // rig here or the body would stay clamped in its final pose forever.
-    if (!dive && !slide && h.action) stopActionClip(h);
+    // situation clips: the original deflect/sliding/header anims own the
+    // skeleton. Back in live play with no owning component, ANY lingering
+    // one-shot (a yanked dive, a celebrate that outlived its scene) must
+    // release the rig here or the body would stay clamped forever.
+    if (!dive && !slide && !jump && h.action) stopActionClip(h);
     if (dive) {
       // base clips dive to the actor's RIGHT; world-side vs facing picks the
       // mirror (right_world = (-cos θ, 0, sin θ), dive dir = (0,0,side))
@@ -278,6 +287,10 @@ export function movementSystem(world: World, dt: number): void {
       playActionClip(h, name, { duration: 1.5 });
     } else if (slide) {
       playActionClip(h, "sliding", { duration: 0.95 });
+    } else if (jump?.header) {
+      playActionClip(h, jump.header === 1 ? "header_jump" : "header_still", {
+        fade: 0.08, // the ball is already mid-air — snap into the leap
+      });
     }
     animateRig(h, slide || dive || (speed < 1.2 && h.variant !== "idle") ? 0 : posed ? 0.3 : speed, angleDiff, dt);
     if (trip && trip.fall > 0.75 && h.bones) {

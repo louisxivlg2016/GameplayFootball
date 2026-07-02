@@ -45,8 +45,9 @@ export const Heading = trait({ angle: 0 });
 /** A keeper mid-dive: committed flight along the original deflect anims.
  *  kind picks the clip by ball height at the save: 0 high, 1 mid, 2 ground. */
 export const KeeperDive = trait({ t: 0, side: 1, kind: 1 });
-/** A player hopping to block — the free-kick wall leaping as the ball is struck. */
-export const Jump = trait({ t: 0 });
+/** A player leaping: the free-kick wall block (header 0), or heading the ball
+ *  with the original anims — 1 jumping header, 2 standing nod. */
+export const Jump = trait({ t: 0, header: 0 });
 /** A player mid slide-tackle: low reclined pose along the locked yaw. */
 export const SlideTackle = trait({ t: 0, yaw: 0 });
 /** A tackled player going down: fall=1 full knockdown (foul), 0.5 stumble. */
