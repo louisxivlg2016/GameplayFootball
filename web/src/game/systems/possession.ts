@@ -230,18 +230,18 @@ export function possessionSystem(world: World, dt: number): void {
     // the human's so the player can score; difficulty scales the AI one.
     const isAIKeeper = best.get(Team)!.id === aiTeam();
     const beatMul = isAIKeeper ? 0.42 / difficulty().keeperSave : 0.13;
-    const parryMul = isAIKeeper ? 0.45 : 0.3;
+    const parryMul = isAIKeeper ? 0.34 : 0.3;
     let hardness = pace * (0.04 + 0.45 * stretch) * beatMul;
-    hardness += frontPressure * pace * (isAIKeeper ? 0.09 : 0.05);
-    // scoring must stay possible but EARNED (the 25% floor felt too leaky):
-    // a genuine strike on target has a medium floor of odds to beat the AI
-    // keeper even when he reaches it (23% facile / 16% normal / 12%
-    // difficile) — pace + a stretched dive push corner rockets well above.
-    // The floor fades to zero on slow rollers so he never comically lets a
-    // creeping ball trickle past.
+    hardness += frontPressure * pace * (isAIKeeper ? 0.05 : 0.05);
+    // MEDIUM difficulty to score. The felt goal rate is the SUM of clean
+    // beats + parry rebounds tapped in + the front-pressure bonus at close
+    // range — the 16% floor plus those made him a sieve. Floor eased to
+    // ~12% at normal (17% facile / 9% difficile); pace + a stretched dive
+    // still push corner rockets well above it. Fades on slow rollers so he
+    // never comically lets a creeping ball trickle past.
     if (isAIKeeper)
-      hardness = Math.max(hardness, (0.16 / difficulty().keeperSave) * clamp(pace * 3, 0, 1));
-    hardness = clamp(hardness, 0, isAIKeeper ? 0.48 : 0.26);
+      hardness = Math.max(hardness, (0.12 / difficulty().keeperSave) * clamp(pace * 3, 0, 1));
+    hardness = clamp(hardness, 0, isAIKeeper ? 0.42 : 0.26);
     const roll = Math.random();
     if (roll < hardness) {
       // beaten: the ball flies past — but he still hurls himself at it
@@ -262,8 +262,8 @@ export function possessionSystem(world: World, dt: number): void {
     // away, spilling a rebound rather than catching cleanly. Tame shots are
     // still gathered; only pace + stretch produce spills.
     let parry = pace * (0.18 + 0.5 * stretch) * parryMul;
-    parry += frontPressure * (0.04 + pace * (isAIKeeper ? 0.08 : 0.05));
-    parry = clamp(parry, 0, isAIKeeper ? 0.46 : 0.36);
+    parry += frontPressure * (0.03 + pace * 0.05);
+    parry = clamp(parry, 0, isAIKeeper ? 0.34 : 0.36);
     if (roll < hardness + parry) {
       const kp = best.get(Position)!;
       if (!best.has(KeeperDive)) {
