@@ -929,7 +929,7 @@ export function refereeSystem(world: World, dt: number): void {
         if (e.has(SlideTackle)) e.remove(SlideTackle);
         if (e.has(Tripped)) e.remove(Tripped);
       }
-      queueGoalCinematic(kicker?.isAlive() ? kicker : null, scorer);
+      queueGoalCinematic(world, kicker?.isAlive() ? kicker : null, scorer);
       match.set(Match, { resetTimer: 3.2, pendingKickoffTeam: 1 - scorer });
       return;
     }

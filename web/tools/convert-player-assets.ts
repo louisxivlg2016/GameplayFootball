@@ -796,6 +796,235 @@ for (const src of ACTION_SOURCES) {
   if (src.mirrorAs) clips.push({ ...mirrorClip(clip, src.mirrorAs), kind: "action", gait: "action" });
 }
 
+// ---------- hand-authored signature goal celebrations ----------
+// The original data ships ONE happy celebration; matches want variety. These
+// are keyframed on the same skeleton, composed onto the base pose exactly like
+// the .anim data (absolute local quats = base ⊗ offsets), so the runtime plays
+// them like any other action clip. Poses modeled on the reference photos:
+// open-arms shrug, blowing kisses, kneel + crossed arms, standing crossed arms.
+type Quat = [number, number, number, number]; // x,y,z,w
+const qmul = (a: Quat, b: Quat): Quat => [
+  a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+  a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+  a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+  a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
+];
+const axisQ = (axis: "x" | "y" | "z", ang: number): Quat => {
+  const s = Math.sin(ang / 2);
+  return [axis === "x" ? s : 0, axis === "y" ? s : 0, axis === "z" ? s : 0, Math.cos(ang / 2)];
+};
+
+/** per-bone timeline: [time, [axis, angle][]] — offsets composed onto base */
+type PoseKey = [number, Array<["x" | "y" | "z", number]>];
+interface CelebrationSpec {
+  name: string;
+  duration: number;
+  bones: Record<string, PoseKey[]>;
+  rootZ?: Array<[number, number]>;
+}
+
+const baseQ = new Map<string, Quat>();
+for (const [bone, track] of baseTracks) {
+  if (bone !== "player") baseQ.set(bone, track.values[0] as Quat);
+}
+// compose onto the IDLE cycle's first frame, not base.anim.util: the base
+// stance is semi-crouched with curled legs, which leaves authored poses
+// floating above the turf. Idle frame 0 is the grounded standing pose.
+const idleClipRef = clips.find((c) => c.name === "idle");
+const idleQ = new Map<string, Quat>();
+for (const [bone, tr] of Object.entries(idleClipRef?.tracks ?? {})) {
+  idleQ.set(bone, tr.quats.slice(0, 4) as Quat);
+}
+const poseBase = (bone: string): Quat =>
+  idleQ.get(bone) ?? baseQ.get(bone) ?? ([0, 0, 0, 1] as Quat);
+const restZ = idleClipRef?.rootZ.values[0] ?? -0.04;
+
+/** legs (and any bone) pinned to the base pose for the whole clip — without
+ *  these tracks the scorer's legs would stay frozen mid-stride from the run */
+const still = (duration: number): PoseKey[] => [
+  [0, []],
+  [duration, []],
+];
+
+function buildCelebrationClip(spec: CelebrationSpec): ClipJson {
+  const out: ClipJson = {
+    name: spec.name,
+    kind: "action",
+    gait: "action",
+    angle: 0,
+    duration: spec.duration,
+    velocity: 0,
+    tracks: {},
+    rootZ: { times: [], values: [] },
+  };
+  for (const [bone, keys] of Object.entries(spec.bones)) {
+    const base = poseBase(bone);
+    const times: number[] = [];
+    const quats: number[] = [];
+    for (const [t, rots] of keys) {
+      let q: Quat = base;
+      for (const [axis, ang] of rots) q = qmul(q, axisQ(axis, ang));
+      times.push(round(t));
+      quats.push(...q.map((v) => round(v)));
+    }
+    out.tracks[bone] = { times, quats };
+  }
+  for (const [t, z] of spec.rootZ ?? [[0, restZ], [spec.duration, restZ]]) {
+    out.rootZ.times.push(round(t));
+    out.rootZ.values.push(round(z));
+  }
+  return out;
+}
+
+// shorthand: a still key list {t: offsets} — most poses ramp in then hold
+const K = (...keys: PoseKey[]): PoseKey[] => keys;
+const CELEBRATIONS: CelebrationSpec[] = [
+  {
+    // arms spread wide, palms out, chin up — the "come on!" shrug
+    name: "cele_open",
+    duration: 3.0,
+    bones: {
+      middle: K([0, []], [0.45, [["x", -0.14]]], [3.0, [["x", -0.14]]]),
+      neck: K([0, []], [0.45, [["x", -0.22]]], [3.0, [["x", -0.22]]]),
+      left_shoulder: K(
+        [0, []],
+        [0.45, [["y", -1.15], ["x", -0.25]]],
+        [0.8, [["y", -0.95], ["x", -0.2]]],
+        [1.15, [["y", -1.2], ["x", -0.25]]],
+        [3.0, [["y", -1.2], ["x", -0.25]]],
+      ),
+      right_shoulder: K(
+        [0, []],
+        [0.45, [["y", 1.15], ["x", -0.25]]],
+        [0.8, [["y", 0.95], ["x", -0.2]]],
+        [1.15, [["y", 1.2], ["x", -0.25]]],
+        [3.0, [["y", 1.2], ["x", -0.25]]],
+      ),
+      left_elbow: K([0, []], [0.45, [["x", 0.25]]], [3.0, [["x", 0.25]]]),
+      right_elbow: K([0, []], [0.45, [["x", 0.25]]], [3.0, [["x", 0.25]]]),
+      body: still(3.0),
+      left_thigh: still(3.0),
+      right_thigh: still(3.0),
+      left_knee: still(3.0),
+      right_knee: still(3.0),
+      left_ankle: still(3.0),
+      right_ankle: still(3.0),
+    },
+  },
+  {
+    // both hands to the mouth, then thrown wide — kisses to the crowd, twice
+    name: "cele_kiss",
+    duration: 3.0,
+    bones: {
+      neck: K([0, []], [0.4, [["x", -0.12]]], [3.0, [["x", -0.12]]]),
+      left_shoulder: K(
+        [0, []],
+        [0.4, [["x", -2.05], ["y", 0.3]]],
+        [0.85, [["x", -1.45], ["y", -0.85]]],
+        [1.3, [["x", -2.05], ["y", 0.3]]],
+        [1.75, [["x", -1.45], ["y", -0.85]]],
+        [3.0, [["x", -1.45], ["y", -0.85]]],
+      ),
+      right_shoulder: K(
+        [0, []],
+        [0.4, [["x", -2.05], ["y", -0.3]]],
+        [0.85, [["x", -1.45], ["y", 0.85]]],
+        [1.3, [["x", -2.05], ["y", -0.3]]],
+        [1.75, [["x", -1.45], ["y", 0.85]]],
+        [3.0, [["x", -1.45], ["y", 0.85]]],
+      ),
+      left_elbow: K(
+        [0, []],
+        [0.4, [["x", -1.6]]],
+        [0.85, [["x", 0.1]]],
+        [1.3, [["x", -1.6]]],
+        [1.75, [["x", 0.1]]],
+        [3.0, [["x", 0.1]]],
+      ),
+      right_elbow: K(
+        [0, []],
+        [0.4, [["x", -1.6]]],
+        [0.85, [["x", 0.1]]],
+        [1.3, [["x", -1.6]]],
+        [1.75, [["x", 0.1]]],
+        [3.0, [["x", 0.1]]],
+      ),
+      body: still(3.0),
+      left_thigh: still(3.0),
+      right_thigh: still(3.0),
+      left_knee: still(3.0),
+      right_knee: still(3.0),
+      left_ankle: still(3.0),
+      right_ankle: still(3.0),
+    },
+  },
+  {
+    // drop to the knees, arms crossed on the chest, chin up — the Mbappé
+    name: "cele_kneel",
+    duration: 3.0,
+    bones: {
+      body: still(3.0),
+      middle: K([0, []], [0.55, [["x", -0.16]]], [3.0, [["x", -0.16]]]),
+      neck: K([0, []], [0.55, [["x", -0.2]]], [3.0, [["x", -0.2]]]),
+      left_shoulder: K(
+        [0, []],
+        [0.55, [["x", -0.75], ["z", -1.0]]],
+        [3.0, [["x", -0.75], ["z", -1.0]]],
+      ),
+      right_shoulder: K(
+        [0, []],
+        [0.55, [["x", -0.9], ["z", 1.0]]],
+        [3.0, [["x", -0.9], ["z", 1.0]]],
+      ),
+      left_elbow: K([0, []], [0.55, [["x", -1.9]]], [3.0, [["x", -1.9]]]),
+      right_elbow: K([0, []], [0.55, [["x", -1.9]]], [3.0, [["x", -1.9]]]),
+      left_thigh: K([0, []], [0.55, [["x", 0.12]]], [3.0, [["x", 0.12]]]),
+      right_thigh: K([0, []], [0.55, [["x", 0.12]]], [3.0, [["x", 0.12]]]),
+      left_knee: K([0, []], [0.55, [["x", 1.45]]], [3.0, [["x", 1.45]]]),
+      right_knee: K([0, []], [0.55, [["x", 1.45]]], [3.0, [["x", 1.45]]]),
+      left_ankle: K([0, []], [0.55, [["x", 0.55]]], [3.0, [["x", 0.55]]]),
+      right_ankle: K([0, []], [0.55, [["x", 0.55]]], [3.0, [["x", 0.55]]]),
+    },
+    rootZ: [
+      [0, restZ],
+      [0.55, restZ - 0.42],
+      [3.0, restZ - 0.42],
+    ],
+  },
+  {
+    // standing tall, arms folded across the chest — the cool stare-down
+    name: "cele_cross",
+    duration: 3.0,
+    bones: {
+      middle: K([0, []], [0.5, [["x", -0.1]]], [3.0, [["x", -0.1]]]),
+      neck: K([0, []], [0.5, [["x", -0.14]]], [3.0, [["x", -0.14]]]),
+      left_shoulder: K(
+        [0, []],
+        [0.5, [["x", -0.75], ["z", -1.0]]],
+        [3.0, [["x", -0.75], ["z", -1.0]]],
+      ),
+      right_shoulder: K(
+        [0, []],
+        [0.5, [["x", -0.9], ["z", 1.0]]],
+        [3.0, [["x", -0.9], ["z", 1.0]]],
+      ),
+      left_elbow: K([0, []], [0.5, [["x", -1.9]]], [3.0, [["x", -1.9]]]),
+      right_elbow: K([0, []], [0.5, [["x", -1.9]]], [3.0, [["x", -1.9]]]),
+      body: still(3.0),
+      left_thigh: still(3.0),
+      right_thigh: still(3.0),
+      left_knee: still(3.0),
+      right_knee: still(3.0),
+      left_ankle: still(3.0),
+      right_ankle: still(3.0),
+    },
+  },
+];
+for (const spec of CELEBRATIONS) {
+  clips.push(buildCelebrationClip(spec));
+  console.log(`celebration ${spec.name}: authored, ${spec.duration}s`);
+}
+
 await Bun.write(path.join(OUT, "anims.json"), JSON.stringify({ clips }));
 
 // textures

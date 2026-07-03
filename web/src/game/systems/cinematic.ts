@@ -52,7 +52,14 @@ const CARD_SECONDS = 4.0;
 
 export const cineState = {
   ring: [] as Frame[],
-  celebration: null as { scorer: Entity; t: number } | null,
+  celebration: null as {
+    scorer: Entity;
+    t: number;
+    /** which signature celebration the scorer performs (varies per goal) */
+    clip: string;
+    /** teammates sprinting in to congratulate him */
+    mates: Array<{ e: Entity; ox: number; oz: number; arrived: boolean }>;
+  } | null,
   card: null as { red: boolean; t: number } | null,
   replay: null as { frames: Frame[]; i: number; after: "kickoff" | "resume" } | null,
   queued: null as Frame[] | null,
@@ -123,12 +130,66 @@ export function recordFrame(world: World, dt: number): void {
   if (cineState.ring.length > RING_FRAMES) cineState.ring.shift();
 }
 
-/** Goal scored: stage the applauding close-up + the slow-mo of the shot. */
-export function queueGoalCinematic(scorer: Entity | null, scoringTeam: number): void {
-  cineState.celebration =
-    scorer && scorer.isAlive() && scorer.get(Team)!.id === scoringTeam
-      ? { scorer, t: 0 }
-      : null;
+/** Release the scorer's AND the congratulators' one-shot clips back to idle. */
+function releaseCelebration(fade: number): void {
+  const cel = cineState.celebration;
+  if (!cel) return;
+  if (cel.scorer.isAlive()) {
+    const ch = cel.scorer.get(MeshRef);
+    if (ch) stopActionClip(ch, fade);
+  }
+  for (const mate of cel.mates) {
+    if (!mate.e.isAlive()) continue;
+    const mh = mate.e.get(MeshRef);
+    if (mh) stopActionClip(mh, fade);
+  }
+}
+
+// the scorer's repertoire: the original full-body joy plus the four authored
+// signature poses (open-arms shrug, kisses to the crowd, kneel + crossed arms,
+// standing crossed arms). A different one each goal — no immediate repeats.
+const CELE_POOL = ["celebrate_big", "cele_open", "cele_kiss", "cele_kneel", "cele_cross"];
+let lastCele = "";
+
+/** Goal scored: stage the celebration close-up + the slow-mo of the shot. */
+export function queueGoalCinematic(
+  world: World,
+  scorer: Entity | null,
+  scoringTeam: number,
+): void {
+  if (scorer && scorer.isAlive() && scorer.get(Team)!.id === scoringTeam) {
+    const options = CELE_POOL.filter((c) => c !== lastCele);
+    const clip = options[Math.floor(Math.random() * options.length)]!;
+    lastCele = clip;
+    // the two-three nearest teammates sprint in to mob the scorer
+    const sp = scorer.get(Position)!;
+    const mates = world
+      .query(IsPlayer)
+      .filter(
+        (e) =>
+          e !== scorer &&
+          e.get(Team)!.id === scoringTeam &&
+          e.get(MeshRef)?.value &&
+          Math.hypot(e.get(Position)!.x - sp.x, e.get(Position)!.z - sp.z) < 45,
+      )
+      .sort(
+        (a, b) =>
+          Math.hypot(a.get(Position)!.x - sp.x, a.get(Position)!.z - sp.z) -
+          Math.hypot(b.get(Position)!.x - sp.x, b.get(Position)!.z - sp.z),
+      )
+      .slice(0, 3)
+      // arrival slots around the scorer, biased BEHIND him (the camera sits
+      // on +z looking at his face — the mob must not block the close-up)
+      .map((e, i) => ({
+        e,
+        ox: [-0.9, 0.9, -0.2][i]!,
+        oz: [-0.7, -0.7, -1.1][i]!,
+        arrived: false,
+      }));
+    cineState.celebration = { scorer, t: 0, clip, mates };
+  } else {
+    cineState.celebration = null;
+  }
   cineState.queued = cineState.ring.slice(-GOAL_REPLAY_FRAMES);
 }
 
@@ -211,11 +272,7 @@ export function skipCinematic(world: World): void {
   const pendingOff = cineState.sendOffScene?.player ?? cineState.sendOffAfter;
 
   // release any situation clip mid-flight (celebration, card raise)
-  const cel = cineState.celebration;
-  if (cel?.scorer.isAlive()) {
-    const ch = cel.scorer.get(MeshRef);
-    if (ch) stopActionClip(ch, 0.1);
-  }
+  releaseCelebration(0.1);
   cineState.celebration = null;
   cineState.card = null;
   cineState.replay = null;
@@ -241,11 +298,7 @@ export function skipCinematic(world: World): void {
 
 /** Goal celebration over: hand off to the replay. True if it took over. */
 export function startGoalReplay(): boolean {
-  const cel = cineState.celebration;
-  if (cel?.scorer.isAlive()) {
-    const ch = cel.scorer.get(MeshRef);
-    if (ch) stopActionClip(ch, 0.15); // release the celebrate clip
-  }
+  releaseCelebration(0.15);
   cineState.celebration = null;
   if (!cineState.queued || cineState.queued.length < MIN_REPLAY_FRAMES) return false;
   cineState.replay = { frames: cineState.queued, i: 0, after: "kickoff" };
@@ -355,7 +408,8 @@ export function cinematicSystem(world: World, dt: number): void {
     return;
   }
 
-  // ---- goal celebration: the scorer applauds the crowd in close-up ----
+  // ---- goal celebration: the scorer's signature move in close-up while
+  // two-three teammates sprint in to mob him ----
   const cel = cineState.celebration;
   if (store.mode === "goal" && cel) {
     if (!cel.scorer.isAlive()) {
@@ -367,11 +421,41 @@ export function cinematicSystem(world: World, dt: number): void {
     if (h.value) {
       faceCamera(h.value, dt);
       h.value.position.y = 0;
-      // the original BIG celebration (happy_extreme): arrival, both arms to
-      // the sky, the airplane spin, fist pumps and a wave to the crowd —
-      // 3.05s that fill the whole goal scene before the replay takes over
-      playActionClip(h, "celebrate_big", { fade: 0.15 });
+      // a different signature each goal: the original full-body joy, the
+      // open-arms shrug, kisses to the crowd, the kneel, the crossed arms
+      playActionClip(h, cel.clip, { fade: 0.15 });
       animateRig(h, 0, 0, dt); // action path: advances the mixer
+    }
+    // congratulators: run to a slot beside the scorer, then celebrate along.
+    // Purely visual (mesh only) — kickoff placement resets real positions.
+    if (h.value) {
+      const sx = h.value.position.x;
+      const sz = h.value.position.z;
+      for (const mate of cel.mates) {
+        if (!mate.e.isAlive()) continue;
+        const mh = mate.e.get(MeshRef);
+        if (!mh?.value) continue;
+        const tx = sx + mate.ox;
+        const tz = sz + mate.oz;
+        const dx = tx - mh.value.position.x;
+        const dz = tz - mh.value.position.z;
+        const dist = Math.hypot(dx, dz);
+        if (!mate.arrived && dist > 0.3) {
+          const step = Math.min(dist, 5.6 * dt);
+          mh.value.position.x += (dx / dist) * step;
+          mh.value.position.z += (dz / dist) * step;
+          mh.value.rotation.set(0, Math.atan2(dx, dz), 0);
+          animateRig(mh, 5.6, 0, dt); // sprint over
+        } else {
+          if (!mate.arrived) {
+            mate.arrived = true;
+            // face the scorer and join in with the original happy bounce
+            mh.value.rotation.set(0, Math.atan2(sx - tx, sz - tz), 0);
+            playActionClip(mh, "celebrate", { fade: 0.12 });
+          }
+          animateRig(mh, 0, 0, dt);
+        }
+      }
     }
     return;
   }
