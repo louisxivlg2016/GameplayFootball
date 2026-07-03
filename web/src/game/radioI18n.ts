@@ -36,6 +36,7 @@ export interface RadioPack {
 }
 
 const SPEECH_LOCALE_BY_LANGUAGE: Record<AppLanguage, string> = {
+  ro: "ro-RO",
   fr: "fr-FR",
   en: "en-US",
   es: "es-ES",
@@ -78,6 +79,7 @@ const PIPER_VOICE_BY_LANGUAGE: Partial<Record<AppLanguage, string>> = {
   // Thai/Korean run on the worker's MMS-VITS engine (Piper has no models)
   th: "mms-tha",
   ko: "mms-kor",
+  ro: "ro_RO-mihai-medium",
   pl: "pl_PL-darkman-medium",
   tr: "tr_TR-fahrettin-medium",
   ru: "ru_RU-denis-medium",
@@ -104,6 +106,7 @@ const FALLBACK_TEAM_NAMES: Record<NationalTeamId, string> = {
 };
 
 const ENGLAND_NAMES: Record<AppLanguage, string> = {
+  ro: "Anglia",
   fr: "Angleterre",
   en: "England",
   es: "Inglaterra",
@@ -159,6 +162,8 @@ export function getGoalCall(language: AppLanguage, team?: string): string {
       return team ? `Doelpunt! Doelpunt voor ${team}!` : "Doelpunt!";
     case "hr":
       return team ? `Gol! Gol za ${team}!` : "Gol!";
+    case "ro":
+      return team ? `Gol! Gol pentru ${team}!` : "Gol!";
     case "pl":
       return team ? `Gol! Gol dla ${team}!` : "Gol!";
     case "tr":
@@ -1249,6 +1254,54 @@ const zhTW: RadioPack = {
   carry: (name, team) => `${name} 為 ${team} 帶球推進。`,
 };
 
+
+const ro: RadioPack = {
+  rejoin: "Radioul meciului e din nou in emisie!",
+  opening: "Bun venit tuturor! Urmeaza un meci pe cinste!",
+  kickoff: (team) => `${team} pun mingea in joc!`,
+  foul: (team) => (team ? `Fault. Lovitura libera pentru ${team}.` : "Fault fluierat."),
+  yellow: (player) => (player ? `Cartonas galben pentru ${player}!` : "Cartonas galben!"),
+  red: (player) => (player ? `Cartonas rosu pentru ${player}!` : "Cartonas rosu!"),
+  penalty: (team) => (team ? `Penalty pentru ${team}!` : "Penalty!"),
+  offside: "Ofsaid semnalizat!",
+  corner: (team) => `Corner pentru ${team}.`,
+  goalkick: "Lovitura de poarta. Portarul repune mingea.",
+  throwin: (team) => `Aut pentru ${team}.`,
+  pass: (player, target) => `${player} il gaseste pe ${target}.`,
+  shot: (player) => (player ? `Sutul lui ${player}!` : "Ce sut!"),
+  miss: "Putin pe langa!",
+  save: "Ce interventie a portarului!",
+  halftime: (score) => (score ? `Pauza, ${score[0]}-${score[1]}.` : "Pauza."),
+  extratime: "Mergem in prelungiri!",
+  fulltime: (score) =>
+    score
+      ? `Final de meci! Scor final, ${score[0]}-${score[1]}. Multumim ca ati ascultat radioul meciului!`
+      : "Final de meci! Multumim ca ati ascultat radioul meciului!",
+  shootout: "Se decide la penalty-uri!",
+  penTaker: (player) => `${player} se pregateste sa execute.`,
+  penGoal: "Inscrie!",
+  penMiss: "Rateaza!",
+  scoreStatus: (score, homeTeam, awayTeam) => {
+    if (score[0] === score[1]) return score[0] === 0 ? "Inca 0-0." : `Este ${score[0]}-${score[1]} in acest meci.`;
+    return score[0] > score[1] ? `${homeTeam} conduce cu ${score[0]}-${score[1]}.` : `${awayTeam} conduce cu ${score[1]}-${score[0]}.`;
+  },
+  scoreReminder: (score, minute, homeTeam, awayTeam) => {
+    if (score[0] === score[1]) {
+      return score[0] === 0 ? `Dupa ${minute} minute, tot 0-0.` : `Dupa ${minute} minute, este ${score[0]}-${score[1]}.`;
+    }
+    return score[0] > score[1]
+      ? `Dupa ${minute} minute, ${homeTeam} conduce cu ${score[0]}-${score[1]}.`
+      : `Dupa ${minute} minute, ${awayTeam} conduce cu ${score[1]}-${score[0]}.`;
+  },
+  loose: "Minge libera!",
+  keeper: (name, team) => `${name} o are in siguranta pentru ${team}.`,
+  duel: (name, oppName) => `${name} este presat de ${oppName}.`,
+  run: (name, team) => `${name} accelereaza pentru ${team}.`,
+  danger: (name) => `${name} se apropie de careu.`,
+  build: (name, team) => `${team} construiesc din spate prin ${name}.`,
+  carry: (name, team) => `${name} are mingea pentru ${team}.`,
+};
+
 const RADIO_PACKS: Record<AppLanguage, RadioPack> = {
   fr,
   en,
@@ -1265,6 +1318,7 @@ const RADIO_PACKS: Record<AppLanguage, RadioPack> = {
   ru,
   uk,
   ar,
+  ro,
   hi,
   id,
   vi,
