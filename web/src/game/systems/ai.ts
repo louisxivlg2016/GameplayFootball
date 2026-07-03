@@ -866,11 +866,14 @@ function keeper(
         // him the wrong way. The faster the shot, the easier he is to beat.
         let read = state.reads.get(e);
         if (!read || state.time > read.until) {
-          const shotSpeed = Math.hypot(bv.x, bv.z);
+          // cap the speed feeding his read: the cannonball keeps its real
+          // physical edge (less flight time to react to) but must not ALSO
+          // turn the keeper into a clown who dives a metre wide every time
+          const shotSpeed = Math.min(Math.hypot(bv.x, bv.z), 28);
           const spread =
-            (0.22 + shotSpeed * 0.03) * (1.2 - 0.5 * e.get(Stats)!.ballcontrol);
+            (0.22 + shotSpeed * 0.025) * (1.2 - 0.5 * e.get(Stats)!.ballcontrol);
           // only a genuinely fierce strike wrong-foots him, and even then rarely
-          const wrongChance = clamp((shotSpeed - 15) * 0.02, 0, 0.22);
+          const wrongChance = clamp((shotSpeed - 15) * 0.015, 0, 0.15);
           read = {
             until: state.time + tCross + 0.2,
             off:

@@ -240,8 +240,8 @@ export function possessionSystem(world: World, dt: number): void {
     // still push corner rockets well above it. Fades on slow rollers so he
     // never comically lets a creeping ball trickle past.
     if (isAIKeeper)
-      hardness = Math.max(hardness, (0.12 / difficulty().keeperSave) * clamp(pace * 3, 0, 1));
-    hardness = clamp(hardness, 0, isAIKeeper ? 0.42 : 0.26);
+      hardness = Math.max(hardness, (0.09 / difficulty().keeperSave) * clamp(pace * 3, 0, 1));
+    hardness = clamp(hardness, 0, isAIKeeper ? 0.38 : 0.26);
     const roll = Math.random();
     if (roll < hardness) {
       // beaten: the ball flies past — but he still hurls himself at it
