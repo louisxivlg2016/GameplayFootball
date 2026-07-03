@@ -568,7 +568,7 @@ function warmupPiper(language: AppLanguage = currentLanguage()): void {
   piperLoadStartedAt = Date.now();
   try {
     // pre-bundled by serve.ts — the dev HTML bundler can't bundle worker URLs
-    piperWorker = new Worker("/tts/worker.js", { type: "module" });
+    piperWorker = new Worker("/tts/worker.js?v=3", { type: "module" });
   } catch (err) {
     console.info("[radio] worker failed:", err);
     piperState = "failed";
