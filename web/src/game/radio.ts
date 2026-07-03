@@ -599,6 +599,8 @@ function warmupPiper(language: AppLanguage = currentLanguage()): void {
       sayWaiters.get(msg.id)?.(new Blob([msg.buf], { type: "audio/wav" }));
       sayWaiters.delete(msg.id);
     } else if (msg.type === "sayError") {
+      const errText = (msg as { error?: string }).error;
+      if (errText) console.info("[radio] say failed:", errText.slice(0, 160));
       sayWaiters.get(msg.id)?.(null);
       sayWaiters.delete(msg.id);
     }

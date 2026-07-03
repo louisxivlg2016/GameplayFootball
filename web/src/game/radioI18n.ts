@@ -72,6 +72,9 @@ const PIPER_VOICE_BY_LANGUAGE: Partial<Record<AppLanguage, string>> = {
   nl: "nl_BE-rdh-medium",
   // Croatian has no Piper model; the Serbian voice reads Croatian Latin fine
   hr: "sr_RS-serbski_institut-medium",
+  // hi/id only exist on the UPSTREAM rhasspy repo — ttsWorker rewrites the URL
+  hi: "hi_IN-pratham-medium",
+  id: "id_ID-news_tts-medium",
   pl: "pl_PL-darkman-medium",
   tr: "tr_TR-fahrettin-medium",
   ru: "ru_RU-denis-medium",
