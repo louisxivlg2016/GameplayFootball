@@ -75,6 +75,9 @@ const PIPER_VOICE_BY_LANGUAGE: Partial<Record<AppLanguage, string>> = {
   // hi/id only exist on the UPSTREAM rhasspy repo — ttsWorker rewrites the URL
   hi: "hi_IN-pratham-medium",
   id: "id_ID-news_tts-medium",
+  // Thai/Korean run on the worker's MMS-VITS engine (Piper has no models)
+  th: "mms-tha",
+  ko: "mms-kor",
   pl: "pl_PL-darkman-medium",
   tr: "tr_TR-fahrettin-medium",
   ru: "ru_RU-denis-medium",

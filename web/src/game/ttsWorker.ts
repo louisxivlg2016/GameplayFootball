@@ -1,8 +1,14 @@
 /**
  * TTS worker: Piper synthesis runs here so the multi-second WASM inference
  * never blocks the game's render loop.
+ *
+ * Two engines:
+ * - Piper (@mintplex-labs/piper-tts-web) for the languages it covers;
+ * - a small MMS-VITS runner (onnxruntime-web) for Thai and Korean, which
+ *   Piper has no models for. Voice ids "mms-tha"/"mms-kor" pick it.
  */
 import { PATH_MAP, TtsSession } from "@mintplex-labs/piper-tts-web";
+import * as ort from "onnxruntime-web";
 
 // The lib gates voices on a hard-coded PATH_MAP; the hi/id voices only exist
 // upstream. Register their paths — the fetch rewrite below points them at the
@@ -70,16 +76,244 @@ const origFetch = self.fetch.bind(self);
   return origFetch(input as RequestInfo, init);
 }) as typeof fetch;
 
+// ---------------------------------------------------------------------------
+// MMS-VITS engine (Thai, Korean)
+// ---------------------------------------------------------------------------
+
+interface MmsSpec {
+  model: string;
+  /** "json" = HF vocab.json (char→id); "tokens" = sherpa tokens.txt lines */
+  vocab: { kind: "json" | "tokens"; url: string };
+  /** romanize Hangul first (the kor model is trained on uroman text) */
+  hangul?: boolean;
+  /** digits → words in this language before tokenizing */
+  digits: (n: number) => string;
+  sampleRate: number;
+}
+
+const THAI_DIGITS = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
+function thaiNumber(n: number): string {
+  if (n < 10) return THAI_DIGITS[n]!;
+  if (n < 100) {
+    const tens = Math.floor(n / 10);
+    const unit = n % 10;
+    const tensWord = tens === 1 ? "สิบ" : tens === 2 ? "ยี่สิบ" : `${THAI_DIGITS[tens]}สิบ`;
+    const unitWord = unit === 0 ? "" : unit === 1 ? "เอ็ด" : THAI_DIGITS[unit]!;
+    return tensWord + unitWord;
+  }
+  return String(n)
+    .split("")
+    .map((d) => THAI_DIGITS[+d]!)
+    .join(" ");
+}
+
+// sino-Korean numbers, romanized like uroman would (il, i, sam...)
+const KO_DIGITS = ["yeong", "il", "i", "sam", "sa", "o", "yuk", "chil", "pal", "gu"];
+function koreanNumber(n: number): string {
+  if (n < 10) return KO_DIGITS[n]!;
+  if (n < 100) {
+    const tens = Math.floor(n / 10);
+    const unit = n % 10;
+    return `${tens > 1 ? KO_DIGITS[tens] : ""}sip${unit ? KO_DIGITS[unit] : ""}`;
+  }
+  return String(n)
+    .split("")
+    .map((d) => KO_DIGITS[+d]!)
+    .join(" ");
+}
+
+const MMS_MODELS: Record<string, MmsSpec> = {
+  "mms-kor": {
+    model: "https://huggingface.co/Xenova/mms-tts-kor/resolve/main/onnx/model_quantized.onnx",
+    vocab: { kind: "json", url: "https://huggingface.co/Xenova/mms-tts-kor/resolve/main/vocab.json" },
+    hangul: true,
+    digits: koreanNumber,
+    sampleRate: 16000,
+  },
+  "mms-tha": {
+    model:
+      "https://huggingface.co/willwade/mms-tts-multilingual-models-onnx/resolve/main/tha/model.onnx",
+    vocab: {
+      kind: "tokens",
+      url: "https://huggingface.co/willwade/mms-tts-multilingual-models-onnx/resolve/main/tha/tokens.txt",
+    },
+    digits: thaiNumber,
+    sampleRate: 16000,
+  },
+};
+
+// Revised-Romanization tables — close enough to uroman for the kor model
+const RR_INITIAL = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"];
+const RR_MEDIAL = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"];
+const RR_FINAL = ["", "g", "kk", "gs", "n", "nj", "nh", "d", "l", "lg", "lm", "lb", "ls", "lt", "lp", "lh", "m", "b", "bs", "s", "ss", "ng", "j", "ch", "k", "t", "p", "h"];
+
+function romanizeHangul(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const code = ch.codePointAt(0)!;
+    if (code >= 0xac00 && code <= 0xd7a3) {
+      const idx = code - 0xac00;
+      out +=
+        RR_INITIAL[Math.floor(idx / 588)]! +
+        RR_MEDIAL[Math.floor((idx % 588) / 28)]! +
+        RR_FINAL[idx % 28]!;
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
+/** OPFS cache: huge onnx models download once, then load instantly. */
+async function cachedArrayBuffer(name: string, url: string): Promise<ArrayBuffer> {
+  try {
+    const root = await navigator.storage.getDirectory();
+    const dir = await root.getDirectoryHandle("mms", { create: true });
+    try {
+      const fh = await dir.getFileHandle(name);
+      const f = await fh.getFile();
+      if (f.size > 0) return await f.arrayBuffer();
+    } catch {
+      /* not cached yet */
+    }
+    const buf = await (await origFetch(url)).arrayBuffer();
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(buf);
+    await w.close();
+    return buf;
+  } catch {
+    return await (await origFetch(url)).arrayBuffer();
+  }
+}
+
+interface MmsEngine {
+  session: ort.InferenceSession;
+  vocab: Map<string, number>;
+  spec: MmsSpec;
+}
+let mms: MmsEngine | null = null;
+
+async function initMms(voiceId: string, wasmPaths: InitMsg["wasmPaths"]): Promise<void> {
+  const spec = MMS_MODELS[voiceId]!;
+  ort.env.wasm.wasmPaths = wasmPaths.onnxWasm;
+  // threads need crossOriginIsolated (COOP/COEP, set in vercel.json) — a VITS
+  // sentence drops from ~12s to ~3-4s with 4 threads; 1 thread otherwise
+  ort.env.wasm.numThreads = (self as unknown as { crossOriginIsolated?: boolean })
+    .crossOriginIsolated
+    ? Math.min(4, navigator.hardwareConcurrency || 2)
+    : 1;
+  const [modelBuf, vocabText] = await Promise.all([
+    cachedArrayBuffer(`${voiceId}.onnx`, spec.model),
+    (await origFetch(spec.vocab.url)).text(),
+  ]);
+  const vocab = new Map<string, number>();
+  if (spec.vocab.kind === "json") {
+    for (const [k, v] of Object.entries(JSON.parse(vocabText) as Record<string, number>)) {
+      vocab.set(k, v);
+    }
+  } else {
+    for (const line of vocabText.split("\n")) {
+      if (!line) continue;
+      const sp = line.lastIndexOf(" ");
+      const tok = line.slice(0, sp);
+      vocab.set(tok === "" ? " " : tok, parseInt(line.slice(sp + 1), 10));
+    }
+  }
+  const session = await ort.InferenceSession.create(modelBuf, {
+    executionProviders: ["wasm"],
+  });
+  mms = { session, vocab, spec };
+}
+
+function mmsTokenize(engine: MmsEngine, raw: string): BigInt64Array {
+  let text = raw.replace(/\d+/g, (m) => ` ${engine.spec.digits(parseInt(m, 10))} `);
+  if (engine.spec.hangul) text = romanizeHangul(text).toLowerCase();
+  // VitsTokenizer: keep known chars, interleave the blank (id 0) around each
+  const ids: number[] = [0];
+  for (const ch of text) {
+    const id = engine.vocab.get(ch);
+    if (id === undefined) continue;
+    ids.push(id, 0);
+  }
+  return BigInt64Array.from(ids.map(BigInt));
+}
+
+function pcmToWav(pcm: Float32Array, sampleRate: number): ArrayBuffer {
+  const out = new ArrayBuffer(44 + pcm.length * 2);
+  const dv = new DataView(out);
+  const s = (o: number, t: string): void => {
+    for (let i = 0; i < t.length; i++) dv.setUint8(o + i, t.charCodeAt(i));
+  };
+  s(0, "RIFF");
+  dv.setUint32(4, 36 + pcm.length * 2, true);
+  s(8, "WAVEfmt ");
+  dv.setUint32(16, 16, true);
+  dv.setUint16(20, 1, true);
+  dv.setUint16(22, 1, true);
+  dv.setUint32(24, sampleRate, true);
+  dv.setUint32(28, sampleRate * 2, true);
+  dv.setUint16(32, 2, true);
+  dv.setUint16(34, 16, true);
+  s(36, "data");
+  dv.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i++) {
+    const v = Math.max(-1, Math.min(1, pcm[i]!));
+    dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true);
+  }
+  return out;
+}
+
+async function mmsPredict(engine: MmsEngine, text: string): Promise<ArrayBuffer> {
+  const ids = mmsTokenize(engine, text);
+  const names = engine.session.inputNames;
+  const feeds: Record<string, ort.Tensor> = {};
+  if (names.includes("input_ids")) {
+    // transformers.js-style export (Xenova)
+    feeds.input_ids = new ort.Tensor("int64", ids, [1, ids.length]);
+    if (names.includes("attention_mask")) {
+      feeds.attention_mask = new ort.Tensor(
+        "int64",
+        BigInt64Array.from(ids, () => 1n),
+        [1, ids.length],
+      );
+    }
+  } else {
+    // sherpa-style export: x / x_length (+ optional scales)
+    feeds.x = new ort.Tensor("int64", ids, [1, ids.length]);
+    if (names.includes("x_length")) {
+      feeds.x_length = new ort.Tensor("int64", BigInt64Array.from([BigInt(ids.length)]), [1]);
+    }
+    if (names.includes("noise_scale")) feeds.noise_scale = new ort.Tensor("float32", [0.667], [1]);
+    if (names.includes("length_scale")) feeds.length_scale = new ort.Tensor("float32", [1.0], [1]);
+    if (names.includes("noise_scale_w")) feeds.noise_scale_w = new ort.Tensor("float32", [0.8], [1]);
+    if (names.includes("noise_w")) feeds.noise_w = new ort.Tensor("float32", [0.8], [1]);
+    if (names.includes("sid")) feeds.sid = new ort.Tensor("int64", BigInt64Array.from([0n]), [1]);
+  }
+  const result = await engine.session.run(feeds);
+  const first = result[engine.session.outputNames[0]!]!;
+  return pcmToWav(first.data as Float32Array, engine.spec.sampleRate);
+}
+
+// ---------------------------------------------------------------------------
+
 let session: TtsSession | null = null;
+let activeEngine: "piper" | "mms" = "piper";
 
 ctx.onmessage = async (e) => {
   const msg = e.data;
   if (msg.type === "init") {
     try {
-      session = await TtsSession.create({
-        voiceId: msg.voiceId as never,
-        wasmPaths: msg.wasmPaths,
-      });
+      if (MMS_MODELS[msg.voiceId]) {
+        activeEngine = "mms";
+        await initMms(msg.voiceId, msg.wasmPaths);
+      } else {
+        activeEngine = "piper";
+        session = await TtsSession.create({
+          voiceId: msg.voiceId as never,
+          wasmPaths: msg.wasmPaths,
+        });
+      }
       ctx.postMessage({ type: "ready" });
     } catch (err) {
       ctx.postMessage({ type: "error", error: String(err) });
@@ -87,11 +321,17 @@ ctx.onmessage = async (e) => {
     return;
   }
   if (msg.type === "say") {
-    if (!session) {
-      ctx.postMessage({ type: "sayError", id: msg.id });
-      return;
-    }
     try {
+      if (activeEngine === "mms") {
+        if (!mms) throw new Error("mms not ready");
+        const buf = await mmsPredict(mms, msg.text);
+        ctx.postMessage({ type: "wav", id: msg.id, buf }, [buf]);
+        return;
+      }
+      if (!session) {
+        ctx.postMessage({ type: "sayError", id: msg.id });
+        return;
+      }
       const wav = await session.predict(msg.text);
       const buf = await wav.arrayBuffer();
       ctx.postMessage({ type: "wav", id: msg.id, buf }, [buf]);

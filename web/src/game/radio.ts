@@ -666,16 +666,19 @@ function piperPredict(text: string): Promise<Blob | null> {
         //  - a worker that has NEVER spoken and keeps timing out (3x) never
         //    started at all (server bounce mid-fetch); restart it cold.
         const silentFor = workerEverSpoke ? Date.now() - lastWorkerReplyAt : 0;
-        if (workerEverSpoke && silentFor > 40000) restartWorker("went silent");
+        const silentLimit = (requestedVoiceId ?? "").startsWith("mms-") ? 90000 : 40000;
+        if (workerEverSpoke && silentFor > silentLimit) restartWorker("went silent");
         else if (!workerEverSpoke && ++predictFails >= 3) restartWorker("never responded");
       }
       resolve(wav);
     };
     sayWaiters.set(id, finish);
     // the watchdog frees the MIC so chatter never locks up; cold start can take
-    // ~15s so an unproven worker gets longer. Restart is decided separately,
-    // time-based, above.
-    setTimeout(() => finish(null), workerEverSpoke ? 18000 : 30000);
+    // ~15s so an unproven worker gets longer. The MMS voices (th/ko) synthesize
+    // a sentence in ~4-12s depending on threads — give them extra headroom.
+    // Restart is decided separately, time-based, above.
+    const mmsVoice = (requestedVoiceId ?? "").startsWith("mms-");
+    setTimeout(() => finish(null), workerEverSpoke ? (mmsVoice ? 40000 : 18000) : (mmsVoice ? 60000 : 30000));
     piperWorker.postMessage({ type: "say", id, text });
   });
 }
