@@ -145,9 +145,12 @@ function ensureRadioCtx(): AudioContext {
       comp.ratio.value = 10;
       comp.attack.value = 0.002;
       comp.release.value = 0.18;
+      const makeup = radioCtx.createGain();
+      makeup.gain.value = 1.4; // post-compressor lift: the commentator carries the mix
+      comp.connect(makeup);
       const sharedOut = sharedAudioOutput();
-      if (sharedOut && sharedOut.context === radioCtx) comp.connect(sharedOut);
-      else comp.connect(radioCtx.destination);
+      if (sharedOut && sharedOut.context === radioCtx) makeup.connect(sharedOut);
+      else makeup.connect(radioCtx.destination);
       radioOut = radioCtx.createGain();
       radioOut.gain.value = 1;
       radioOut.connect(comp);
@@ -259,7 +262,7 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
     src.playbackRate.value = fx?.rate ?? 1; // pitch rides up with rate: the shout
     const gain = ctx.createGain();
     const boost = VOICE_GAIN[requestedVoiceId ?? ""] ?? 1;
-    gain.gain.value = (fx?.volume ?? 1) * 3.4 * boost; // LOUD — compressor catches peaks
+    gain.gain.value = (fx?.volume ?? 1) * 4.2 * boost; // LOUD — compressor catches peaks
     src.connect(gain);
     gain.connect(radioOut!);
     currentSource = src;
@@ -411,7 +414,7 @@ async function playGoalClip(): Promise<void> {
     const src = ctx.createBufferSource();
     src.buffer = pcm;
     const gain = ctx.createGain();
-    gain.gain.value = 3.2;
+    gain.gain.value = 4.0;
     src.connect(gain).connect(radioOut!);
     currentSource = src;
     src.onended = (): void => {
