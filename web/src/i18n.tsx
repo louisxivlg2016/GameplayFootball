@@ -1968,6 +1968,13 @@ function detectLanguage(): AppLanguage {
 }
 
 export function getCurrentLanguage(): AppLanguage {
+  // the SAVED choice wins: index.html ships lang="en", so trusting the
+  // document attribute first loses the race against React's effect and
+  // pinned the radio to English on fast starts
+  if (typeof window !== "undefined") {
+    const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (saved && isAppLanguage(saved)) return saved;
+  }
   if (typeof document !== "undefined") {
     const docLang = document.documentElement.lang;
     if (docLang && isAppLanguage(docLang)) return docLang;
