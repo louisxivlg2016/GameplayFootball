@@ -22,7 +22,37 @@ let lastKind = "";
 // seconds since the last line: when a situation PERSISTS (same kind), the
 // commentator re-describes it after this long instead of going quiet
 let sinceLine = 0;
-const STALE = 4.5;
+const STALE = 3.5;
+// last sentence spoken: never say the exact same words twice in a row
+let lastText = "";
+
+function vary(
+  main: (...args: string[]) => string,
+  alts: Array<(...args: string[]) => string> | undefined,
+  ...args: string[]
+): string {
+  const pool = [main, ...(alts ?? [])];
+  for (let i = 0; i < 4; i++) {
+    const t = pool[Math.floor(Math.random() * pool.length)]!(...args);
+    if (t !== lastText) return t;
+  }
+  return pool[0]!(...args);
+}
+
+function varyStr(main: string, alts: string[] | undefined): string {
+  const pool = [main, ...(alts ?? [])];
+  for (let i = 0; i < 4; i++) {
+    const t = pool[Math.floor(Math.random() * pool.length)]!;
+    if (t !== lastText) return t;
+  }
+  return main;
+}
+
+function speak(text: string): void {
+  radioFlow(text);
+  lastText = text;
+  sinceLine = 0;
+}
 let commentaryGen = -1;
 let openingBurst = false;
 
@@ -46,7 +76,7 @@ export function commentarySystem(world: World, dt: number): void {
   if (gap > 0) return;
   // radioFlow pre-synthesizes while the mic is busy, chaining without dead air.
   // a short breath keeps the commentator nearly constant without overlapping
-  gap = openingBurst ? 0.3 + Math.random() * 0.35 : 0.55 + Math.random() * 0.75;
+  gap = openingBurst ? 0.3 + Math.random() * 0.35 : 0.45 + Math.random() * 0.6;
   openingBurst = refState.clock < 14;
 
   const ball = world.queryFirst(IsBall);
@@ -60,8 +90,7 @@ export function commentarySystem(world: World, dt: number): void {
   // occasionally step back for the score (no ordinals — Piper mangles "2e")
   if (Math.random() < 0.12) {
     const { score } = useStore.getState();
-    radioFlow(copy.scoreStatus(score, teamName(0, language), teamName(1, language)));
-    sinceLine = 0;
+    speak(copy.scoreStatus(score, teamName(0, language), teamName(1, language)));
     lastKind = "score";
     return;
   }
@@ -69,8 +98,7 @@ export function commentarySystem(world: World, dt: number): void {
   const owner = bs.owner;
   if (!owner || !owner.isAlive()) {
     if (lastKind !== "loose" || sinceLine > STALE) {
-      radioFlow(copy.loose);
-    sinceLine = 0;
+      speak(varyStr(copy.loose, copy.looseAlt));
       lastKind = "loose";
     }
     return;
@@ -83,8 +111,7 @@ export function commentarySystem(world: World, dt: number): void {
   if (!name) return;
 
   if (owner.get(PlayerInfo)!.role === Role.GK) {
-    radioFlow(copy.keeper(name, team));
-    sinceLine = 0;
+    speak(vary(copy.keeper, copy.keeperAlt, name, team));
     lastKind = "keeper";
     return;
   }
@@ -110,36 +137,31 @@ export function commentarySystem(world: World, dt: number): void {
   }
 
   if (oppDist < 2.5 && oppName && lastKind !== "duel" || sinceLine > STALE) {
-    radioFlow(copy.duel(name, oppName));
-    sinceLine = 0;
+    speak(vary(copy.duel, copy.duelAlt, name, oppName));
     lastKind = "duel";
     return;
   }
 
   if (speed > 6 && lastKind !== "run" || sinceLine > STALE) {
-    radioFlow(copy.run(name, team));
-    sinceLine = 0;
+    speak(vary(copy.run, copy.runAlt, name, team));
     lastKind = "run";
     return;
   }
 
   if (depth > PITCH.halfLength - 25 && lastKind !== "danger" || sinceLine > STALE) {
-    radioFlow(copy.danger(name));
-    sinceLine = 0;
+    speak(vary(copy.danger, copy.dangerAlt, name));
     lastKind = "danger";
     return;
   }
 
   if (depth < -PITCH.halfLength + 25 && lastKind !== "build" || sinceLine > STALE) {
-    radioFlow(copy.build(name, team));
-    sinceLine = 0;
+    speak(vary(copy.build, copy.buildAlt, name, team));
     lastKind = "build";
     return;
   }
 
   if (lastKind !== "carry" || sinceLine > STALE) {
-    radioFlow(copy.carry(name, team));
-    sinceLine = 0;
+    speak(vary(copy.carry, copy.carryAlt, name, team));
     lastKind = "carry";
   }
 }

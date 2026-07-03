@@ -645,7 +645,28 @@ function restartWorker(reason: string): void {
   warmupPiper();
 }
 
+// synthesized lines repeat a lot (loose ball, score, the same carrier) —
+// cache the WAVs per voice so repeats play instantly. Bounded LRU-ish.
+const wavCache = new Map<string, Blob>();
+const WAV_CACHE_MAX = 80;
+function cacheWav(key: string, wav: Blob): void {
+  if (wavCache.size >= WAV_CACHE_MAX) {
+    const oldest = wavCache.keys().next().value;
+    if (oldest !== undefined) wavCache.delete(oldest);
+  }
+  wavCache.set(key, wav);
+}
+
 function piperPredict(text: string): Promise<Blob | null> {
+  const cacheKey = `${requestedVoiceId}|${text}`;
+  const hit = wavCache.get(cacheKey);
+  if (hit) {
+    // refresh recency, then serve instantly
+    wavCache.delete(cacheKey);
+    wavCache.set(cacheKey, hit);
+    lastWorkerReplyAt = Date.now();
+    return Promise.resolve(hit);
+  }
   return new Promise((resolve) => {
     if (!piperWorker) {
       resolve(null);
@@ -661,6 +682,7 @@ function piperPredict(text: string): Promise<Blob | null> {
         predictFails = 0;
         workerEverSpoke = true;
         lastWorkerReplyAt = Date.now();
+        cacheWav(cacheKey, wav);
       } else if (workerRespawns < 8) {
         // a timeout. Respawn ONLY on genuine death, not a transient stall:
         //  - a once-healthy worker that has produced NOTHING for a sustained
