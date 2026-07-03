@@ -69,6 +69,11 @@ const VOICE_GAIN: Record<string, number> = {
   "it_IT-paola-medium": 1.45,
   "sr_RS-serbski_institut-medium": 1.4,
   "nl_BE-rdh-medium": 1.25,
+  "ro_RO-mihai-medium": 1.55,
+  "hi_IN-pratham-medium": 1.25,
+  "id_ID-news_tts-medium": 1.25,
+  "mms-kor": 1.6,
+  "mms-tha": 1.6,
 };
 
 function speechFallbackAvailable(): boolean {

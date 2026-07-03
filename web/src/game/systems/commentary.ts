@@ -19,6 +19,10 @@ import { refState } from "./referee";
 
 let gap = 0; // breathing time between lines, counts only while the mic is idle
 let lastKind = "";
+// seconds since the last line: when a situation PERSISTS (same kind), the
+// commentator re-describes it after this long instead of going quiet
+let sinceLine = 0;
+const STALE = 4.5;
 let commentaryGen = -1;
 let openingBurst = false;
 
@@ -33,9 +37,11 @@ export function commentarySystem(world: World, dt: number): void {
     commentaryGen = gen;
     gap = 0.1;
     lastKind = "";
+    sinceLine = 0;
     openingBurst = true;
   }
 
+  sinceLine += dt;
   gap -= dt;
   if (gap > 0) return;
   // radioFlow pre-synthesizes while the mic is busy, chaining without dead air.
@@ -55,14 +61,16 @@ export function commentarySystem(world: World, dt: number): void {
   if (Math.random() < 0.12) {
     const { score } = useStore.getState();
     radioFlow(copy.scoreStatus(score, teamName(0, language), teamName(1, language)));
+    sinceLine = 0;
     lastKind = "score";
     return;
   }
 
   const owner = bs.owner;
   if (!owner || !owner.isAlive()) {
-    if (lastKind !== "loose") {
+    if (lastKind !== "loose" || sinceLine > STALE) {
       radioFlow(copy.loose);
+    sinceLine = 0;
       lastKind = "loose";
     }
     return;
@@ -76,6 +84,7 @@ export function commentarySystem(world: World, dt: number): void {
 
   if (owner.get(PlayerInfo)!.role === Role.GK) {
     radioFlow(copy.keeper(name, team));
+    sinceLine = 0;
     lastKind = "keeper";
     return;
   }
@@ -100,32 +109,37 @@ export function commentarySystem(world: World, dt: number): void {
     }
   }
 
-  if (oppDist < 2.5 && oppName && lastKind !== "duel") {
+  if (oppDist < 2.5 && oppName && lastKind !== "duel" || sinceLine > STALE) {
     radioFlow(copy.duel(name, oppName));
+    sinceLine = 0;
     lastKind = "duel";
     return;
   }
 
-  if (speed > 6 && lastKind !== "run") {
+  if (speed > 6 && lastKind !== "run" || sinceLine > STALE) {
     radioFlow(copy.run(name, team));
+    sinceLine = 0;
     lastKind = "run";
     return;
   }
 
-  if (depth > PITCH.halfLength - 25 && lastKind !== "danger") {
+  if (depth > PITCH.halfLength - 25 && lastKind !== "danger" || sinceLine > STALE) {
     radioFlow(copy.danger(name));
+    sinceLine = 0;
     lastKind = "danger";
     return;
   }
 
-  if (depth < -PITCH.halfLength + 25 && lastKind !== "build") {
+  if (depth < -PITCH.halfLength + 25 && lastKind !== "build" || sinceLine > STALE) {
     radioFlow(copy.build(name, team));
+    sinceLine = 0;
     lastKind = "build";
     return;
   }
 
-  if (lastKind !== "carry") {
+  if (lastKind !== "carry" || sinceLine > STALE) {
     radioFlow(copy.carry(name, team));
+    sinceLine = 0;
     lastKind = "carry";
   }
 }
