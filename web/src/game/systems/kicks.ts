@@ -329,8 +329,11 @@ export function shoot(
   if (dist < 0.5) return;
   // loft01: how long the shoot button was CHARGED — a full hold trades pace
   // for a big skied ball. cannon: the T rocket — flat and vicious.
-  // the T rocket: 45 m/s (~160 km/h) — unmistakably harder than the 26 tap
-  const speed = cannon ? 45 : 26 - loft01 * 7;
+  // the T rocket: 58 m/s (~210 km/h). The free ball bleeds speed under the
+  // quadratic air drag (0.015·v² — brutal at high pace), so 45 converged to
+  // a normal shot within metres; from 58 it still crosses the box at ~2x the
+  // pace of the 26 m/s tap and arrives in half the time
+  const speed = cannon ? 58 : 26 - loft01 * 7;
   const lift = cannon
     ? Math.min(3.0, 1.3 + dist * 0.045)
     : Math.min(6.5, 2.2 + dist * 0.09) + loft01 * 9.5;
