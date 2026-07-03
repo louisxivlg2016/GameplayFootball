@@ -145,10 +145,10 @@ function releaseCelebration(fade: number): void {
   }
 }
 
-// the scorer's repertoire: the original full-body joy plus the four authored
-// signature poses (open-arms shrug, kisses to the crowd, kneel + crossed arms,
-// standing crossed arms). A different one each goal — no immediate repeats.
-const CELE_POOL = ["celebrate_big", "cele_open", "cele_kiss", "cele_kneel", "cele_cross"];
+// the scorer's repertoire: the four signature poses the boss asked for —
+// open-arms shrug, kisses to the crowd, kneel + crossed arms, standing
+// crossed arms. A different one each goal — no immediate repeats.
+const CELE_POOL = ["cele_open", "cele_kiss", "cele_kneel", "cele_cross"];
 let lastCele = "";
 
 /** Goal scored: stage the celebration close-up + the slow-mo of the shot. */
@@ -157,7 +157,26 @@ export function queueGoalCinematic(
   scorer: Entity | null,
   scoringTeam: number,
 ): void {
-  if (scorer && scorer.isAlive() && scorer.get(Team)!.id === scoringTeam) {
+  // a deflection can leave lastKicker on the wrong side (or null) — the GOAL
+  // still deserves its party. Celebrate through the scoring team's nearest
+  // outfielder to the ball instead of silently skipping the whole scene.
+  // (An own goal thus celebrates via the team that BENEFITS — correct.)
+  if (!scorer || !scorer.isAlive() || scorer.get(Team)!.id !== scoringTeam) {
+    const bp = world.queryFirst(IsBall)?.get(BallRef)?.value?.translation();
+    let best: Entity | null = null;
+    let bd = Infinity;
+    for (const e of world.query(IsPlayer)) {
+      if (e.get(Team)!.id !== scoringTeam || !e.get(MeshRef)?.value) continue;
+      const p = e.get(Position)!;
+      const d = bp ? Math.hypot(p.x - bp.x, p.z - bp.z) : Math.abs(p.x);
+      if (d < bd) {
+        bd = d;
+        best = e;
+      }
+    }
+    scorer = best;
+  }
+  if (scorer && scorer.isAlive()) {
     const options = CELE_POOL.filter((c) => c !== lastCele);
     const clip = options[Math.floor(Math.random() * options.length)]!;
     lastCele = clip;
