@@ -150,9 +150,13 @@ function releaseCelebration(fade: number): void {
   }
 }
 
-// the scorer's repertoire: the four signature poses the boss asked for —
-// open-arms shrug, kisses to the crowd, kneel + crossed arms, standing
-// crossed arms. A different one each goal — no immediate repeats.
+// the scorer's repertoire of signature poses — open-arms shrug, kisses to the
+// crowd, kneel, standing crossed arms. A different one each goal (no immediate
+// repeats). NOTE: only clips that actually exist in anims.json belong here — a
+// missing name makes playActionClip early-return and the scorer just stands
+// there doing nothing. "cele_clap" is authored in the converter but not yet in
+// the shipped anims.json (needs a converter re-run with the .anim source data),
+// so it is deliberately left out until that regenerates.
 const CELE_POOL = ["cele_open", "cele_kiss", "cele_kneel", "cele_cross"];
 let lastCele = "";
 
