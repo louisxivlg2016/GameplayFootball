@@ -6,6 +6,11 @@
 #include <windows.h>
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include <unistd.h>       // chdir
+#include <emscripten.h>
+#endif
+
 #include "main.hpp"
 
 #include "base/utils.hpp"
@@ -270,6 +275,12 @@ class ThreadHudThread : public Thread {
 
 
 int main(int argc, const char** argv) {
+
+#ifdef __EMSCRIPTEN__
+  // assets are preloaded into MEMFS at /data (see wasm/CMakeLists.txt); the
+  // game loads everything by relative path (football.config, media/…, databases/…)
+  chdir("/data");
+#endif
 
   config = new Properties();
   if (argc > 1) configFile = argv[1];

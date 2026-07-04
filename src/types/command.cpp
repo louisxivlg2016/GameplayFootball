@@ -4,6 +4,10 @@
 
 #include "command.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include "types/thread.hpp"  // blunted::CoopPumpAll (inline)
+#endif
+
 namespace blunted {
 
   Command::Command(const std::string &name) : handled(false) {
@@ -36,10 +40,20 @@ namespace blunted {
   }
 
   void Command::Wait() {
+#ifdef __EMSCRIPTEN__
+    // single-threaded: no other thread will handle us, so pump the cooperative
+    // thread queues until this command is handled (or nothing is left to do).
+    int idle = 0;
+    while (!IsReady()) {
+      if (CoopPumpAll()) idle = 0;
+      else if (++idle > 4) break;  // nobody produced work — avoid a hang
+    }
+#else
     boost::mutex::scoped_lock lock(mutex);
     if (!handled) {
       processed.wait(lock);
     }
+#endif
   }
 
 }

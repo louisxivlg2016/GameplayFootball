@@ -103,7 +103,7 @@ float GetEdge(vec2 pos) {
 }
 
 vec3 GetWorldPosition(vec2 texCoord, float depth) {
-  vec4 projectedPos = vec4(texCoord.x * 2 - 1, texCoord.y * 2 - 1, depth * 2 - 1, 1.0f);
+  vec4 projectedPos = vec4(texCoord.x * 2.0 - 1.0, texCoord.y * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0f);
   vec4 worldPosition = inverseProjectionViewMatrix * projectedPos;
   worldPosition.xyz /= worldPosition.w;
   return worldPosition.xyz;
@@ -126,7 +126,7 @@ void main(void) {
   float brightness = 0.15f;//0.25f;
 
   // blueish tint + brightness
-  vec3 baseDesaturated = vec3((base.r + base.g + base.b) / 3);
+  vec3 baseDesaturated = vec3((base.r + base.g + base.b) / 3.0);
   base = baseDesaturated * 0.7 + base * 0.3;
   base *= vec3(0.9f, 1.0f, 1.2f) * brightness;
 
@@ -173,7 +173,7 @@ void main(void) {
 
     SSAO += rangeCheckFalloff * rangeCheckInside;
   }
-  SSAO /= SSAO_kernelSize * 1.0f;
+  SSAO /= float(SSAO_kernelSize);
   SSAO = 1.0f - SSAO;
   //SSAO = SSAO * 2.0f - 1.0f; // exaggerate effect
   SSAO = SSAO * 1.5f - 0.5f; // exaggerate effect

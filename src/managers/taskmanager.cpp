@@ -22,6 +22,9 @@ namespace blunted {
 
     int numthreads = boost::thread::hardware_concurrency();
     if (numthreads < 3) numthreads = 3; // todo: make minimum configurable
+#ifdef __EMSCRIPTEN__
+    numthreads = 0;  // single-threaded: EnqueueWork runs work inline (see below)
+#endif
     for (int i = 0; i < numthreads; i++) {
       WorkerThread *worker = new WorkerThread(i);
       pool.push_back(worker);

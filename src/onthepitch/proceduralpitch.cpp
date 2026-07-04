@@ -451,8 +451,14 @@ void GeneratePitch(int resX, int resY, int resSpecularX, int resSpecularY, int r
     }
   }
 
-  boost::thread pitchThread[4];
   float grassNormalRepeatMultiplier = (random(0, 1) > 0.5f) ? 1.0f : 0.5f;
+#ifdef __EMSCRIPTEN__
+  // single-threaded: generate the four chunks sequentially
+  for (int i = 0; i < 4; i++) {
+    CreateChunk(i + 1, resX, resY, resSpecularX, resSpecularY, resNormalX, resNormalY, grassNormalRepeatMultiplier);
+  }
+#else
+  boost::thread pitchThread[4];
   for (int i = 0; i < 4; i++) {
     pitchThread[i] = boost::thread(&CreateChunk, i + 1, resX, resY, resSpecularX, resSpecularY, resNormalX, resNormalY, grassNormalRepeatMultiplier);
   }
@@ -460,6 +466,7 @@ void GeneratePitch(int resX, int resY, int resSpecularX, int resSpecularY, int r
   for (int i = 0; i < 4; i++) {
     pitchThread[i].join();
   }
+#endif
 
   delete perlin1;
   delete perlin2;

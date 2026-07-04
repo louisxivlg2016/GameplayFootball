@@ -31,7 +31,7 @@ out vec4 stdout0;
 out vec4 stdout1;
 
 vec3 GetWorldPosition(vec2 texCoord, float depth) {
-  vec4 projectedPos = vec4(texCoord.x * 2 - 1, texCoord.y * 2 - 1, depth * 2 - 1, 1.0f);
+  vec4 projectedPos = vec4(texCoord.x * 2.0 - 1.0, texCoord.y * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0f);
   vec4 worldPosition = inverseProjectionViewMatrix * projectedPos;
   worldPosition.xyz /= worldPosition.w;
   return worldPosition.xyz;
@@ -123,7 +123,7 @@ void main(void) {
     vec4 projectedFrag = lightViewProjectionMatrix * vec4(worldPosition, 1.0f);
     for (int i = 0; i < poisson_size; i++) {
       float lightOccluderDist = textureProj(map_shadow, projectedFrag + (vec4(poisson[i], 0, 0) / 1500.0f) + vec4(0, 0, offset, 0));
-      shaded -= (1.0f - lightOccluderDist) * (1.0f / poisson_size);//0.25f;
+      shaded -= (1.0f - lightOccluderDist) * (1.0f / float(poisson_size));//0.25f;
     }
 
     // nice debug

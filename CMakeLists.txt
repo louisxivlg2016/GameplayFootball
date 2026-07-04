@@ -42,7 +42,9 @@ include_directories(${SDL2_TTF_DIRS})
 FIND_PACKAGE(SDL2_gfx REQUIRED)
 include_directories(${SDL2_GFX_DIRS})
 
-FIND_PACKAGE(Boost REQUIRED COMPONENTS system thread filesystem)
+# Boost 1.69+ made system header-only; 1.91 dropped its CMake component config
+# entirely, so requesting it fails. filesystem pulls the header-only system in.
+FIND_PACKAGE(Boost REQUIRED COMPONENTS thread filesystem)
 include_directories(${Boost_INCLUDE_DIR})
 
 FIND_PACKAGE(OpenAL REQUIRED)
@@ -98,7 +100,7 @@ add_library(menulib ${MENU_SOURCES} ${MENU_HEADERS})
 add_library(datalib ${DATA_SOURCES} ${DATA_HEADERS})
 
 set(LIBRARIES gamelib hidlib menulib datalib leaguelib blunted2
-   Boost::filesystem Boost::system Boost::thread SQLite::SQLite3
+   Boost::filesystem Boost::thread SQLite::SQLite3
    ${SDL2_IMAGE_LIBRARIES} ${SDL2_TTF_LIBRARIES} ${SDL2_GFX_LIBRARIES}
    ${SDL2_LIBRARIES} ${OPENAL_LIBRARY} dl m ${OPENGL_LIBRARIES})
 

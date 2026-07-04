@@ -27,6 +27,10 @@
 #endif
 
 #include <cmath>
+#ifdef __EMSCRIPTEN__
+#include <regex>  // GLSL 150 -> 300es shader translation
+#include <emscripten/html5.h>  // enable WebGL2 extensions
+#endif
 #include <SDL2/SDL.h>
 
 #include "base/log.hpp"
@@ -384,10 +388,33 @@ struct GLfunctions {
                                 (fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
     context = SDL_GL_CreateContext(window);
 
+#ifdef __EMSCRIPTEN__
+    // the deferred renderer draws into RGBA16F g-buffers; WebGL2 needs these
+    // extensions enabled explicitly to make float color buffers renderable.
+    {
+      EMSCRIPTEN_WEBGL_CONTEXT_HANDLE glctx = emscripten_webgl_get_current_context();
+      emscripten_webgl_enable_extension(glctx, "EXT_color_buffer_float");
+      emscripten_webgl_enable_extension(glctx, "EXT_color_buffer_half_float");
+      emscripten_webgl_enable_extension(glctx, "OES_texture_float_linear");
+    }
+#endif
+
 
     //    *reinterpret_cast<void**>(&(mapping.func)) =
     //    SDL_GL_GetProcAddress(#func); *reinterpret_cast<void**>(&(mapping.func))
     //    = (void*) func;
+#ifdef __EMSCRIPTEN__
+    // WebGL2/GLES3 has no desktop-only entry points (glBegin, glMatrixMode,
+    // glPushAttrib, glBindFragDataLocation, …). Those live only in dead
+    // immediate-mode/debug paths here, so DON'T abort when they're missing —
+    // resolve what WebGL2 provides, leave the rest null, and log the gaps.
+#define SDL_PROC(ret,func,params)                                        \
+  do {                                                                   \
+    *reinterpret_cast<void **>(&(mapping.func)) =                        \
+        SDL_GL_GetProcAddress(#func);                                    \
+    if (!mapping.func) printf("[wasm] GL fn not in WebGL2 (left null): %s\n", #func); \
+  } while (0);
+#else
 #define SDL_PROC(ret,func,params)                                        \
   do {                                                                     \
     *reinterpret_cast<void **>(&(mapping.func)) =                          \
@@ -399,8 +426,27 @@ struct GLfunctions {
       exit(1);                                                             \
     }                                                                      \
   } while (0);
+#endif
 #include "sdl_glfuncs.h"
 #undef SDL_PROC
+
+#ifdef __EMSCRIPTEN__
+    // Desktop-only immediate-mode/legacy entry points that some live (mostly
+    // debug) code still calls have no WebGL2 equivalent and are null above —
+    // point them at signature-matched no-ops so a stray call doesn't trap.
+    if (!mapping.glBegin)      mapping.glBegin      = [](GLenum){};
+    if (!mapping.glEnd)        mapping.glEnd        = [](){};
+    if (!mapping.glVertex3f)   mapping.glVertex3f   = [](GLfloat,GLfloat,GLfloat){};
+    if (!mapping.glNormal3f)   mapping.glNormal3f   = [](GLfloat,GLfloat,GLfloat){};
+    if (!mapping.glColor3f)    mapping.glColor3f    = [](GLfloat,GLfloat,GLfloat){};
+    if (!mapping.glColor4f)    mapping.glColor4f    = [](GLfloat,GLfloat,GLfloat,GLfloat){};
+    if (!mapping.glMatrixMode) mapping.glMatrixMode = [](GLenum){};
+    if (!mapping.glPushAttrib) mapping.glPushAttrib = [](GLbitfield){};
+    if (!mapping.glPopAttrib)  mapping.glPopAttrib  = [](){};
+    if (!mapping.glClearDepth) mapping.glClearDepth = [](GLclampd){};  // default is already 1.0
+    if (!mapping.glBindFragDataLocation)
+      mapping.glBindFragDataLocation = [](GLuint,GLuint,const char*){};  // set via layout() in-shader
+#endif
 
     std::string glVersionString = (char*)mapping.glGetString(GL_VERSION);
     Log(e_Notice, "OpenGLRenderer3D", "CreateContext", "Using OpenGL version " + glVersionString);
@@ -481,7 +527,9 @@ struct GLfunctions {
     //SDL_ShowCursor(SDL_DISABLE); // todo: make customizable
     //SDL_WarpMouse(1280 * 3, 1024);
     largest_supported_anisotropy = 2;
+#ifndef __EMSCRIPTEN__
     mapping.glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest_supported_anisotropy);
+#endif
     //largest_supported_anisotropy = clamp(largest_supported_anisotropy, 0, 8); // don't overdo it
 
 
@@ -1545,7 +1593,22 @@ struct GLfunctions {
     }
 
     if (!multisample) {
-      mapping.glTexImage2D(GL_TEXTURE_2D, 0, GetGLInternalPixelFormat(internalPixelFormat), width, height, 0, GetGLPixelFormat(pixelFormat), GL_UNSIGNED_BYTE, NULL);
+      GLenum texType = GL_UNSIGNED_BYTE;
+#ifdef __EMSCRIPTEN__
+      // WebGL2 is strict about (internalformat, type): float color/depth
+      // targets can't use UNSIGNED_BYTE like desktop GL tolerates.
+      switch (internalPixelFormat) {
+        case e_InternalPixelFormat_RGBA16F: texType = GL_HALF_FLOAT; break;
+        case e_InternalPixelFormat_RGBA32F: texType = GL_FLOAT; break;
+        case e_InternalPixelFormat_DepthComponent:
+        case e_InternalPixelFormat_DepthComponent16:
+        case e_InternalPixelFormat_DepthComponent24:
+        case e_InternalPixelFormat_DepthComponent32:  texType = GL_UNSIGNED_INT; break;
+        case e_InternalPixelFormat_DepthComponent32F: texType = GL_FLOAT; break;
+        default: break;
+      }
+#endif
+      mapping.glTexImage2D(GL_TEXTURE_2D, 0, GetGLInternalPixelFormat(internalPixelFormat), width, height, 0, GetGLPixelFormat(pixelFormat), texType, NULL);
     } else {
       // todo: needs opengl 3.2 libs!
       //glTexImage2DMultiSample(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, 5, GetGLInternalPixelFormat(internalPixelFormat), width, height, GL_TRUE);
@@ -1807,6 +1870,37 @@ struct GLfunctions {
 
   // shaders
 
+#ifdef __EMSCRIPTEN__
+  // Translate the desktop GLSL 1.50 shaders to GLSL ES 3.00 (WebGL2) at load
+  // time — keeps the native shader files (#version 150) untouched.
+  static std::string TranslateShaderES300(std::string s) {
+    // #version + default precisions (the version must remain the first line)
+    size_t v = s.find("#version");
+    size_t e = (v == std::string::npos) ? std::string::npos : s.find('\n', v);
+    // ES 3.00 needs default precisions, incl. an explicit one for shadow samplers
+    std::string header =
+        "#version 300 es\n"
+        "precision highp float;\n"
+        "precision highp int;\n"
+        "precision highp sampler2DShadow;\n";
+    s = header + (e == std::string::npos ? s : s.substr(e + 1));
+    // rename identifiers that ES 3.00 reserves but desktop 1.50 allowed
+    s = std::regex_replace(s, std::regex("\\bsample\\b"), "sample_");
+    // texture2D/textureCube -> texture (overloaded in ES 3.00)
+    s = std::regex_replace(s, std::regex("texture(2D|Cube)\\s*\\("), "texture(");
+    // fragment outputs: locations move into the shader (no glBindFragDataLocation)
+    s = std::regex_replace(s, std::regex("out\\s+vec4\\s+stdout([0-9])\\s*;"),
+                           "layout(location = $1) out vec4 stdout$1;");
+    s = std::regex_replace(s, std::regex("out\\s+vec4\\s+stdout\\s*;"),
+                           "layout(location = 0) out vec4 stdout;");
+    // strip desktop float 'f' suffixes, but KEEP them floats (ES forbids
+    // float*int): 1.0f -> 1.0, .5f -> .5, but 2f -> 2.0 (not int 2)
+    s = std::regex_replace(s, std::regex("([0-9]+\\.[0-9]+|\\.[0-9]+)f\\b"), "$1");
+    s = std::regex_replace(s, std::regex("([0-9]+)f\\b"), "$1.0");
+    return s;
+  }
+#endif
+
   void LoadGLShader(GLuint shaderID, const std::string &filename) {
     std::vector<std::string> source;
     file_to_vector(filename, source);
@@ -1817,6 +1911,9 @@ struct GLfunctions {
       source_flat.append("\n");
     }
 
+#ifdef __EMSCRIPTEN__
+    source_flat = TranslateShaderES300(source_flat);
+#endif
    	const char *sourceChar = source_flat.c_str();
    	mapping.glShaderSource(shaderID, 1, &sourceChar, NULL);
     mapping.glCompileShader(shaderID);
@@ -2319,5 +2416,37 @@ struct GLfunctions {
 
     if (messageQueue.GetPending() > 0) Log(e_Error, "OpenGLRenderer3D", "operator()()", int_to_str(messageQueue.GetPending()) + " messages left on quit!");
   }
+
+#ifdef __EMSCRIPTEN__
+  void OpenGLRenderer3D::CoopStart() {
+    SDL_Init(SDL_INIT_VIDEO);
+    int flags = IMG_INIT_JPG | IMG_INIT_PNG;
+    IMG_Init(flags);
+  }
+
+  // one cooperative step of the renderer loop (see operator() above): pump SDL
+  // input events, then handle any pending render messages on the main thread.
+  bool OpenGLRenderer3D::CoopIterate() {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+      if (event.type == SDL_WINDOWEVENT) {
+        if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) contextIsActive = false;
+        else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) contextIsActive = true;
+      }
+      switch (event.type) {
+        case SDL_QUIT:
+          EnvironmentManager::GetInstance().SignalQuit();
+          break;
+        case SDL_KEYDOWN:
+          if (event.key.keysym.sym == SDLK_F12) EnvironmentManager::GetInstance().SignalQuit();
+          break;
+        default:
+          break;
+      }
+      if (contextIsActive) UserEventManager::GetInstance().InputSDLEvent(event);
+    }
+    return DrainMessages();
+  }
+#endif
 
 }

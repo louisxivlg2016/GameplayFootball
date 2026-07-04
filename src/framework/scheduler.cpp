@@ -4,6 +4,11 @@
 
 #include "scheduler.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include "types/thread.hpp"  // CoopPumpAll
+#endif
+
 #include "managers/resourcemanagerpool.hpp"
 #include "managers/environmentmanager.hpp"
 #include "managers/taskmanager.hpp"
@@ -311,8 +316,19 @@ namespace blunted {
         }
 
         sequences.Unlock();
+#ifdef __EMSCRIPTEN__
+        // single-threaded browser: no worker will signal us, and we must NOT
+        // block the main thread. Pump the cooperative threads (renderer, etc.)
+        // and yield to the browser (ASYNCIFY) so it can paint and process input.
+        (void)lock;
+        CoopPumpAll();
+        long yield_ms = timeout_ms > 16 ? 16 : (timeout_ms < 0 ? 0 : timeout_ms);
+        emscripten_sleep(yield_ms);
+        bool isMessage = true;
+#else
         boost::system_time tAbsoluteTime = boost::get_system_time() + boost::posix_time::milliseconds(timeout_ms);
         bool isMessage = somethingIsDone.timed_wait(lock, tAbsoluteTime);
+#endif
         sequences.Lock();
 
         if (dueEntry.program != boost::shared_ptr<TaskSequenceProgram>()) {

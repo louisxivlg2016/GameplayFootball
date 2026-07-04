@@ -130,6 +130,13 @@ namespace blunted {
 
       void operator()();
 
+#ifdef __EMSCRIPTEN__
+      // cooperative single-thread: SDL/IMG init once, then poll events + drain
+      // render messages each pump (GL runs on the canvas-owning main thread)
+      virtual void CoopStart();
+      virtual bool CoopIterate();
+#endif
+
     protected:
       SDL_GLContext context;
       SDL_Window* window;
