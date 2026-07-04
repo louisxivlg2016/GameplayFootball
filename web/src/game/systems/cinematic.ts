@@ -154,9 +154,7 @@ function releaseCelebration(fade: number): void {
 // crowd, kneel, standing crossed arms. A different one each goal (no immediate
 // repeats). NOTE: only clips that actually exist in anims.json belong here — a
 // missing name makes playActionClip early-return and the scorer just stands
-// there doing nothing. "cele_clap" is authored in the converter but not yet in
-// the shipped anims.json (needs a converter re-run with the .anim source data),
-// so it is deliberately left out until that regenerates.
+// there doing nothing.
 const CELE_POOL = ["cele_open", "cele_kiss", "cele_kneel", "cele_cross"];
 let lastCele = "";
 
@@ -462,6 +460,12 @@ export function cinematicSystem(world: World, dt: number): void {
         // reached it, or the run has eaten enough of the scene — start the party
         if (dist <= 0.5 || cel.t > 3.2) {
           cel.arrived = true;
+          // SNAP to face the lens the instant he stops. Running to the far
+          // corner left him facing ~180° away, and faceCamera's slow ease then
+          // burned the whole celebration turning around — so the signature move
+          // only ever read when he'd run to the near corner. Snapping fixes the
+          // "he only does it on one side" bug: front-on at every corner.
+          h.value.rotation.set(0, 0, 0);
         } else {
           const step = Math.min(dist, 10 * dt); // full-tilt celebration sprint
           h.value.position.x += (dx / dist) * step;
