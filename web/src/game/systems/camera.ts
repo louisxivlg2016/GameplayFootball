@@ -62,16 +62,20 @@ export function cameraSystem(
     desiredFov = 34;
   } else if (celeb && celeb.scorer.isAlive()) {
     const p = celeb.scorer.get(Position)!;
-    // while teammates are still sprinting in, sit back and wide so the whole
-    // run — the mob converging on the scorer — is on screen; once they've
-    // mobbed him the shared damp pushes the shot in to the close-up below
-    const running = celeb.mates.some((m) => !m.arrived) && celeb.t < 2.8;
-    if (running) {
+    if (!celeb.arrived) {
+      // follow him wheeling away and sprinting to the corner flag — a broadcast
+      // tracking shot trailing the run (the scene keeps his sim Position live)
+      desiredPos.set(p.x, 3.6, p.z + 11);
+      desiredLook.set(p.x, 1.1, p.z);
+      desiredFov = 44;
+    } else if (celeb.mates.some((m) => !m.arrived) && celeb.t < 5.0) {
+      // teammates still converging: sit back and wide so the whole mob piling
+      // in on the scorer is on screen; the shared damp then pushes in below
       desiredPos.set(p.x, 3.4, p.z + 10.5);
       desiredLook.set(p.x, 1.15, p.z - 1);
       desiredFov = 50;
     } else {
-      // close-up: the scorer applauds straight into the lens
+      // close-up: the scorer performs his signature move into the lens
       desiredPos.set(p.x, 1.7, p.z + 5.2);
       desiredLook.set(p.x, 1.25, p.z);
       desiredFov = 30;

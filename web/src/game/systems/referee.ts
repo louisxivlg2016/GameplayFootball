@@ -938,7 +938,9 @@ export function refereeSystem(world: World, dt: number): void {
         if (e.has(Tripped)) e.remove(Tripped);
       }
       queueGoalCinematic(world, kicker?.isAlive() ? kicker : null, scorer);
-      match.set(Match, { resetTimer: 3.2, pendingKickoffTeam: 1 - scorer });
+      // longer so the scorer can sprint off to the corner flag AND still get
+      // his signature move + a mob before the replay airs
+      match.set(Match, { resetTimer: 6.0, pendingKickoffTeam: 1 - scorer });
       return;
     }
   }
