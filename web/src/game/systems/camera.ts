@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { World } from "koota";
+import type { Entity, World } from "koota";
 import { BallRef, IsBall, IsReferee, Position, Selected } from "../traits";
 import { PITCH, attackSign } from "../levels";
 import { refState } from "./referee";
@@ -19,6 +19,10 @@ let fov = 25;
 // straight to its framing instead of lazily panning over from midfield
 // (which read as "just a normal match" for the first second)
 let lastSetPieceId: string | null = null;
+// identity of the goal being celebrated, so the camera CUTS straight to the
+// scorer wheeling away to the corner instead of lazily panning across the whole
+// pitch (which, for a goal at the far end, missed the whole celebration)
+let lastCeleId: Entity | null = null;
 
 /**
  * Broadcast camera modeled on match.cpp:723-843: telephoto (25° FOV), parked
@@ -170,6 +174,11 @@ export function cameraSystem(
       : null;
   if (setPieceId !== null && setPieceId !== lastSetPieceId) blend = 1;
   lastSetPieceId = setPieceId;
+  // and cut hard to a fresh goal celebration so the camera is ON the scorer
+  // from the first frame of his run to the corner — even at the far end
+  const celeId = celeb && celeb.scorer.isAlive() ? celeb.scorer : null;
+  if (celeId !== null && celeId !== lastCeleId) blend = 1;
+  lastCeleId = celeId;
   camPos.lerp(desiredPos, blend);
   camLook.lerp(desiredLook, blend);
   camera.position.copy(camPos);
