@@ -61,11 +61,21 @@ export function cameraSystem(
     desiredLook.set(midX, 0.5, p.z * 0.5);
     desiredFov = 34;
   } else if (celeb && celeb.scorer.isAlive()) {
-    // close-up: the scorer applauds straight into the lens
     const p = celeb.scorer.get(Position)!;
-    desiredPos.set(p.x, 1.7, p.z + 5.2);
-    desiredLook.set(p.x, 1.25, p.z);
-    desiredFov = 30;
+    // while teammates are still sprinting in, sit back and wide so the whole
+    // run — the mob converging on the scorer — is on screen; once they've
+    // mobbed him the shared damp pushes the shot in to the close-up below
+    const running = celeb.mates.some((m) => !m.arrived) && celeb.t < 2.8;
+    if (running) {
+      desiredPos.set(p.x, 3.4, p.z + 10.5);
+      desiredLook.set(p.x, 1.15, p.z - 1);
+      desiredFov = 50;
+    } else {
+      // close-up: the scorer applauds straight into the lens
+      desiredPos.set(p.x, 1.7, p.z + 5.2);
+      desiredLook.set(p.x, 1.25, p.z);
+      desiredFov = 30;
+    }
   } else if (sendOff && sendOff.player.isAlive()) {
     // tighter touchline shot: the sent-off player walks out of the match
     const p = sendOff.player.get(Position)!;
