@@ -355,12 +355,18 @@ export function refereeFoul(
   const victimTeam = victim.get(Team)!.id;
   const fp = fouler.get(Position)!;
   let foulType = severity <= 1.4 ? 1 : severity <= 2.0 ? 2 : 3;
-  // rubber-band rule (both ways): fouling a player on the team that is currently
-  // in the lead is a straight red card — you get sent off for hacking down the
-  // leader whether the leader is you or the AI.
+  // rubber-band flavour: hacking down a player from the team in the lead is
+  // punished a touch harder — a hard foul CAN become a straight red, a lighter
+  // one at least a booking — but it is NOT an automatic sending-off any more.
+  // (Forcing every foul-while-behind to a red meant almost every free kick came
+  // with a red card, since someone is usually trailing.)
   const score = useStore.getState().score;
   if ((score[victimTeam] ?? 0) > (score[foulerTeam] ?? 0)) {
-    foulType = 3;
+    if (foulType >= 2) {
+      if (Math.random() < 0.3) foulType = 3; // hard foul: occasionally a straight red
+    } else if (Math.random() < 0.4) {
+      foulType = 2; // lighter foul: often at least a yellow
+    }
   }
 
   const defGoalX = -attackSign(foulerTeam) * PITCH.halfLength;
@@ -441,6 +447,9 @@ export function refereeFoul(
     const foulerName = nm?.short ?? ""; // banner (visual): initial + surname
     const foulerSpoken = nm?.full || nm?.spoken || nm?.short || "";
     const red = foulType === 3 || second;
+    // stage the free kick / penalty FIRST (award() sets its own COUP FRANC /
+    // PENALTY banner), then let the card banner win so the close-up reads right.
+    award();
     if (red) {
       banner(
         (second ? "SECOND YELLOW — RED CARD" : "RED CARD") +
@@ -453,7 +462,6 @@ export function refereeFoul(
       radio("yellow", { player: foulerSpoken });
       fouler.set(PlayerInfo, { yellows: info.yellows + 1 });
     }
-    award();
     queueCardCinematic(red, red ? fouler : null);
     return;
   }
