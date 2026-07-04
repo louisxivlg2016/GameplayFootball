@@ -155,7 +155,15 @@ function releaseCelebration(fade: number): void {
 // repeats). NOTE: only clips that actually exist in anims.json belong here — a
 // missing name makes playActionClip early-return and the scorer just stands
 // there doing nothing.
-const CELE_POOL = ["cele_open", "cele_kiss", "cele_kneel", "cele_cross"];
+const CELE_POOL = [
+  "cele_open", // arms spread wide
+  "cele_kiss", // kisses to the crowd
+  "cele_kneel", // knee-slide kneel, arms crossed
+  "cele_cross", // standing arms folded
+  "cele_sky", // both arms thrown up in a V
+  "cele_point", // one finger to the heavens
+  "cele_flex", // double-biceps strongman
+];
 let lastCele = "";
 
 /** Goal scored: stage the celebration close-up + the slow-mo of the shot. */
