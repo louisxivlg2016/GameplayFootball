@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 import modelJson from "../assets/players/model.json";
 import animsJson from "../assets/players/anims.json";
+import type { PlayerLook } from "../game/playerLooks";
 
 interface ModelData {
   skeleton: Array<{ name: string; parent: number; pos: [number, number, number] }>;
@@ -237,14 +238,17 @@ export function createPlayerRig(
   variant: number,
   heightScale: number,
   special?: "messi",
+  look?: PlayerLook,
 ): PlayerRig {
   const { rootBone, skinBones } = buildBones();
 
   // "messi" uses the SAME clean stock body/skeleton as everyone (the raw scan
-  // looked awful at gameplay zoom) — his identity comes from the forced dark
-  // medium hair, fair skin and real 1.70m height set by the caller.
+  // looked awful at gameplay zoom) — his identity comes from his look entry and
+  // the real 1.70m height set by the caller.
+  // `look` (a real-player likeness) wins; else the messi fallback; else the
+  // old variant-hash so unnamed/procedural players still vary.
   const groupOrder = bodyGeometry.userData.groupOrder as string[];
-  const skinIdx = special === "messi" ? 1 : variant % skinMats.length;
+  const skinIdx = look ? look.skin : special === "messi" ? 1 : variant % skinMats.length;
   const materials = groupOrder.map((name) => {
     if (name === "kit") return kitMaterial(kitKind, teamColor);
     if (name === "shoe") return shoeMat;
@@ -258,12 +262,18 @@ export function createPlayerRig(
   skinned.add(rootBone);
   skinned.bind(new THREE.Skeleton(skinBones, sharedInverses));
 
-  const style =
-    special === "messi" ? "medium01" : HAIR_STYLES[(variant * 5 + 3) % HAIR_STYLES.length]!;
+  const style = look
+    ? look.style
+    : special === "messi"
+      ? "medium01"
+      : HAIR_STYLES[(variant * 5 + 3) % HAIR_STYLES.length]!;
   const hairGeo = hairGeometries.get(style);
   if (hairGeo && style !== "bald") {
-    const color =
-      special === "messi" ? "black" : HAIR_COLORS[(variant * 3 + 1) % HAIR_COLORS.length]!;
+    const color = look
+      ? look.hair
+      : special === "messi"
+        ? "black"
+        : HAIR_COLORS[(variant * 3 + 1) % HAIR_COLORS.length]!;
     const hair = new THREE.Mesh(
       hairGeo,
       new THREE.MeshStandardMaterial({ map: hairTex[color], roughness: 0.95 }),

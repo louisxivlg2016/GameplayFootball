@@ -13,6 +13,7 @@ import {
   Team,
 } from "../game/traits";
 import { getConfiguredMatchTeam } from "../game/teams";
+import { lookForName } from "../game/playerLooks";
 import { createPlayerRig } from "../render/playerRig";
 
 const nameTextureCache = new Map<string, THREE.CanvasTexture>();
@@ -101,12 +102,18 @@ function PlayerView({ entity }: { entity: Entity }): React.ReactNode {
       /messi/i.test(entity.get(Name)?.full ?? "") &&
       !isKeeper;
     if (isMessi) height = 1.7 / 1.92; // his real 1.70m
+    // resemble the real player: skin tone, hair colour + style keyed off his
+    // name (stars are hand-mapped, the rest get a stable per-name look). No
+    // name → fall back to the old variant hash so procedural players still vary.
+    const fullName = entity.get(Name)?.full;
+    const look = fullName ? lookForName(fullName) : undefined;
     const r = createPlayerRig(
       kitKind,
       matchTeam.color,
       variant,
       height,
       isMessi ? "messi" : undefined,
+      look,
     );
     const h = entity.get(MeshRef);
     if (h) {
