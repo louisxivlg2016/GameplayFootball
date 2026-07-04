@@ -870,10 +870,13 @@ function keeper(
           // physical edge (less flight time to react to) but must not ALSO
           // turn the keeper into a clown who dives a metre wide every time
           const shotSpeed = Math.min(Math.hypot(bv.x, bv.z), 28);
+          // tighter read than before — he judges the corner better, so fewer
+          // shots sail into a keeper-shaped hole (he was diving too wide)
           const spread =
-            (0.22 + shotSpeed * 0.025) * (1.2 - 0.5 * e.get(Stats)!.ballcontrol);
-          // only a genuinely fierce strike wrong-foots him, and even then rarely
-          const wrongChance = clamp((shotSpeed - 15) * 0.015, 0, 0.15);
+            (0.2 + shotSpeed * 0.02) * (1.2 - 0.5 * e.get(Stats)!.ballcontrol);
+          // only a genuinely fierce strike wrong-foots him, and now rarely: no
+          // more of the silly full-wrong-way dives on ordinary shots
+          const wrongChance = clamp((shotSpeed - 18) * 0.012, 0, 0.09);
           read = {
             until: state.time + tCross + 0.2,
             off:
