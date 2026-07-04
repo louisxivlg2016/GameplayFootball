@@ -180,8 +180,18 @@ export function queueGoalCinematic(
     const options = CELE_POOL.filter((c) => c !== lastCele);
     const clip = options[Math.floor(Math.random() * options.length)]!;
     lastCele = clip;
-    // the two-three nearest teammates sprint in to mob the scorer
+    // keep the whole party ON the pitch: a scorer who chased the ball into the
+    // net must not celebrate — and get mobbed — inside the goal. Anchor the
+    // scene back in front of the goal line and off the touchline, moving both
+    // the sim position and the mesh so camera and mob agree on the same spot.
     const sp = scorer.get(Position)!;
+    const gside = Math.sign(sp.x) || 1;
+    const cx = gside * Math.min(Math.abs(sp.x), PITCH.halfLength - 7);
+    const cz = Math.max(-(PITCH.halfWidth - 3), Math.min(PITCH.halfWidth - 3, sp.z));
+    sp.set(cx, 0, cz);
+    const smh = scorer.get(MeshRef)?.value;
+    if (smh) smh.position.set(cx, 0, cz);
+    // the two-three nearest teammates sprint in to mob the scorer
     const mates = world
       .query(IsPlayer)
       .filter(
