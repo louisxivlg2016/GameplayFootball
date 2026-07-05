@@ -1766,8 +1766,20 @@ struct GLfunctions {
     switch (targetAttachment) {
 
       case e_TargetAttachment_None:    target = GL_NONE; break;
-      case e_TargetAttachment_Front:   target = GL_FRONT_LEFT; break;
-      case e_TargetAttachment_Back:    target = GL_BACK_LEFT; break;
+      case e_TargetAttachment_Front:
+#ifdef __EMSCRIPTEN__
+        target = GL_BACK;
+#else
+        target = GL_FRONT_LEFT;
+#endif
+        break;
+      case e_TargetAttachment_Back:
+#ifdef __EMSCRIPTEN__
+        target = GL_BACK;
+#else
+        target = GL_BACK_LEFT;
+#endif
+        break;
       case e_TargetAttachment_Depth:   target = GL_DEPTH_ATTACHMENT; break;
       case e_TargetAttachment_Stencil: target = GL_STENCIL_ATTACHMENT; break;
       case e_TargetAttachment_Color0:  target = GL_COLOR_ATTACHMENT0; break;

@@ -47,8 +47,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/compat)
 set(GPF_EM_COMMON
     "-sUSE_SDL=2 -sUSE_SDL_IMAGE=2 -sUSE_SDL_TTF=2 -sUSE_SDL_GFX=2 \
      -sUSE_SQLITE3=1 -sUSE_BOOST_HEADERS=1 \
-     -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2 -sFULL_ES3=1 \
-     -sOFFSCREEN_FRAMEBUFFER=1")
+     -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2 -sFULL_ES3=1")
 # quiet the mountain of legacy warnings; keep errors visible
 set(GPF_EM_WARN "-Wno-deprecated-declarations -Wno-writable-strings \
      -Wno-c++11-narrowing -Wno-register -Wno-invalid-offsetof")

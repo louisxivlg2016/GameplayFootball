@@ -139,5 +139,12 @@ void main(void) {
 
   //gl_FragColor = vec4(fragColor, 0);
   //fragColor = vec3(0, 0.5, 1.0);
+#ifdef GPF_WASM
+  // The browser composites the WebGL canvas using the drawing-buffer alpha.
+  // Keep the deferred match scene opaque; desktop default-framebuffer alpha is
+  // ignored by the native window path.
+  stdout = vec4(fragColor, 1.0);
+#else
   stdout = vec4(fragColor, 0);
+#endif
 }
