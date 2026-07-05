@@ -191,6 +191,10 @@ void main(void) {
 
   //stdout0 = vec4(vec3(depth / 2.0f), 1.0);
   stdout0 = vec4(fragColor * SSAO, 1.0);
+#ifdef GPF_WASM
+  stdout1 = vec4(GetEdge(texCoord), SSAO, 0.0, 0.0); // AA, SSAO
+#else
   stdout1.r = GetEdge(texCoord); // AA
   stdout1.g = SSAO;
+#endif
 }

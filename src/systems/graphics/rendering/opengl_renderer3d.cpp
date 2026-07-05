@@ -395,6 +395,7 @@ struct GLfunctions {
       EMSCRIPTEN_WEBGL_CONTEXT_HANDLE glctx = emscripten_webgl_get_current_context();
       emscripten_webgl_enable_extension(glctx, "EXT_color_buffer_float");
       emscripten_webgl_enable_extension(glctx, "EXT_color_buffer_half_float");
+      emscripten_webgl_enable_extension(glctx, "EXT_float_blend");
       emscripten_webgl_enable_extension(glctx, "OES_texture_float_linear");
     }
 #endif
@@ -1581,9 +1582,14 @@ struct GLfunctions {
         internalPixelFormat == e_InternalPixelFormat_DepthComponent24 ||
         internalPixelFormat == e_InternalPixelFormat_DepthComponent32 ||
         internalPixelFormat == e_InternalPixelFormat_DepthComponent32F) {
-      //XXglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+#ifdef __EMSCRIPTEN__
+      mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, compareDepth ? GL_COMPARE_REF_TO_TEXTURE : GL_NONE);
+#else
       if (compareDepth) {
         mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+      }
+#endif
+      if (compareDepth) {
         mapping.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
       }
 //      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -1608,7 +1614,7 @@ struct GLfunctions {
         case e_InternalPixelFormat_RGBA16F: texType = GL_HALF_FLOAT; break;
         case e_InternalPixelFormat_RGBA32F: texType = GL_FLOAT; break;
         case e_InternalPixelFormat_DepthComponent:
-        case e_InternalPixelFormat_DepthComponent16:
+        case e_InternalPixelFormat_DepthComponent16:  texType = GL_UNSIGNED_SHORT; break;
         case e_InternalPixelFormat_DepthComponent24:
         case e_InternalPixelFormat_DepthComponent32:  texType = GL_UNSIGNED_INT; break;
         case e_InternalPixelFormat_DepthComponent32F: texType = GL_FLOAT; break;
