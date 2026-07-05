@@ -1753,10 +1753,10 @@ struct GLfunctions {
   }
 
   void OpenGLRenderer3D::SetMaxAnisotropy() {
-//#ifndef __gl_glcorearb_h_  // Can be used to check for Core Profile Mode on Linux
+#ifndef __EMSCRIPTEN__  // GL_TEXTURE_MAX_ANISOTROPY_EXT needs the ext in WebGL2 (else GL_INVALID_ENUM)
     mapping.glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT,
                             largest_supported_anisotropy);
-//#endif
+#endif
   }
   // frame buffer objects
 
@@ -1889,7 +1889,8 @@ struct GLfunctions {
         "#version 300 es\n"
         "precision highp float;\n"
         "precision highp int;\n"
-        "precision highp sampler2DShadow;\n";
+        "precision highp sampler2DShadow;\n"
+        "#define GPF_WASM 1\n";  // shaders gamma-correct themselves (no GL_FRAMEBUFFER_SRGB)
     s = header + (e == std::string::npos ? s : s.substr(e + 1));
     // rename identifiers that ES 3.00 reserves but desktop 1.50 allowed
     s = std::regex_replace(s, std::regex("\\bsample\\b"), "sample_");
@@ -2187,11 +2188,17 @@ struct GLfunctions {
   }
 
   void OpenGLRenderer3D::SetFramebufferGammaCorrection(bool onOff) {
+#ifndef __EMSCRIPTEN__
     if (onOff) {
       mapping.glEnable(GL_FRAMEBUFFER_SRGB);
     } else {
       mapping.glDisable(GL_FRAMEBUFFER_SRGB);
     }
+#else
+    // WebGL2 has no GL_FRAMEBUFFER_SRGB (would be GL_INVALID_ENUM); the final
+    // postprocess shader does the linear->sRGB encode instead.
+    (void)onOff;
+#endif
   }
 
   void OpenGLRenderer3D::UseShader(const std::string &name) {
@@ -2315,8 +2322,14 @@ struct GLfunctions {
       if (location == -1) Log(e_Error, "OpenGLRenderer3D", "SetUniformMatrix4", "Uniform location for shader '" + shaderName + "' not found: " + varName);
       uniformCache.insert(std::pair<std::string, GLint>(shaderName + "_var_" + varName, location));
     }
-    //mapping.glUniformMatrix4fv(location, 1, false, (float*)mat.GetTransposed().elements);
+#ifdef __EMSCRIPTEN__
+    // WebGL2 forbids transpose=GL_TRUE (it's an INVALID_VALUE error and the
+    // matrix is silently NOT set -> broken transforms -> black 3D scene).
+    // Transpose on the CPU and upload with GL_FALSE.
+    mapping.glUniformMatrix4fv(location, 1, false, (float*)mat.GetTransposed().elements);
+#else
     mapping.glUniformMatrix4fv(location, 1, true, (float*)mat.elements); // true == transposed
+#endif
   }
 
   void OpenGLRenderer3D::HDRCaptureOverallBrightness() {

@@ -131,6 +131,12 @@ void main(void) {
   fragColor = AlternateContrast(fragColor, contrastBias);
   fragColor = clamp(fragColor, 0.0, 1.0);
 
+#ifdef GPF_WASM
+  // WebGL2 has no GL_FRAMEBUFFER_SRGB, so encode linear->sRGB here (otherwise
+  // the whole lit scene is written linear and looks near-black).
+  fragColor = pow(fragColor, vec3(1.0 / 2.2));
+#endif
+
   //gl_FragColor = vec4(fragColor, 0);
   //fragColor = vec3(0, 0.5, 1.0);
   stdout = vec4(fragColor, 0);
