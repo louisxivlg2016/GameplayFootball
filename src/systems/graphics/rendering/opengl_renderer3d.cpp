@@ -1045,11 +1045,18 @@ struct GLfunctions {
         // the next 2 statements, as well as the invalidate_bit stuff in the 3rd statement, should do the same thing: orphaning the vertexbuffer.
         // however, on my current AMD (HD 6850), only the first seems to actually work! is this an AMD driver bug? can't find anything about it on the interwebz..
 
+#ifdef __EMSCRIPTEN__
+        // WebGL2's glMapBufferRange emulation rejects GL_MAP_UNSYNCHRONIZED_BIT
+        // and returns null — the memcpy below would then corrupt the heap at
+        // address 0. Upload the vertices directly (reallocate + fill) instead.
+        mapping.glBufferData(GL_ARRAY_BUFFER, verticesDataSize * sizeof(float), vertices, GL_DYNAMIC_DRAW);
+#else
         mapping.glBufferData(GL_ARRAY_BUFFER, verticesDataSize * sizeof(float), NULL, GL_DYNAMIC_DRAW);
         //glInvalidateBufferData(vertexBufferID.bufferID);
         float *ptr = (float*)mapping.glMapBufferRange(GL_ARRAY_BUFFER, 0, verticesDataSize * sizeof(float), GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT); // GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_INVALIDATE_RANGE_BIT |
         memcpy(ptr, vertices, verticesDataSize * sizeof(float));
         mapping.glUnmapBuffer(GL_ARRAY_BUFFER);
+#endif
 
   //      glBufferData(GL_ARRAY_BUFFER, verticesDataSize * sizeof(float), vertices, GL_DYNAMIC_DRAW);
 

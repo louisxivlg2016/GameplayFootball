@@ -7,6 +7,12 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include "types/thread.hpp"  // CoopPumpAll
+// Yield until the browser's next paint (requestAnimationFrame) instead of a bare
+// setTimeout. This aligns each rendered frame with the compositor so it only
+// presents complete frames — kills the flicker. Needs ASYNCIFY (enabled).
+EM_ASYNC_JS(void, gpf_raf_yield, (), {
+  await new Promise(function(resolve){ requestAnimationFrame(resolve); });
+});
 #endif
 
 #include "managers/resourcemanagerpool.hpp"
@@ -318,12 +324,19 @@ namespace blunted {
         sequences.Unlock();
 #ifdef __EMSCRIPTEN__
         // single-threaded browser: no worker will signal us, and we must NOT
-        // block the main thread. Pump the cooperative threads (renderer, etc.)
-        // and yield to the browser (ASYNCIFY) so it can paint and process input.
+        // block the main thread. Pump the cooperative threads (renderer, etc.).
         (void)lock;
         CoopPumpAll();
-        long yield_ms = timeout_ms > 16 ? 16 : (timeout_ms < 0 ? 0 : timeout_ms);
-        emscripten_sleep(yield_ms);
+        // Only yield to the browser (which composites the canvas) when the
+        // frame's work is DONE — i.e. the scheduler is idle-waiting for the next
+        // due time (timeout_ms > 0), which happens after the frame's SwapBuffers.
+        // Yielding on every iteration composited half-drawn frames -> flicker.
+        // A fallback yield every so often keeps long loads from freezing the tab.
+        static int sinceYield = 0;
+        if (timeout_ms > 0 || ++sinceYield > 400) {
+          sinceYield = 0;
+          gpf_raf_yield();  // present the complete frame at the next browser paint
+        }
         bool isMessage = true;
 #else
         boost::system_time tAbsoluteTime = boost::get_system_time() + boost::posix_time::milliseconds(timeout_ms);
