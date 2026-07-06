@@ -8,6 +8,7 @@
 #include "managers/resourcemanagerpool.hpp"
 
 #include "match.hpp"
+#include "wasm_radio_bridge.hpp"
 #include "AIsupport/AIfunctions.hpp"
 
 #include "../main.hpp"
@@ -30,6 +31,11 @@ Referee::Referee(Match *match) : match(match) {
   foul.hasBeenProcessed = true;
 
   afterSetPieceRelaxTime_ms = 0;
+
+  drillType = e_SetPiece_None;
+  drillTeam = 0;
+  drillReps = 0;
+  drillWaitUntil = 0;
 
 
   // whistle
@@ -67,6 +73,22 @@ Referee::~Referee() {
 
 void Referee::Process() {
   //printf("%i", match->GetMatchState());
+
+  // training drill: once an attempt is over, re-force the same set piece,
+  // drillReps times, then end the drill (normal play resumes) and notify the page.
+  if (drillType != e_SetPiece_None && drillWaitUntil != 0 &&
+      match->GetActualTime_ms() >= drillWaitUntil) {
+    drillWaitUntil = 0;
+    if (drillReps > 1) {
+      drillReps--;
+      ForceSetPiece(drillType, drillTeam);
+    } else {
+      drillType = e_SetPiece_None;
+#ifdef __EMSCRIPTEN__
+      EM_ASM({ try { if (window.gpfDrillDone) window.gpfDrillDone(); } catch (e) {} });
+#endif
+    }
+  }
 
   if (match->IsInPlay() && !match->IsInSetPiece()) {
 
@@ -157,6 +179,11 @@ void Referee::Process() {
         }
 
         buffer.active = true;
+        // browser radio (kickoff-after-goal is covered by the "goal" event)
+        if (buffer.desiredSetPiece == e_SetPiece_Corner)
+          gpfRadioEvent("corner", "", buffer.teamID);
+        else if (buffer.desiredSetPiece == e_SetPiece_GoalKick)
+          gpfRadioEvent("goalkick");
       }
     }
 
@@ -180,6 +207,7 @@ void Referee::Process() {
           if (ballPos.coords[1] <= 0) buffer.restartPos.coords[1] = -pitchHalfH;
           buffer.restartPos.coords[2] = 0;
           buffer.active = true;
+          gpfRadioEvent("throwin", "", buffer.teamID);
         }
       }
     }
@@ -226,6 +254,11 @@ void Referee::Process() {
         whistle[1]->Poke(e_SystemType_Audio);
         match->StartPlay();
         match->StartSetPiece();
+#ifdef __EMSCRIPTEN__
+        // training drill: the ball is now live — let the page arm the aim line.
+        if (drillType != e_SetPiece_None)
+          EM_ASM({ try { if (window.gpfDrillReady) window.gpfDrillReady(); } catch (e) {} });
+#endif
       }
     }
   }
@@ -261,6 +294,56 @@ void Referee::PrepareSetPiece(e_SetPiece setPiece) {
   buffer.taker = match->GetTeam(buffer.teamID)->GetController()->GetPieceTaker();
 }
 
+void Referee::ForceSetPiece(e_SetPiece setPiece, int teamID) {
+  match->StopPlay();
+  buffer.desiredSetPiece = setPiece;
+  buffer.teamID = teamID;
+  buffer.endPhase = false;
+  buffer.stopTime = match->GetActualTime_ms();
+  buffer.prepareTime = match->GetActualTime_ms() + 1000;
+  buffer.startTime = buffer.prepareTime + 2000;
+
+  // position the ball near the OPPONENT goal (the goal teamID attacks)
+  signed int oppSide = match->GetTeam(1 - teamID)->GetSide();
+  if (setPiece == e_SetPiece_Penalty) {
+    buffer.restartPos = Vector3((pitchHalfW - 11.0) * oppSide, 0, 0);
+  } else if (setPiece == e_SetPiece_Corner) {
+    buffer.restartPos = Vector3(pitchHalfW * oppSide, pitchHalfH, 0);
+  } else if (setPiece == e_SetPiece_FreeKick) {
+    buffer.restartPos = Vector3((pitchHalfW - 25.0) * oppSide, 8.0, 0);
+  } else {
+    buffer.restartPos = Vector3(0, 0, 0);
+  }
+  buffer.active = true;
+
+  // in a drill: schedule the next attempt a few seconds after this one is taken
+  if (drillType != e_SetPiece_None) drillWaitUntil = buffer.startTime + 6000;
+}
+
+void Referee::StartDrill(e_SetPiece setPiece, int teamID, int reps) {
+  drillType = setPiece;
+  drillTeam = teamID;
+  drillReps = reps;
+  ForceSetPiece(setPiece, teamID);
+}
+
+void Referee::NotifyDrillShotTaken() {
+  if (drillType == e_SetPiece_None) return;
+  // end the set-piece phase so the goalkeeper (and everyone) resume live play,
+  // mirroring the normal "taker touched the ball" transition above.
+  if (match->IsInSetPiece()) {
+    buffer.active = false;
+    match->StopSetPiece();
+    match->GetTeam(0)->GetController()->PrepareSetPiece(e_SetPiece_None);
+    match->GetTeam(1)->GetController()->PrepareSetPiece(e_SetPiece_None);
+    afterSetPieceRelaxTime_ms = 400;
+    foul.foulPlayer = 0;
+    foul.foulType = 0;
+  }
+  // give the player a few seconds to watch the result, then the next attempt
+  drillWaitUntil = match->GetActualTime_ms() + 3500;
+}
+
 void Referee::AlterSetPiecePrepareTime(unsigned long newTime_ms) {
   if (buffer.active) {
     buffer.prepareTime = newTime_ms;
@@ -290,6 +373,7 @@ void Referee::BallTouched() {
           buffer.teamID = abs(lastTouchTeamID - 1);
           buffer.active = true;
           match->SpamMessage("offside!");
+          gpfRadioEvent("offside");
           break;
         } else break;
       }
@@ -436,6 +520,16 @@ bool Referee::CheckFoul() {
       foul.foulPlayer->GiveRedCard(match->GetActualTime_ms() + 6000); // need to find out proper moment
     }
     match->SpamMessage(spamMessage);
+
+    // browser radio: foul/penalty award + any card
+    {
+      int benTeam = foul.foulVictim ? foul.foulVictim->GetTeam()->GetID() : -1;
+      std::string offender = (foul.foulPlayer && foul.foulPlayer->GetPlayerData())
+                                 ? foul.foulPlayer->GetPlayerData()->GetLastName() : std::string();
+      gpfRadioEvent(penalty ? "penalty" : "foul", "", benTeam);
+      if (foul.foulType == 2) gpfRadioEvent("yellow", offender.c_str());
+      else if (foul.foulType == 3) gpfRadioEvent("red", offender.c_str());
+    }
 
     foul.hasBeenProcessed = true;
 

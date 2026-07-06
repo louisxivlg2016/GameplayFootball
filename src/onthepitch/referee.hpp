@@ -47,6 +47,13 @@ class Referee {
 
     void PrepareSetPiece(e_SetPiece setPiece);
 
+    // Training drills: force a specific set piece (penalty/corner/free kick) for
+    // teamID near the opponent goal, instead of normal play. (wasm menu drills)
+    void ForceSetPiece(e_SetPiece setPiece, int teamID);
+    // Start a drill session: force the set piece and re-force it `reps` times
+    // (one per attempt), then end. Used by the wasm training menu.
+    void StartDrill(e_SetPiece setPiece, int teamID, int reps);
+
     const RefereeBuffer &GetBuffer() { return buffer; };
 
     void AlterSetPiecePrepareTime(unsigned long newTime_ms);
@@ -57,6 +64,13 @@ class Referee {
 
     Player *GetCurrentFoulPlayer() { return foul.foulPlayer; }
     int GetCurrentFoulType() { return foul.foulType; }
+
+    // drill state, for the "behind the shooter" training camera
+    bool IsDrillActive() { return drillType != e_SetPiece_None; }
+    int GetDrillTeam() { return drillTeam; }
+    // The user drew an aim line and the ball was launched directly (gpf_drill_shoot):
+    // end the set-piece phase so the keeper reacts, then schedule the next attempt.
+    void NotifyDrillShotTaken();
 
   protected:
     Match *match;
@@ -72,6 +86,12 @@ class Referee {
     Foul foul;
 
     boost::intrusive_ptr<Sound> whistle[4]; // 0: short, 1: long, 2: half time, 3: full time
+
+    // training drill session state (0 = not in a drill)
+    e_SetPiece drillType;
+    int drillTeam;
+    int drillReps;
+    unsigned long drillWaitUntil; // re-force the drill at this match time (0 = idle)
 
 };
 

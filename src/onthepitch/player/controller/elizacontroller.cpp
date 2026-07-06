@@ -136,7 +136,13 @@ void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
 
     PlayerCommand actionCommand;
 
-    if (team->GetController()->GetSetPieceType() == e_SetPiece_Penalty) {
+    if (match->GetReferee()->IsDrillActive() && match->GetBallRetainer() != player) {
+
+      // wasm training drill: don't auto-take. The user's aim line fires the shot
+      // (gpf_drill_shoot -> Ball::Touch). Fall through to the "hold at the ball"
+      // movement command below so the taker just waits on the spot.
+
+    } else if (team->GetController()->GetSetPieceType() == e_SetPiece_Penalty) {
 
       actionCommand.desiredFunctionType = e_FunctionType_Shot;
       actionCommand.useDesiredMovement = false;

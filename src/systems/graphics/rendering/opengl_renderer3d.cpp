@@ -29,9 +29,28 @@
 #include <cmath>
 #ifdef __EMSCRIPTEN__
 #include <regex>  // GLSL 150 -> 300es shader translation
+#include <emscripten.h>        // EMSCRIPTEN_KEEPALIVE
 #include <emscripten/html5.h>  // enable WebGL2 extensions
 #endif
 #include <SDL2/SDL.h>
+
+#ifdef __EMSCRIPTEN__
+// Injected from JS (the HTML menu's "Jouer le match" button): push a real Enter
+// into SDL's event queue so the native menu navigation treats it as a keypress.
+// Synthetic DOM KeyboardEvents don't reach emscripten/SDL, so the menu can only
+// be driven this way from the page. down=1 -> keydown, down=0 -> keyup.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_menu_key(int down) {
+  SDL_Event ev;
+  SDL_zero(ev);
+  ev.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+  ev.key.state = down ? SDL_PRESSED : SDL_RELEASED;
+  ev.key.repeat = 0;
+  ev.key.keysym.sym = SDLK_RETURN;
+  ev.key.keysym.scancode = SDL_SCANCODE_RETURN;
+  ev.key.keysym.mod = 0;
+  SDL_PushEvent(&ev);
+}
+#endif
 
 #include "base/log.hpp"
 #include "managers/environmentmanager.hpp"
@@ -393,10 +412,18 @@ struct GLfunctions {
     // extensions enabled explicitly to make float color buffers renderable.
     {
       EMSCRIPTEN_WEBGL_CONTEXT_HANDLE glctx = emscripten_webgl_get_current_context();
-      emscripten_webgl_enable_extension(glctx, "EXT_color_buffer_float");
-      emscripten_webgl_enable_extension(glctx, "EXT_color_buffer_half_float");
-      emscripten_webgl_enable_extension(glctx, "EXT_float_blend");
-      emscripten_webgl_enable_extension(glctx, "OES_texture_float_linear");
+      EM_BOOL colorBufferFloat = emscripten_webgl_enable_extension(glctx, "EXT_color_buffer_float");
+      EM_BOOL colorBufferHalfFloat = emscripten_webgl_enable_extension(glctx, "EXT_color_buffer_half_float");
+      EM_BOOL floatBlend = emscripten_webgl_enable_extension(glctx, "EXT_float_blend");
+      EM_BOOL textureFloatLinear = emscripten_webgl_enable_extension(glctx, "OES_texture_float_linear");
+      Log(e_Notice, "OpenGLRenderer3D", "CreateContext",
+          std::string("WebGL extension EXT_color_buffer_float: ") + (colorBufferFloat ? "enabled" : "unavailable"));
+      Log(e_Notice, "OpenGLRenderer3D", "CreateContext",
+          std::string("WebGL extension EXT_color_buffer_half_float: ") + (colorBufferHalfFloat ? "enabled" : "unavailable"));
+      Log(e_Notice, "OpenGLRenderer3D", "CreateContext",
+          std::string("WebGL extension EXT_float_blend: ") + (floatBlend ? "enabled" : "unavailable"));
+      Log(e_Notice, "OpenGLRenderer3D", "CreateContext",
+          std::string("WebGL extension OES_texture_float_linear: ") + (textureFloatLinear ? "enabled" : "unavailable"));
     }
 #endif
 
@@ -663,14 +690,23 @@ struct GLfunctions {
     //view.accumBuffer_DepthTexID = CreateTexture(e_InternalPixelFormat_DepthComponent32F, e_PixelFormat_DepthComponent, accumBufWidth, accumBufHeight, false, false, false, false);
     //SetFrameBufferTexture2D(e_TargetAttachment_Depth, view.accumBuffer_DepthTexID);
 
+#ifdef __EMSCRIPTEN__
+    // WebGL2 requires EXT_float_blend for additive blending into RGBA16F.
+    // Keep the deferred accumulation target SDR so sun/point lights blend
+    // reliably even when that optional extension is missing.
+    e_InternalPixelFormat accumBufferFormat = e_InternalPixelFormat_RGBA8;
+#else
+    e_InternalPixelFormat accumBufferFormat = e_InternalPixelFormat_RGBA16F;
+#endif
+
     //view.accumBuffer_AccumTexID = CreateTexture(e_InternalPixelFormat_RGB8, e_PixelFormat_RGB, accumBufWidth, accumBufHeight, false, false, false, false, false);
-    view.accumBuffer_AccumTexID = CreateTexture(e_InternalPixelFormat_RGBA16F, e_PixelFormat_RGBA, accumBufWidth, accumBufHeight, false, false, false, false, false);
+    view.accumBuffer_AccumTexID = CreateTexture(accumBufferFormat, e_PixelFormat_RGBA, accumBufWidth, accumBufHeight, false, false, false, false, false);
     //view.accumBuffer_AccumTexID = CreateTexture(e_InternalPixelFormat_RGBA32F, e_PixelFormat_RGBA, accumBufWidth, accumBufHeight, false, false, false, false, false);
     SetFrameBufferTexture2D(e_TargetAttachment_Color0, view.accumBuffer_AccumTexID);
 
     // Geforce GT 230 doesn't seem to be too happy about e_InternalPixelFormat_RGBA16 for some reason. Very slow framerates ensue
     //view.accumBuffer_ModifierTexID = CreateTexture(e_InternalPixelFormat_RGBA8, e_PixelFormat_RGB, accumBufWidth, accumBufHeight, false, false, false, false, false);
-    view.accumBuffer_ModifierTexID = CreateTexture(e_InternalPixelFormat_RGBA16F, e_PixelFormat_RGBA, accumBufWidth, accumBufHeight, false, false, false, false, false);
+    view.accumBuffer_ModifierTexID = CreateTexture(accumBufferFormat, e_PixelFormat_RGBA, accumBufWidth, accumBufHeight, false, false, false, false, false);
     //view.accumBuffer_ModifierTexID = CreateTexture(e_InternalPixelFormat_RGBA32F, e_PixelFormat_RGBA, accumBufWidth, accumBufHeight, false, false, false, false, false);
     SetFrameBufferTexture2D(e_TargetAttachment_Color1, view.accumBuffer_ModifierTexID);
 
@@ -1607,21 +1643,37 @@ struct GLfunctions {
 
     if (!multisample) {
       GLenum texType = GL_UNSIGNED_BYTE;
+      GLenum glInternal = GetGLInternalPixelFormat(internalPixelFormat);
+      GLenum glFormat = GetGLPixelFormat(pixelFormat);
 #ifdef __EMSCRIPTEN__
       // WebGL2 is strict about (internalformat, type): float color/depth
       // targets can't use UNSIGNED_BYTE like desktop GL tolerates.
+      // Also: SRGB8 and RGB8 are NOT color-renderable in GLES3, so
+      // glGenerateMipmap() fails on them -> the texture becomes mip-incomplete
+      // and samples pure black (this is why the procedural pitch was black).
+      // Promote byte RGB(A) formats to renderable RGBA equivalents.
       switch (internalPixelFormat) {
-        case e_InternalPixelFormat_RGBA16F: texType = GL_HALF_FLOAT; break;
-        case e_InternalPixelFormat_RGBA32F: texType = GL_FLOAT; break;
+        case e_InternalPixelFormat_RGBA16F: texType = GL_HALF_FLOAT; glFormat = GL_RGBA; break;
+        case e_InternalPixelFormat_RGBA32F: texType = GL_FLOAT; glFormat = GL_RGBA; break;
         case e_InternalPixelFormat_DepthComponent:
         case e_InternalPixelFormat_DepthComponent16:  texType = GL_UNSIGNED_SHORT; break;
         case e_InternalPixelFormat_DepthComponent24:
         case e_InternalPixelFormat_DepthComponent32:  texType = GL_UNSIGNED_INT; break;
         case e_InternalPixelFormat_DepthComponent32F: texType = GL_FLOAT; break;
+        case e_InternalPixelFormat_SRGB8:
+        case e_InternalPixelFormat_SRGBA8:
+          glInternal = GL_SRGB8_ALPHA8; glFormat = GL_RGBA; break;
+        case e_InternalPixelFormat_RGB8:
+        case e_InternalPixelFormat_RGB16:
+        case e_InternalPixelFormat_RGBA8:
+        case e_InternalPixelFormat_RGBA4:
+        case e_InternalPixelFormat_RGBA16:
+        case e_InternalPixelFormat_RGB5_A1:
+          glInternal = GL_RGBA8; glFormat = GL_RGBA; break;
         default: break;
       }
 #endif
-      mapping.glTexImage2D(GL_TEXTURE_2D, 0, GetGLInternalPixelFormat(internalPixelFormat), width, height, 0, GetGLPixelFormat(pixelFormat), texType, NULL);
+      mapping.glTexImage2D(GL_TEXTURE_2D, 0, glInternal, width, height, 0, glFormat, texType, NULL);
     } else {
       // todo: needs opengl 3.2 libs!
       //glTexImage2DMultiSample(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, 5, GetGLInternalPixelFormat(internalPixelFormat), width, height, GL_TRUE);
@@ -1645,9 +1697,35 @@ struct GLfunctions {
     int width = source->w;
     int height = source->h;
 
+#ifdef __EMSCRIPTEN__
+    // WebGL2: byte RGB(A) formats must be renderable RGBA to allow mipmaps and
+    // to keep (internalformat, format, type) a valid tuple. Promote + upload
+    // RGBA to match CreateTexture/UpdateTexture (e.g. a non-alpha Image2D resize
+    // would otherwise hit the invalid GL_RGBA8 + GL_RGB combo).
+    GLenum glInternal = GL_RGBA8;
+    switch (internalPixelFormat) {
+      case e_InternalPixelFormat_SRGB8:
+      case e_InternalPixelFormat_SRGBA8: glInternal = GL_SRGB8_ALPHA8; break;
+      default:                           glInternal = GL_RGBA8; break;
+    }
+    SDL_Surface *uploadSurface = source;
+    bool converted = false;
+    if (source->format->format != SDL_PIXELFORMAT_RGBA32) {
+      uploadSurface = SDL_ConvertSurfaceFormat(source, SDL_PIXELFORMAT_RGBA32, 0);
+      converted = true;
+    }
+    if (!uploadSurface) {
+      Log(e_FatalError, "OpenGLRenderer3D", "ResizeTexture", "Could not convert SDL surface for WebGL texture upload");
+    }
+    SDL_LockSurface(uploadSurface);
+    mapping.glTexImage2D(GL_TEXTURE_2D, 0, glInternal, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, uploadSurface->pixels);
+    SDL_UnlockSurface(uploadSurface);
+    if (converted) SDL_FreeSurface(uploadSurface);
+#else
     SDL_LockSurface(source);
     mapping.glTexImage2D(GL_TEXTURE_2D, 0, GetGLInternalPixelFormat(internalPixelFormat), width, height, 0, GetGLPixelFormat(pixelFormat), GL_UNSIGNED_BYTE, source->pixels);
     SDL_UnlockSurface(source);
+#endif
 
     if (mipmaps) {
       mapping.glGenerateMipmap(GL_TEXTURE_2D);
@@ -1702,10 +1780,31 @@ struct GLfunctions {
     int w = source->w;
     int h = source->h;
 
-  SDL_LockSurface(source);
-  mapping.glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, type2, GL_UNSIGNED_BYTE,
-          source->pixels);
-  SDL_UnlockSurface(source);
+#ifdef __EMSCRIPTEN__
+    // All byte colour textures are allocated as renderable RGBA8/SRGB8_ALPHA8
+    // in CreateTexture (GLES3 can't render/mipmap RGB8/SRGB8), so always upload
+    // RGBA data with GL_RGBA to match, regardless of the source alpha flag.
+    const Uint32 uploadFormat = SDL_PIXELFORMAT_RGBA32;
+    SDL_Surface *uploadSurface = source;
+    bool converted = false;
+    if (source->format->format != uploadFormat) {
+      uploadSurface = SDL_ConvertSurfaceFormat(source, uploadFormat, 0);
+      converted = true;
+    }
+    if (!uploadSurface) {
+      Log(e_FatalError, "OpenGLRenderer3D", "UpdateTexture", "Could not convert SDL surface for WebGL texture upload");
+    }
+    SDL_LockSurface(uploadSurface);
+    mapping.glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE,
+            uploadSurface->pixels);
+    SDL_UnlockSurface(uploadSurface);
+    if (converted) SDL_FreeSurface(uploadSurface);
+#else
+    SDL_LockSurface(source);
+    mapping.glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, type2, GL_UNSIGNED_BYTE,
+            source->pixels);
+    SDL_UnlockSurface(source);
+#endif
 
   if (mipmaps) {
     mapping.glGenerateMipmap(GL_TEXTURE_2D);
@@ -2134,6 +2233,9 @@ struct GLfunctions {
       mapping.glBindFragDataLocation(shader.programID, 0, "stdout");
     }
     if (name == "lighting") {
+#ifdef __EMSCRIPTEN__
+      mapping.glBindAttribLocation(shader.programID, 0, "position");
+#endif
       mapping.glBindFragDataLocation(shader.programID, 0, "stdout0");
       mapping.glBindFragDataLocation(shader.programID, 1, "stdout1");
     }

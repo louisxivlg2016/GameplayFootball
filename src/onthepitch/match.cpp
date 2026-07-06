@@ -7,6 +7,7 @@
 #include "../main.hpp"
 
 #include "proceduralpitch.hpp"
+#include "wasm_radio_bridge.hpp"
 
 #include "scene/objectfactory.hpp"
 #include "utils/splitgeometry.hpp"
@@ -371,6 +372,12 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
 
   Log(e_Notice, "Match", "Match", "Done creating match!");
 
+  // hand the two team names to the browser radio + start a fresh commentary
+  gpfRadioReset();
+  gpfRadioSetTeams(matchData->GetTeamData(0)->GetName().c_str(),
+                   matchData->GetTeamData(1)->GetName().c_str());
+  gpfRadioEvent("opening");
+
 
   // light test
 
@@ -686,6 +693,12 @@ void Match::ResetSituation(const Vector3 &focusPos) {
 
 void Match::SetMatchPhase(e_MatchPhase newMatchPhase) {
   matchPhase = newMatchPhase;
+  if (matchPhase == e_MatchPhase_2ndHalf)
+    gpfRadioEvent("halftime", "", -1, GetScore(0), GetScore(1));
+  else if (matchPhase == e_MatchPhase_1stExtraTime)
+    gpfRadioEvent("extratime");
+  else if (matchPhase == e_MatchPhase_Penalties)
+    gpfRadioEvent("shootout");
   if (matchPhase == e_MatchPhase_1stHalf)           matchTime_ms = 0;
   else if (matchPhase == e_MatchPhase_2ndHalf)      matchTime_ms = 2700000;
   else if (matchPhase == e_MatchPhase_1stExtraTime) matchTime_ms = 5400000;
@@ -704,6 +717,7 @@ signed int Match::GetBestPossessionTeamID() {
 
 void Match::GameOver() {
   gameOver = true;
+  gpfRadioEvent("fulltime", "", -1, GetScore(0), GetScore(1));
 }
 
 void Match::GetCameraParams(float &zoom, float &height, float &fov, float &angleFactor) {
@@ -772,7 +786,19 @@ void Match::UpdateIngameCamera() {
 
   int camMethod = 1; // 1 == wide, 2 == birds-eye, 3 == tele
 
-  if (!IsGoalScored() || (IsGoalScored() && goalScoredTimer < 1000)) {
+  if (GetReferee()->IsDrillActive()) {
+
+    // training drill: camera BEHIND the shooter, facing the goal
+    Vector3 ballPos = ball->Predict(0).Get2D();
+    signed int oppSide = GetTeam(1 - GetReferee()->GetDrillTeam())->GetSide(); // goal being attacked
+    cameraOrientation.SetAngleAxis(0.40f * pi, Vector3(1, 0, 0));               // tilt down
+    cameraNodeOrientation.SetAngleAxis(-oppSide * 0.5f * pi, Vector3(0, 0, 1)); // yaw to face the goal
+    cameraNodePosition = ballPos + Vector3(-13.0f * oppSide, 0, 0) + Vector3(0, 0, 4.5f);
+    cameraFOV = 30.0f;
+    cameraNearCap = 1;
+    cameraFarCap = 200;
+
+  } else if (!IsGoalScored() || (IsGoalScored() && goalScoredTimer < 1000)) {
 
     if (camMethod == 1) {
 
@@ -836,8 +862,16 @@ void Match::UpdateIngameCamera() {
     cameraFarCap = 220;
 
     if (goalScoredTimer == 6000) {
+#ifdef __EMSCRIPTEN__
+      // The extended-replay menu page doesn't work in the wasm port, and pausing
+      // here freezes the match FOREVER: pause=true stops Process(), so the
+      // referee can never run to set up the kickoff that would clear the goal
+      // state. Skip the replay — let play continue to the kickoff (ResetSituation
+      // then resets goalScored), exactly like dismissing the replay on native.
+#else
       pause = true;
       sig_OnExtendedReplayMoment(this);
+#endif
     }
   }
 }
@@ -966,6 +1000,47 @@ void Match::Process() {
 
     if (IsInPlay() && !IsInSetPiece()) GetMatchData()->AddPossessionTime_10ms(designatedPossessionPlayer->GetTeamID());
 
+#ifdef __EMSCRIPTEN__
+    // browser radio play-by-play: push a match snapshot every few frames. Gated
+    // on frame count (not sim-time) so it flows at the same cadence regardless
+    // of how fast the sim clock advances; the JS commentary loop paces speech.
+    static unsigned long s_radioTickCall = 0;
+    if (s_radioTickCall++ % 6 == 0) {
+      Player *carrier = GetBallRetainer();
+      if (!carrier) carrier = GetDesignatedPossessionPlayer();
+      int loose = (GetBestPossessionTeamID() < 0) ? 1 : 0;
+      std::string carrierName, oppName;
+      int teamId = 0, keeper = 0;
+      double depth = 0.0, speed = 0.0, oppDist = 999.0;
+      if (carrier && carrier->GetPlayerData()) {
+        carrierName = carrier->GetPlayerData()->GetLastName();
+        teamId = carrier->GetTeamID();
+        Team *t = carrier->GetTeam();
+        keeper = (t && t->GetGoalie() == carrier) ? 1 : 0;
+        Vector3 pos = carrier->GetPosition();
+        int side = t ? t->GetSide() : 1;
+        depth = clamp((double)(pos.coords[0] * side / pitchHalfW), -1.0, 1.0);
+        speed = carrier->GetFloatVelocity();
+        std::vector<Player*> opps;
+        GetActiveTeamPlayers(1 - teamId, opps);
+        double bestD2 = oppDist * oppDist;
+        for (unsigned int i = 0; i < opps.size(); i++) {
+          if (!opps[i] || !opps[i]->GetPlayerData()) continue;
+          Vector3 op = opps[i]->GetPosition();
+          double dx = op.coords[0] - pos.coords[0], dy = op.coords[1] - pos.coords[1];
+          double d2 = dx * dx + dy * dy;
+          if (d2 < bestD2) { bestD2 = d2; oppName = opps[i]->GetPlayerData()->GetLastName(); }
+        }
+        if (!oppName.empty()) oppDist = std::sqrt(bestD2);
+      } else {
+        loose = 1;
+      }
+      gpfRadioTick(loose, carrierName.c_str(), teamId, keeper, depth, speed,
+                   oppName.c_str(), oppDist, GetScore(0), GetScore(1),
+                   matchTime_ms / 1000.0, 0, IsGoalScored() ? 1 : 0);
+    }
+#endif
+
 
     // check for goals
 
@@ -1010,6 +1085,15 @@ void Match::Process() {
           } else {
             SpamMessage("It's an OWN GOAL! oh noes!", 4000);
           }
+        }
+
+        // browser radio: shout the goal (scoring team + scorer name)
+        {
+          std::string scorer = (lastGoalScorer && lastGoalScorer->GetPlayerData())
+                                   ? lastGoalScorer->GetPlayerData()->GetLastName()
+                                   : std::string();
+          gpfRadioEvent("goal", scorer.c_str(), GetLastGoalTeamID(),
+                        matchData->GetGoalCount(0), matchData->GetGoalCount(1));
         }
 
       }

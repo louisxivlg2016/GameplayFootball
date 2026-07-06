@@ -191,6 +191,15 @@ namespace blunted {
     // lights
     //renderer->SetMatrixMode(e_MatrixMode_ModelView);
 
+#ifdef __EMSCRIPTEN__
+    renderer->BindFrameBuffer(view.accumBufferID);
+    targets.push_back(e_TargetAttachment_Color0);
+    targets.push_back(e_TargetAttachment_Color1);
+    renderer->SetRenderTargets(targets);
+    targets.clear();
+    renderer->SetColorMask(true, true, true, true);
+#endif
+
     renderer->UseShader("lighting");
 
     renderer->SetBlendingMode(e_BlendingMode_On);

@@ -12,6 +12,44 @@
 
 #include "blunted.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+// Training drills from the HTML menu: force the live match into a specific set
+// piece (1=KickOff,3=FreeKick,4=Corner,6=Penalty — e_SetPiece values) for team 0.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (m && m->GetReferee()) m->GetReferee()->StartDrill((e_SetPiece)setPiece, 0, 10);
+}
+
+// Training aim line: the user dragged a shot line on screen. All three inputs are
+// normalized from the drag: aimRight in [-1,1] (screen right = +), aimUp in [0,1]
+// (screen up = loft), power in [0,1] (drag length). We convert to a world-space
+// velocity (m/s, z = up) aimed at the goal the drill team attacks, and launch the
+// ball directly with Ball::Touch — the exact call the engine's own shots use.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp, float power) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !m->GetReferee() || !m->GetBall()) return;
+  Referee *ref = m->GetReferee();
+  if (!ref->IsDrillActive()) return;
+
+  signed int oppSide = m->GetTeam(1 - ref->GetDrillTeam())->GetSide(); // goal attacked
+  float p = clamp(power, 0.0f, 1.0f);
+  float r = clamp(aimRight, -1.0f, 1.0f);
+  float u = clamp(aimUp, 0.0f, 1.0f);
+
+  float speed = 20.0f + 15.0f * p;      // forward pace toward goal (m/s)
+  float vx = oppSide * speed;           // toward the attacked goal
+  float vy = -oppSide * r * 9.0f;       // lateral: screen-right -> correct world side
+  float vz = 2.0f + u * 9.0f;           // loft (2..11 m/s)
+
+  m->GetBall()->Touch(Vector3(vx, vy, vz));
+  m->GetBall()->SetRotation(0, 0, 0, 1);
+  ref->NotifyDrillShotTaken();
+}
+#endif
+
 void UploadFullbodyModel::Update() {
   for (unsigned int i = 0; i < geometryToUpload.size(); i++) {
     geometryToUpload.at(i)->OnUpdateGeometryData(false);

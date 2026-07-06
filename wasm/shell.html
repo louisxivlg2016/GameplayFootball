@@ -12,7 +12,9 @@
         max-width: 100%; max-height: 100vh; }
       #log { position: fixed; left: 0; bottom: 0; max-height: 38vh; width: 100%;
         overflow: auto; padding: 6px 10px; background: rgba(0,0,0,.72);
-        white-space: pre-wrap; box-sizing: border-box; }
+        white-space: pre-wrap; box-sizing: border-box; display: none; }
+      /* the debug console is hidden by default; add ?debug=1 to the URL to show it */
+      body.debug #log { display: block; }
       .err { color: #ff6b6b; } .ok { color: #6bd39a; }
     </style>
   </head>
@@ -23,6 +25,9 @@
     </div>
     <div id="log"></div>
     <script>
+      // debug console: hidden unless the page is opened with ?debug=1
+      const gpfDebug = new URLSearchParams(location.search).get("debug") === "1";
+      if (gpfDebug) document.body.classList.add("debug");
       const logEl = document.getElementById("log");
       const line = (s, cls) => {
         const d = document.createElement("div");
@@ -40,6 +45,9 @@
         onAbort: (w) => line("ABORT: " + w, "err"),
       };
     </script>
+    <!-- multi-language TTS radio commentary (installs window.gpfRadio* hooks the
+         C++ engine calls); ?lang=xx picks the language, R toggles it -->
+    <script type="module" src="/radio.js"></script>
     {{{ SCRIPT }}}
   </body>
 </html>

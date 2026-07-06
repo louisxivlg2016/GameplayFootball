@@ -281,6 +281,29 @@ namespace blunted {
         objectIter++;
       }
 
+#ifdef __EMSCRIPTEN__
+      // Directional lights are scene-wide, so do not let frustum/AABB culling
+      // drop the sun from the deferred fullscreen lighting pass in WebGL builds.
+      std::deque < boost::intrusive_ptr<Light> > allLights;
+      boost::static_pointer_cast<Scene3D>(scene)->GetObjects<Light>(e_ObjectType_Light, allLights);
+      std::deque < boost::intrusive_ptr<Light> >::iterator allLightIter = allLights.begin();
+      while (allLightIter != allLights.end()) {
+        if ((*allLightIter)->IsEnabled() && (*allLightIter)->GetType() == e_LightType_Directional) {
+          bool alreadyVisible = false;
+          std::deque < boost::intrusive_ptr<Light> >::iterator visibleLightIter = visibleLights.begin();
+          while (visibleLightIter != visibleLights.end()) {
+            if (*visibleLightIter == *allLightIter) {
+              alreadyVisible = true;
+              break;
+            }
+            visibleLightIter++;
+          }
+          if (!alreadyVisible) visibleLights.push_back(*allLightIter);
+        }
+        allLightIter++;
+      }
+#endif
+
 
       // prepare shadow maps
 
