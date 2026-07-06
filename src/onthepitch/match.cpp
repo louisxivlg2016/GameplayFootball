@@ -788,15 +788,32 @@ void Match::UpdateIngameCamera() {
 
   if (GetReferee()->IsDrillActive()) {
 
-    // training drill: camera BEHIND the shooter, facing the goal
+    // training drill cameras
     Vector3 ballPos = ball->Predict(0).Get2D();
     signed int oppSide = GetTeam(1 - GetReferee()->GetDrillTeam())->GetSide(); // goal being attacked
-    cameraOrientation.SetAngleAxis(0.40f * pi, Vector3(1, 0, 0));               // tilt down
-    cameraNodeOrientation.SetAngleAxis(-oppSide * 0.5f * pi, Vector3(0, 0, 1)); // yaw to face the goal
-    cameraNodePosition = ballPos + Vector3(-13.0f * oppSide, 0, 0) + Vector3(0, 0, 4.5f);
-    cameraFOV = 30.0f;
+    e_SetPiece drillType = GetReferee()->GetDrillType();
+
+    if (drillType == e_SetPiece_Corner) {
+      // corner: camera high and BEHIND the corner taker, looking across the box
+      // at the goal so you see the whole pitch + goal.
+      Vector3 target = Vector3((pitchHalfW - 3.0f) * oppSide, 0.0f, 1.0f);      // near the goal mouth
+      cameraNodePosition = ballPos + Vector3(4.0f * oppSide, 9.0f, 0.0f);       // beyond goal line + behind corner
+      cameraNodePosition.coords[2] = 13.0f;                                     // up high
+      cameraNodeOrientation.SetAngleAxis((target - cameraNodePosition).GetAngle2D() + 1.5f * pi, Vector3(0, 0, 1));
+      cameraOrientation.SetAngleAxis(0.41f * pi, Vector3(1, 0, 0));
+      cameraFOV = 36.0f;
+
+    } else {
+      // penalty / free kick: camera BEHIND the shooter, facing the goal.
+      float back = 13.0f, height = 4.5f, tilt = 0.40f;
+      if (drillType == e_SetPiece_FreeKick) { back = 15.0f; height = 7.5f; tilt = 0.43f; } // a bit higher
+      cameraOrientation.SetAngleAxis(tilt * pi, Vector3(1, 0, 0));               // tilt down
+      cameraNodeOrientation.SetAngleAxis(-oppSide * 0.5f * pi, Vector3(0, 0, 1)); // yaw to face the goal
+      cameraNodePosition = ballPos + Vector3(-back * oppSide, 0, 0) + Vector3(0, 0, height);
+      cameraFOV = 30.0f;
+    }
     cameraNearCap = 1;
-    cameraFarCap = 200;
+    cameraFarCap = 250;
 
   } else if (!IsGoalScored() || (IsGoalScored() && goalScoredTimer < 1000)) {
 

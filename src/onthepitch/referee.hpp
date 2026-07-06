@@ -65,9 +65,10 @@ class Referee {
     Player *GetCurrentFoulPlayer() { return foul.foulPlayer; }
     int GetCurrentFoulType() { return foul.foulType; }
 
-    // drill state, for the "behind the shooter" training camera
+    // drill state, for the training cameras
     bool IsDrillActive() { return drillType != e_SetPiece_None; }
     int GetDrillTeam() { return drillTeam; }
+    e_SetPiece GetDrillType() { return drillType; }
     // The user drew an aim line and the ball was launched directly (gpf_drill_shoot):
     // end the set-piece phase so the keeper reacts, then schedule the next attempt.
     void NotifyDrillShotTaken();

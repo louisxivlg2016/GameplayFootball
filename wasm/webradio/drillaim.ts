@@ -1,20 +1,24 @@
-// Training aim line. During a drill (penalty / free kick / corner), the C++
-// referee calls window.gpfDrillReady() when the ball is live. We then let the
-// user drag an aim line on top of the game: direction = where it goes, length =
-// power. On release we hand three normalized values to the native shot hook
-// (Module._gpf_drill_shoot), which converts them to a world velocity and kicks
-// the ball. gpfDrillDone (all reps over) or a fired shot disarms the overlay.
+// Training aim curve. During a drill (penalty / free kick / corner) the C++
+// referee calls window.gpfDrillReady() when the ball is live. The user then
+// traces a FREE CURVE with the finger (or mouse) anywhere on screen; we draw it
+// as a white poly-line. On release we turn it into a shot: the chord (start->end)
+// gives direction + power, and how much the path bows sideways gives the swerve
+// (curl). Those go to Module._gpf_drill_shoot(aimRight, aimUp, power, curl), which
+// launches the ball and spins it so it bends the way you drew. Fires on release;
+// gpfDrillDone (all reps over) disarms the overlay.
 
 interface DrillModule {
-  _gpf_drill_shoot?: (aimRight: number, aimUp: number, power: number) => void;
+  _gpf_drill_shoot?: (aimRight: number, aimUp: number, power: number, curl: number) => void;
 }
+
+interface Pt { x: number; y: number; }
 
 let canvas: HTMLCanvasElement | null = null;
 let ctx: CanvasRenderingContext2D | null = null;
 let hint: HTMLElement | null = null;
 let armed = false;
 let dragging = false;
-let x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+let pts: Pt[] = [];
 
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
@@ -33,72 +37,90 @@ function clear(): void {
 }
 
 function draw(): void {
-  if (!ctx) return;
+  if (!ctx || pts.length === 0) return;
   clear();
-  if (!dragging) return;
-
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  // a plain white line, with a soft dark halo so it stays visible on the pitch
   ctx.strokeStyle = "#ffffff";
   ctx.lineWidth = 4;
   ctx.shadowColor = "rgba(0,0,0,0.6)";
   ctx.shadowBlur = 6;
   ctx.beginPath();
-  ctx.moveTo(x0, y0);
-  ctx.lineTo(x1, y1);
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.stroke();
-  // small white dot at the start, so you see where the line begins
+  // white dot at the start
   ctx.shadowBlur = 0;
   ctx.fillStyle = "#ffffff";
   ctx.beginPath();
-  ctx.arc(x0, y0, 5, 0, Math.PI * 2);
+  ctx.arc(pts[0].x, pts[0].y, 5, 0, Math.PI * 2);
   ctx.fill();
 }
 
-function onDown(e: PointerEvent): void {
+// Start / update / finish the drag — a mouse and a finger feed the same code.
+function begin(cx: number, cy: number): void {
   if (!armed) return;
   dragging = true;
-  x0 = x1 = e.clientX;
-  y0 = y1 = e.clientY;
+  pts = [{ x: cx, y: cy }];
   if (hint) hint.style.opacity = "0";
-  canvas?.setPointerCapture(e.pointerId);
-  e.preventDefault();
 }
 
-function onMove(e: PointerEvent): void {
+function move(cx: number, cy: number): void {
   if (!dragging) return;
-  x1 = e.clientX;
-  y1 = e.clientY;
+  const last = pts[pts.length - 1];
+  if (!last || Math.hypot(cx - last.x, cy - last.y) >= 2) pts.push({ x: cx, y: cy });
   draw();
-  e.preventDefault();
 }
 
-function onUp(e: PointerEvent): void {
+function end(cx: number, cy: number): void {
   if (!dragging) return;
   dragging = false;
-  x1 = e.clientX;
-  y1 = e.clientY;
+  pts.push({ x: cx, y: cy });
   clear();
-  const dx = x1 - x0;
-  const dyUp = y0 - y1; // upward positive
-  const len = Math.hypot(dx, y1 - y0);
-  const H = window.innerHeight;
-  if (len < 16) return; // a tap, not a shot — keep armed
 
-  const aimRight = clamp(dx / (H * 0.35), -1, 1);          // left / right
+  const s = pts[0];
+  const e = pts[pts.length - 1];
+  const dx = e.x - s.x;
+  const dyUp = s.y - e.y; // screen up = positive
+  const chordLen = Math.hypot(dx, e.y - s.y);
+  const H = window.innerHeight;
+  if (chordLen < 16) { if (armed && hint) hint.style.opacity = "1"; return; } // too short — keep armed
+
+  const aimRight = clamp(dx / (H * 0.35), -1, 1);              // left / right
   const aimUp = clamp(Math.max(0, dyUp) / (H * 0.7), 0.05, 1); // loft
-  const power = clamp(len / (H * 0.5), 0.2, 1);            // pace
+  const power = clamp(chordLen / (H * 0.5), 0.2, 1);           // pace
+
+  // curl: peak signed sideways bow of the path off the chord (screen-right = +)
+  let peak = 0;
+  for (const p of pts) {
+    const cz = dx * (p.y - s.y) - (e.y - s.y) * (p.x - s.x);
+    if (Math.abs(cz) > Math.abs(peak)) peak = cz;
+  }
+  const perp = peak / chordLen;                     // px off the chord
+  const curl = clamp(perp / (chordLen * 0.4), -1, 1);
 
   const M = (window as unknown as { Module?: DrillModule }).Module;
-  M?._gpf_drill_shoot?.(aimRight, aimUp, power);
+  M?._gpf_drill_shoot?.(aimRight, aimUp, power, curl);
 
   disarm(); // one shot per attempt; re-armed by the next gpfDrillReady
+}
+
+function touchXY(e: TouchEvent): Touch | undefined {
+  return e.changedTouches[0] || e.touches[0];
+}
+
+// Hide the top-right SON / RADIO / LANGUE pills while a drill runs — in the
+// set-piece cameras they land right on top of the keeper / goal.
+function setPillsHidden(hidden: boolean): void {
+  const m = document.getElementById("gpf-menu");
+  if (m) m.style.display = hidden ? "none" : "";
 }
 
 function arm(): void {
   armed = true;
   dragging = false;
+  pts = [];
+  setPillsHidden(true);
   if (canvas) { canvas.style.display = "block"; canvas.style.pointerEvents = "auto"; }
   if (hint) hint.style.opacity = "1";
 }
@@ -106,6 +128,7 @@ function arm(): void {
 function disarm(): void {
   armed = false;
   dragging = false;
+  pts = [];
   clear();
   if (canvas) canvas.style.pointerEvents = "none";
   if (hint) hint.style.opacity = "0";
@@ -124,7 +147,7 @@ export function initDrillAim(): void {
 
   hint = document.createElement("div");
   hint.id = "gpf-drill-hint";
-  hint.textContent = "Trace un trait pour tirer";
+  hint.textContent = "Trace la trajectoire du tir au doigt";
   Object.assign(hint.style, {
     position: "fixed", left: "50%", bottom: "24px", transform: "translateX(-50%)",
     zIndex: "41", padding: "8px 18px", borderRadius: "999px",
@@ -135,16 +158,31 @@ export function initDrillAim(): void {
 
   document.body.append(canvas, hint);
   fit();
-
   window.addEventListener("resize", fit);
-  canvas.addEventListener("pointerdown", onDown);
-  canvas.addEventListener("pointermove", onMove);
-  canvas.addEventListener("pointerup", onUp);
-  canvas.addEventListener("pointercancel", () => { dragging = false; clear(); });
+
+  // Touch (finger) — non-passive so preventDefault() stops the page scrolling
+  // while you draw; touch-action:none on the canvas backs it up.
+  canvas.addEventListener("touchstart", (e: TouchEvent) => {
+    const t = touchXY(e); if (!t || !armed) return;
+    begin(t.clientX, t.clientY); e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e: TouchEvent) => {
+    const t = touchXY(e); if (!t || !dragging) return;
+    move(t.clientX, t.clientY); e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener("touchend", (e: TouchEvent) => {
+    const t = touchXY(e); if (!t) return;
+    end(t.clientX, t.clientY); e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener("touchcancel", () => { dragging = false; clear(); });
+
+  // Mouse (desktop) — track on window so a drag off-canvas still follows.
+  canvas.addEventListener("mousedown", (e: MouseEvent) => begin(e.clientX, e.clientY));
+  window.addEventListener("mousemove", (e: MouseEvent) => move(e.clientX, e.clientY));
+  window.addEventListener("mouseup", (e: MouseEvent) => end(e.clientX, e.clientY));
 
   const w = window as unknown as { gpfDrillReady?: () => void; gpfDrillDone?: () => void };
   w.gpfDrillReady = arm;
-  // chain onto whatever gpfDrillDone the home menu installed (it shows the menu)
   const prevDone = w.gpfDrillDone;
-  w.gpfDrillDone = (): void => { disarm(); try { prevDone?.(); } catch { /* ignore */ } };
+  w.gpfDrillDone = (): void => { disarm(); setPillsHidden(false); try { prevDone?.(); } catch { /* ignore */ } };
 }

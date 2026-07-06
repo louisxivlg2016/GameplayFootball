@@ -22,12 +22,14 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {
   if (m && m->GetReferee()) m->GetReferee()->StartDrill((e_SetPiece)setPiece, 0, 10);
 }
 
-// Training aim line: the user dragged a shot line on screen. All three inputs are
-// normalized from the drag: aimRight in [-1,1] (screen right = +), aimUp in [0,1]
-// (screen up = loft), power in [0,1] (drag length). We convert to a world-space
-// velocity (m/s, z = up) aimed at the goal the drill team attacks, and launch the
-// ball directly with Ball::Touch — the exact call the engine's own shots use.
-extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp, float power) {
+// Training aim curve: the user traced a shot trajectory on screen. Inputs are
+// normalized from the drawing: aimRight in [-1,1] (screen right = +), aimUp in
+// [0,1] (screen up = loft), power in [0,1] (chord length), curl in [-1,1] (how
+// much the path bowed sideways, screen-right = +). We convert to a world-space
+// velocity (m/s, z = up) aimed at the goal the drill team attacks, launch the
+// ball with Ball::Touch, and spin it about Z so the Magnus effect bends it the
+// way it was drawn.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp, float power, float curl) {
   boost::shared_ptr<GameTask> gt = GetGameTask();
   Match *m = gt ? gt->GetMatch() : 0;
   if (!m || !m->GetReferee() || !m->GetBall()) return;
@@ -38,6 +40,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp
   float p = clamp(power, 0.0f, 1.0f);
   float r = clamp(aimRight, -1.0f, 1.0f);
   float u = clamp(aimUp, 0.0f, 1.0f);
+  float c = clamp(curl, -1.0f, 1.0f);
 
   float speed = 20.0f + 15.0f * p;      // forward pace toward goal (m/s)
   float vx = oppSide * speed;           // toward the attacked goal
@@ -45,7 +48,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp
   float vz = 2.0f + u * 9.0f;           // loft (2..11 m/s)
 
   m->GetBall()->Touch(Vector3(vx, vy, vz));
-  m->GetBall()->SetRotation(0, 0, 0, 1);
+  // Magnus swerve = momentumDir x (-rotVec); a Z spin bends the ball horizontally.
+  // swerve_Y = oppSide * zSpin, and screen-right is world -oppSide*Y, so zSpin =
+  // -curl * M gives a screen-right curve regardless of which goal we attack.
+  // Engine's own shots use zRot up to ~+-420; 350 is a strong-but-sane full curl.
+  m->GetBall()->SetRotation(0.0f, 0.0f, -c * 350.0f, 1.0f);
   ref->NotifyDrillShotTaken();
 }
 #endif
