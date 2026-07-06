@@ -14,6 +14,7 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#include "onthepitch/player/controller/icontroller.hpp"
 // Training drills from the HTML menu: force the live match into a specific set
 // piece (1=KickOff,3=FreeKick,4=Corner,6=Penalty — e_SetPiece values) for team 0.
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {
@@ -54,6 +55,69 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp
   // Engine's own shots use zRot up to ~+-420; 350 is a strong-but-sane full curl.
   m->GetBall()->SetRotation(0.0f, 0.0f, -c * 350.0f, 1.0f);
   ref->NotifyDrillShotTaken();
+}
+
+// ---- Goalkeeper drill -----------------------------------------------------
+// The AI (team 1) takes penalties; the human is team 0's keeper. When the user
+// taps a left/right arrow we bind this external controller to the keeper: it
+// commits the keeper to that side (Movement lunge) AND requests the real diving
+// save (Deflect, auto-aimed at the ball when it is in reach). A wrong guess
+// lunges the wrong way and the Deflect can't reach -> goal.
+class KeeperDiveController : public IController {
+  int diveDir; // world-Y sign to lunge toward
+ public:
+  KeeperDiveController(Match *m, int dir) : IController(m), diveDir(dir) {}
+  void RequestCommand(PlayerCommandQueue &q) {
+    PlayerCommand deflect;                                  // the real diving save
+    deflect.desiredFunctionType = e_FunctionType_Deflect;
+    deflect.useDesiredMovement = false;
+    deflect.useDesiredLookAt = false;
+    q.push_back(deflect);
+    PlayerCommand mv;                                       // commit to the chosen side
+    mv.desiredFunctionType = e_FunctionType_Movement;
+    mv.useDesiredMovement = true;
+    mv.desiredDirection = Vector3(0, (float)diveDir, 0);
+    mv.strictMovement = e_StrictMovement_True;
+    mv.desiredVelocityFloat = sprintVelocity;
+    mv.useDesiredLookAt = true;
+    mv.desiredLookAt = player->GetPosition() +
+        (match->GetBall()->Predict(40).Get2D() - player->GetPosition()).GetNormalized(Vector3(0)) * 10.0f;
+    q.push_back(mv);
+  }
+  Vector3 GetDirection() { return Vector3(0, (float)diveDir, 0); }
+  float GetFloatVelocity() { return sprintVelocity; }
+  void Reset() {}
+};
+
+static KeeperDiveController *g_keeperDive = 0;
+static PlayerBase *g_keeperGK = 0;
+
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_keeper_drill() {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (m && m->GetReferee()) m->GetReferee()->StartKeeperDrill(10);
+}
+
+// dir: -1 = dive screen-left, +1 = screen-right, 0 = restore the AI keeper.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_keeper_dive(int dir) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !m->GetReferee()) return;
+  Referee *ref = m->GetReferee();
+
+  // always clear any previous dive controller first
+  if (g_keeperGK) { g_keeperGK->SetExternalController(0); g_keeperGK = 0; }
+  if (g_keeperDive) { delete g_keeperDive; g_keeperDive = 0; }
+  if (dir == 0) return; // restore AI keeper
+
+  int keeperTeam = 1 - ref->GetDrillTeam();
+  Player *gk = m->GetTeam(keeperTeam)->GetGoalie();
+  if (!gk) return;
+  // map screen dir to a world-Y side via the keeper's team side (see camera)
+  signed int keeperSide = m->GetTeam(keeperTeam)->GetSide();
+  g_keeperDive = new KeeperDiveController(m, (dir > 0 ? 1 : -1) * keeperSide);
+  g_keeperGK = gk;
+  gk->SetExternalController(g_keeperDive);
 }
 #endif
 

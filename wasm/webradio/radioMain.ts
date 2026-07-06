@@ -13,6 +13,7 @@ import { initLineup } from "./lineup";
 import { initNational } from "./national";
 import { initTraining } from "./training";
 import { initDrillAim } from "./drillaim";
+import { initKeeperArrows } from "./keeperarrows";
 import {
   type RadioEvent,
   audioPeak,
@@ -102,6 +103,7 @@ initNational();
 initHomeMenu();
 initMenu();
 initDrillAim();
+initKeeperArrows();
 
 // R toggles the commentary (matches the web version); ignore when typing.
 window.addEventListener("keydown", (e) => {

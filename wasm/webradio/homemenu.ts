@@ -141,10 +141,16 @@ export function startNativeMatch(): void {
 
 // a training drill (e_SetPiece value) to force once the match is up, or 0 = none
 let pendingDrill = 0;
-export function setPendingDrill(setPiece: number): void { pendingDrill = setPiece; }
+let pendingKeeper = false;
+export function setPendingDrill(setPiece: number): void { pendingDrill = setPiece; pendingKeeper = false; }
+export function setPendingKeeper(): void { pendingKeeper = true; pendingDrill = 0; }
 function fireDrill(sp: number): void {
   const M = (window as unknown as { Module?: { _gpf_start_drill?: (n: number) => void } }).Module;
   M?._gpf_start_drill?.(sp);
+}
+function fireKeeper(): void {
+  const M = (window as unknown as { Module?: { _gpf_start_keeper_drill?: () => void } }).Module;
+  M?._gpf_start_keeper_drill?.();
 }
 // the C++ referee calls this when a drill session's reps are all done -> menu
 (window as unknown as { gpfDrillDone?: () => void }).gpfDrillDone = (): void => show();
@@ -157,7 +163,11 @@ export function onMatchStarted(): void {
   hideTraining();
   hideClubs();
   hideNational();
-  if (pendingDrill) {
+  if (pendingKeeper) {
+    pendingKeeper = false;
+    // let the match settle, then start the keeper drill (bot takes penalties).
+    window.setTimeout(() => fireKeeper(), 3000);
+  } else if (pendingDrill) {
     const sp = pendingDrill;
     pendingDrill = 0;
     // let the match kick off + settle, then start the drill session. The C++

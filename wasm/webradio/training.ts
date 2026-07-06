@@ -4,15 +4,16 @@
  * the menus and starts the C++ match (the native build has no separate drill
  * modes yet, so every tile launches a normal match for now).
  */
-import { setPendingDrill, startNativeMatch } from "./homemenu";
+import { setPendingDrill, setPendingKeeper, startNativeMatch } from "./homemenu";
 
 // setPiece = e_SetPiece value (FreeKick=3, Corner=4, Penalty=6; 0 = open play)
-interface Drill { label: string; sub: string; img: string; setPiece: number }
+interface Drill { label: string; sub: string; img?: string; setPiece: number; keeper?: boolean; emoji?: string }
 const DRILLS: Drill[] = [
   { label: "Penalty", sub: "Tire au but face au gardien", img: "/menu-assets/training/penalty.jpeg", setPiece: 6 },
   { label: "Coup franc", sub: "Passe le mur", img: "/menu-assets/training/freekick.jpeg", setPiece: 3 },
   { label: "Corner", sub: "Centre depuis le corner", img: "/menu-assets/training/corner.jpeg", setPiece: 4 },
   { label: "Dribble", sub: "Élimine ton adversaire", img: "/menu-assets/training-tackle.png", setPiece: 0 },
+  { label: "Gardien", sub: "Le bot tire, arrête-le !", setPiece: 6, keeper: true, emoji: "🧤" },
 ];
 
 const CSS = `
@@ -32,7 +33,11 @@ body.gpf-training-open #gpf-menu { display:none !important; }
   background:rgba(255,255,255,.12); border:2px solid rgba(255,255,255,.24); border-radius:6px;
   font-family:inherit; font-size:14px; font-weight:800; }
 #gpf-training .t-grid { flex:1; min-height:0; display:grid; grid-template-columns:repeat(2,1fr);
-  grid-template-rows:repeat(2,1fr); gap:16px; }
+  grid-auto-rows:minmax(0,1fr); gap:16px; overflow:auto; }
+#gpf-training .t-card.keeper { background:linear-gradient(145deg,#0b3b2e,#0a6b4a); display:flex;
+  align-items:center; justify-content:center; }
+#gpf-training .t-card.keeper .t-emoji { font-size:92px; line-height:1;
+  filter:drop-shadow(0 6px 14px rgba(0,0,0,.55)); }
 #gpf-training .t-card { position:relative; pointer-events:auto; cursor:pointer; overflow:hidden; border-radius:12px;
   border:3px solid rgba(255,255,255,.22); box-shadow:0 16px 30px rgba(0,0,0,.42); background:#0c1119;
   padding:0; font-family:inherit; text-align:left; }
@@ -79,9 +84,17 @@ export function initTraining(): void {
   const grid = root.querySelector(".t-grid")!;
   for (const d of DRILLS) {
     const c = document.createElement("button");
-    c.className = "t-card";
-    c.innerHTML = `<img src="${d.img}" alt="${d.label}"><span class="t-cap"><b>${d.label}</b><em>${d.sub}</em></span>`;
-    c.addEventListener("click", () => { hideTraining(); setPendingDrill(d.setPiece); startNativeMatch(); });
+    c.className = "t-card" + (d.keeper ? " keeper" : "");
+    c.innerHTML = (d.keeper
+      ? `<span class="t-emoji">${d.emoji}</span>`
+      : `<img src="${d.img}" alt="${d.label}">`)
+      + `<span class="t-cap"><b>${d.label}</b><em>${d.sub}</em></span>`;
+    c.addEventListener("click", () => {
+      hideTraining();
+      if (d.keeper) setPendingKeeper();
+      else setPendingDrill(d.setPiece);
+      startNativeMatch();
+    });
     grid.appendChild(c);
   }
   root.querySelector(".t-back")!.addEventListener("click", hideTraining);

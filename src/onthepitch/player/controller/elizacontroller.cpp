@@ -136,11 +136,12 @@ void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
 
     PlayerCommand actionCommand;
 
-    if (match->GetReferee()->IsDrillActive() && match->GetBallRetainer() != player) {
+    if (match->GetReferee()->IsDrillActive() && !match->GetReferee()->IsKeeperDrill() && match->GetBallRetainer() != player) {
 
-      // wasm training drill: don't auto-take. The user's aim line fires the shot
+      // wasm shooter drill: don't auto-take. The user's aim line fires the shot
       // (gpf_drill_shoot -> Ball::Touch). Fall through to the "hold at the ball"
-      // movement command below so the taker just waits on the spot.
+      // movement command below so the taker just waits on the spot. (In a KEEPER
+      // drill we DO let the AI take the penalty — the human is the goalkeeper.)
 
     } else if (team->GetController()->GetSetPieceType() == e_SetPiece_Penalty) {
 

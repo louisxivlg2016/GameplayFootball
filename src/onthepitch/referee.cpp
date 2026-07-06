@@ -36,6 +36,7 @@ Referee::Referee(Match *match) : match(match) {
   drillTeam = 0;
   drillReps = 0;
   drillWaitUntil = 0;
+  drillKeeper = false;
 
 
   // whistle
@@ -84,6 +85,7 @@ void Referee::Process() {
       ForceSetPiece(drillType, drillTeam);
     } else {
       drillType = e_SetPiece_None;
+      drillKeeper = false;
 #ifdef __EMSCRIPTEN__
       EM_ASM({ try { if (window.gpfDrillDone) window.gpfDrillDone(); } catch (e) {} });
 #endif
@@ -255,9 +257,14 @@ void Referee::Process() {
         match->StartPlay();
         match->StartSetPiece();
 #ifdef __EMSCRIPTEN__
-        // training drill: the ball is now live — let the page arm the aim line.
-        if (drillType != e_SetPiece_None)
-          EM_ASM({ try { if (window.gpfDrillReady) window.gpfDrillReady(); } catch (e) {} });
+        // training drill: the ball is now live. Keeper drill arms the dive arrows;
+        // shooter drill arms the aim curve.
+        if (drillType != e_SetPiece_None) {
+          if (drillKeeper)
+            EM_ASM({ try { if (window.gpfKeeperReady) window.gpfKeeperReady(); } catch (e) {} });
+          else
+            EM_ASM({ try { if (window.gpfDrillReady) window.gpfDrillReady(); } catch (e) {} });
+        }
 #endif
       }
     }
@@ -324,7 +331,17 @@ void Referee::StartDrill(e_SetPiece setPiece, int teamID, int reps) {
   drillType = setPiece;
   drillTeam = teamID;
   drillReps = reps;
+  drillKeeper = false;
   ForceSetPiece(setPiece, teamID);
+}
+
+void Referee::StartKeeperDrill(int reps) {
+  // team 1 (the bot) takes penalties against team 0's goal; the human keeps.
+  drillType = e_SetPiece_Penalty;
+  drillTeam = 1;
+  drillReps = reps;
+  drillKeeper = true;
+  ForceSetPiece(e_SetPiece_Penalty, 1);
 }
 
 void Referee::NotifyDrillShotTaken() {

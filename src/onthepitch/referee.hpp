@@ -53,6 +53,9 @@ class Referee {
     // Start a drill session: force the set piece and re-force it `reps` times
     // (one per attempt), then end. Used by the wasm training menu.
     void StartDrill(e_SetPiece setPiece, int teamID, int reps);
+    // Goalkeeper drill: the AI (team 1) takes penalties and the human keeps
+    // goal (team 0). Same repeat mechanism, but the taker is NOT suppressed.
+    void StartKeeperDrill(int reps);
 
     const RefereeBuffer &GetBuffer() { return buffer; };
 
@@ -69,6 +72,9 @@ class Referee {
     bool IsDrillActive() { return drillType != e_SetPiece_None; }
     int GetDrillTeam() { return drillTeam; }
     e_SetPiece GetDrillType() { return drillType; }
+    // keeper drill: bot shoots, human keeps -> don't suppress the taker, and use
+    // the behind-the-keeper camera.
+    bool IsKeeperDrill() { return drillKeeper; }
     // The user drew an aim line and the ball was launched directly (gpf_drill_shoot):
     // end the set-piece phase so the keeper reacts, then schedule the next attempt.
     void NotifyDrillShotTaken();
@@ -93,6 +99,7 @@ class Referee {
     int drillTeam;
     int drillReps;
     unsigned long drillWaitUntil; // re-force the drill at this match time (0 = idle)
+    bool drillKeeper;             // true = keeper drill (bot shoots, human keeps)
 
 };
 

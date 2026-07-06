@@ -793,7 +793,15 @@ void Match::UpdateIngameCamera() {
     signed int oppSide = GetTeam(1 - GetReferee()->GetDrillTeam())->GetSide(); // goal being attacked
     e_SetPiece drillType = GetReferee()->GetDrillType();
 
-    if (drillType == e_SetPiece_Corner) {
+    if (GetReferee()->IsKeeperDrill()) {
+      // keeper drill: camera BEHIND the defended goal, facing the taker, so the
+      // human keeper sees the shot coming. oppSide here is the defended goal's side.
+      cameraOrientation.SetAngleAxis(0.40f * pi, Vector3(1, 0, 0));
+      cameraNodeOrientation.SetAngleAxis(oppSide * 0.5f * pi, Vector3(0, 0, 1)); // face OUT toward the taker
+      cameraNodePosition = ballPos + Vector3(15.0f * oppSide, 0, 0) + Vector3(0, 0, 4.5f);
+      cameraFOV = 32.0f;
+
+    } else if (drillType == e_SetPiece_Corner) {
       // corner: camera high and BEHIND the corner taker, looking across the box
       // at the goal so you see the whole pitch + goal.
       Vector3 target = Vector3((pitchHalfW - 3.0f) * oppSide, 0.0f, 1.0f);      // near the goal mouth
