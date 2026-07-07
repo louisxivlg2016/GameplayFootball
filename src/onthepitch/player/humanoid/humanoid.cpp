@@ -1319,7 +1319,13 @@ bool Humanoid::SelectAnim(const PlayerCommand &command, e_InterruptAnim localInt
       command.desiredFunctionType == e_FunctionType_Interfere ||
       command.desiredFunctionType == e_FunctionType_Deflect) {
     query.byIncomingBallDirection = true;
-    query.incomingBallDirection = (currentMentalImage->GetBallPrediction(180) - currentMentalImage->GetBallPrediction(120)).GetRotated2D(-spatialState.angle).GetNormalized(Vector3(0)); // todo: proper prediction time
+    if (command.desiredFunctionType == e_FunctionType_Deflect && command.desiredDirection.GetLength() > 0.01f) {
+      // wasm keeper drill: dive toward the commanded side (arrow), not auto-aimed
+      // at the ball, so a wrong guess actually misses.
+      query.incomingBallDirection = command.desiredDirection.GetRotated2D(-spatialState.angle).GetNormalized(Vector3(0));
+    } else {
+      query.incomingBallDirection = (currentMentalImage->GetBallPrediction(180) - currentMentalImage->GetBallPrediction(120)).GetRotated2D(-spatialState.angle).GetNormalized(Vector3(0)); // todo: proper prediction time
+    }
   }
 
   /*

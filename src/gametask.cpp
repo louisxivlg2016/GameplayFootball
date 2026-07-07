@@ -68,21 +68,16 @@ class KeeperDiveController : public IController {
  public:
   KeeperDiveController(Match *m, int dir) : IController(m), diveDir(dir) {}
   void RequestCommand(PlayerCommandQueue &q) {
-    PlayerCommand deflect;                                  // the real diving save
+    // A real diving save toward the chosen side. desiredDirection tells SelectAnim
+    // to pick the sided dive anim for that direction (see humanoid.cpp) instead of
+    // auto-aiming at the ball — so the keeper DIVES (not walks) and a wrong guess
+    // misses. The dive only fires once the ball is in reach (engine guard).
+    PlayerCommand deflect;
     deflect.desiredFunctionType = e_FunctionType_Deflect;
     deflect.useDesiredMovement = false;
     deflect.useDesiredLookAt = false;
+    deflect.desiredDirection = Vector3(0, (float)diveDir, 0);
     q.push_back(deflect);
-    PlayerCommand mv;                                       // commit to the chosen side
-    mv.desiredFunctionType = e_FunctionType_Movement;
-    mv.useDesiredMovement = true;
-    mv.desiredDirection = Vector3(0, (float)diveDir, 0);
-    mv.strictMovement = e_StrictMovement_True;
-    mv.desiredVelocityFloat = sprintVelocity;
-    mv.useDesiredLookAt = true;
-    mv.desiredLookAt = player->GetPosition() +
-        (match->GetBall()->Predict(40).Get2D() - player->GetPosition()).GetNormalized(Vector3(0)) * 10.0f;
-    q.push_back(mv);
   }
   Vector3 GetDirection() { return Vector3(0, (float)diveDir, 0); }
   float GetFloatVelocity() { return sprintVelocity; }
