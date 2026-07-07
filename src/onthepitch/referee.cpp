@@ -37,6 +37,7 @@ Referee::Referee(Match *match) : match(match) {
   drillReps = 0;
   drillWaitUntil = 0;
   drillKeeper = false;
+  drillShotFireTime = 0;
 
 
   // whistle
@@ -90,6 +91,20 @@ void Referee::Process() {
       EM_ASM({ try { if (window.gpfDrillDone) window.gpfDrillDone(); } catch (e) {} });
 #endif
     }
+  }
+
+  // keeper drill: the bot's penalty is SCRIPTED so it can never get stuck waiting
+  // on a controller. Fire it toward a random spot in the human's goal, then clear
+  // the set piece so the (human) keeper reacts and the next attempt is scheduled.
+  if (drillKeeper && drillShotFireTime != 0 && match->GetActualTime_ms() >= drillShotFireTime) {
+    drillShotFireTime = 0;
+    signed int oppSide = match->GetTeam(1 - drillTeam)->GetSide(); // human / keeper goal side
+    Vector3 from = match->GetBall()->Predict(0).Get2D();
+    Vector3 aimSpot = Vector3(pitchHalfW * oppSide, random(-3.0f, 3.0f), random(1.0f, 2.4f));
+    Vector3 vel = (aimSpot - from).GetNormalized(Vector3(oppSide, 0, 0)) * (22.0f + random(0.0f, 5.0f));
+    match->GetBall()->Touch(vel);
+    match->GetBall()->SetRotation(0, 0, 0, 1);
+    NotifyDrillShotTaken();
   }
 
   if (match->IsInPlay() && !match->IsInSetPiece()) {
@@ -325,6 +340,8 @@ void Referee::ForceSetPiece(e_SetPiece setPiece, int teamID) {
 
   // in a drill: schedule the next attempt a few seconds after this one is taken
   if (drillType != e_SetPiece_None) drillWaitUntil = buffer.startTime + 6000;
+  // keeper drill: auto-fire the bot's penalty shortly after the whistle
+  if (drillKeeper) drillShotFireTime = buffer.startTime + 2000;
 }
 
 void Referee::StartDrill(e_SetPiece setPiece, int teamID, int reps) {
@@ -336,12 +353,16 @@ void Referee::StartDrill(e_SetPiece setPiece, int teamID, int reps) {
 }
 
 void Referee::StartKeeperDrill(int reps) {
-  // team 1 (the bot) takes penalties against team 0's goal; the human keeps.
+  // The bot takes penalties against the human's goal; the human keeps. Pick the
+  // shooter = the team with no human gamers (default team 1) so the keeper is the
+  // human's team; the shot itself is scripted (see Process), so it never gets
+  // stuck waiting on a controller.
+  int botTeam = (match->GetTeam(0)->GetHumanGamerCount() == 0) ? 0 : 1;
   drillType = e_SetPiece_Penalty;
-  drillTeam = 1;
+  drillTeam = botTeam;
   drillReps = reps;
   drillKeeper = true;
-  ForceSetPiece(e_SetPiece_Penalty, 1);
+  ForceSetPiece(e_SetPiece_Penalty, botTeam);
 }
 
 void Referee::NotifyDrillShotTaken() {

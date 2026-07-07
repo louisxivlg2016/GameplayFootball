@@ -100,6 +100,7 @@ class Referee {
     int drillReps;
     unsigned long drillWaitUntil; // re-force the drill at this match time (0 = idle)
     bool drillKeeper;             // true = keeper drill (bot shoots, human keeps)
+    unsigned long drillShotFireTime; // keeper drill: auto-fire the bot's shot at this time (0 = idle)
 
 };
 
