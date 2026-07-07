@@ -318,6 +318,9 @@ void Referee::PrepareSetPiece(e_SetPiece setPiece) {
 
 void Referee::ForceSetPiece(e_SetPiece setPiece, int teamID) {
   match->StopPlay();
+  // clear any lingering set piece (e.g. a post-goal kickoff whose taker we hold
+  // during a drill) so this forced set piece can actually prepare.
+  if (match->IsInSetPiece()) match->StopSetPiece();
   buffer.desiredSetPiece = setPiece;
   buffer.teamID = teamID;
   buffer.endPhase = false;
