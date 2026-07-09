@@ -1162,10 +1162,17 @@ bool Humanoid::SelectAnim(const PlayerCommand &command, e_InterruptAnim localInt
 
   // optimizations
 
+  // wasm keeper drill: a commanded dive (Deflect with an explicit direction) must
+  // fire the moment the arrow is pressed, not only when the ball is already within
+  // reach — otherwise the keeper just stands there.
+  bool commandedKeeperDive = (command.desiredFunctionType == e_FunctionType_Deflect &&
+                              command.desiredDirection.GetLength() > 0.01f);
+
   if (command.desiredFunctionType != e_FunctionType_Movement &&
       command.desiredFunctionType != e_FunctionType_Trip &&
       command.desiredFunctionType != e_FunctionType_Special &&
-      command.desiredFunctionType != e_FunctionType_Sliding) {
+      command.desiredFunctionType != e_FunctionType_Sliding &&
+      !commandedKeeperDive) {
     if ((currentMentalImage->GetBallPrediction(200).Get2D() - spatialState.position).GetLength() > ballDistanceOptimizeThreshold) {
       return false;
     }

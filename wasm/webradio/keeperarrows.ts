@@ -36,8 +36,10 @@ function arm(): void {
 function fired(dir: number): void {
   if (!armed) return;
   armed = false;      // one dive per attempt
-  dive(dir);
+  dive(dir);          // bind the dive controller -> keeper dives that side now
   hideUI();           // arrows away once committed; re-shown by the next gpfKeeperReady
+  // let the dive play out, then hand the keeper back to the AI
+  window.setTimeout(() => dive(0), 1600);
 }
 
 function arrowBtn(dir: number, glyph: string): HTMLElement {
