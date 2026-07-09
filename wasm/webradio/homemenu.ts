@@ -123,10 +123,18 @@ function pressEnter(): void {
   }
 }
 
-/** Hide all menu overlays and drive the native C++ menu into a match. */
+/** Hide the menu overlays and reveal the native C++ menu so the player picks
+ *  teams etc. Only when ?debug-skip-all=1 do we auto-drive Enter through the
+ *  native menu to skip all selection (used for quick testing). A pending drill
+ *  still fires once the match actually starts (onMatchStarted), whichever way
+ *  the match was started. */
 export function startNativeMatch(): void {
   hide();
   hideLineup();
+
+  const skipAll = new URLSearchParams(location.search).get("debug-skip-all") === "1";
+  if (!skipAll) return; // let the player navigate the native menu themselves
+
   // hammer Enter through the native menu until the match is created; the
   // gpfRadioReset hook (match start) clears this timer.
   let taps = 0;
