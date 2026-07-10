@@ -15,6 +15,28 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include "onthepitch/player/controller/icontroller.hpp"
+#include "systems/graphics/rendering/interface_renderer3d.hpp"
+
+// Graphics quality level, 0 (potato) .. 4 (ultra / the old default). Read by the
+// renderer paths (shadow map size, sun shadow at match start); the render scale
+// itself is applied through Renderer3D::SetRenderScale below.
+int gpf_quality_level = 4;
+
+// Native SETTINGS > GRAPHICS quality row + boot-apply from JS. Maps the level to
+// an offscreen render scale (the big low-end win: potato renders 16% of the
+// pixels and upscales) and toggles the sun's shadow pass on the live match.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_quality(int level) {
+  if (level < 0) level = 0;
+  if (level > 4) level = 4;
+  gpf_quality_level = level;
+  static const float scales[5] = {0.4f, 0.55f, 0.7f, 0.85f, 1.0f};
+  blunted::Renderer3D *renderer = GetGraphicsSystem() ? GetGraphicsSystem()->GetRenderer3D() : 0;
+  if (renderer) renderer->SetRenderScale(scales[level]);
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (m) m->SetSunShadow(level >= 2);
+}
+
 // Training drills from the HTML menu: force the live match into a specific set
 // piece (1=KickOff,3=FreeKick,4=Corner,6=Penalty — e_SetPiece values) for team 0.
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {

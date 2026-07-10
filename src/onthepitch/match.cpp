@@ -234,6 +234,13 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   sunNode = loader.LoadObject(GetScene3D(), "media/objects/lighting/generic.object");
   GetDynamicNode()->AddNode(sunNode);
   SetRandomSunParams();
+#ifdef __EMSCRIPTEN__
+  // low-end quality (potato/low): no sun shadow pass at all
+  {
+    extern int gpf_quality_level;
+    if (gpf_quality_level <= 1) SetSunShadow(false);
+  }
+#endif
 
 
   // human gamers
@@ -495,6 +502,12 @@ void Match::Exit() {
   if (_positionLogging) positionLogFile.close();
 
   sig_OnExitedMatch(this);
+}
+
+void Match::SetSunShadow(bool enabled) {
+  if (sunNode != boost::intrusive_ptr<Node>() && sunNode->GetObject("sun") != boost::intrusive_ptr<Object>()) {
+    static_pointer_cast<Light>(sunNode->GetObject("sun"))->SetShadow(enabled);
+  }
 }
 
 void Match::SetRandomSunParams() {

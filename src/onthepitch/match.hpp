@@ -109,6 +109,8 @@ class Match {
     void Exit();
 
     void SetRandomSunParams();
+    // low-end quality levels: toggle the sun's (expensive) shadow-map pass
+    void SetSunShadow(bool enabled);
     void RandomizeAdboards(boost::intrusive_ptr<Node> stadiumNode);
     void UpdateControllerSetup();
     void SpamMessage(const std::string &msg, int time_ms = 3000);

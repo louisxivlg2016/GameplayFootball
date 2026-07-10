@@ -82,6 +82,8 @@ struct GLfunctions {
   OpenGLRenderer3D::OpenGLRenderer3D() : context(0), contextIsActive(true) {
     FOV = 45;
     overallBrightness = 128;
+    renderScale = 1.0f;
+    pendingRenderScale = 1.0f;
 
     _cache_activeTextureUnit = -1;
 
@@ -635,11 +637,27 @@ struct GLfunctions {
     view.width = int(floor(width_percent * 0.01 * context_width));
     view.height = int(floor(height_percent * 0.01 * context_height));
 
+    CreateViewBuffers(view);
+
+    views.push_back(view);
+
+    return views.size() - 1;
+  }
+
+  void OpenGLRenderer3D::CreateViewBuffers(View &view) {
+
+    // offscreen buffers at the current render scale; the postprocess present
+    // pass upscales to view.width/height, so lower scales = big speedup
+    view.fbWidth = int(floor(view.width * renderScale));
+    view.fbHeight = int(floor(view.height * renderScale));
+    if (view.fbWidth < 1) view.fbWidth = 1;
+    if (view.fbHeight < 1) view.fbHeight = 1;
+
 
     // init FBO
 
-    int gBufWidth = view.width;
-    int gBufHeight = view.height;
+    int gBufWidth = view.fbWidth;
+    int gBufHeight = view.fbHeight;
 
     view.gBufferID = CreateFrameBuffer();
     BindFrameBuffer(view.gBufferID);
@@ -681,8 +699,8 @@ struct GLfunctions {
 
     // accumulation buffer
 
-    int accumBufWidth = view.width;
-    int accumBufHeight = view.height;
+    int accumBufWidth = view.fbWidth;
+    int accumBufHeight = view.fbHeight;
 
     view.accumBufferID = CreateFrameBuffer();
     BindFrameBuffer(view.accumBufferID);
@@ -722,10 +740,6 @@ struct GLfunctions {
     targets.push_back(e_TargetAttachment_Back);
     SetRenderTargets(targets);
     targets.clear();
-
-    views.push_back(view);
-
-    return views.size() - 1;
   }
 
   View &OpenGLRenderer3D::GetView(int viewID) {
@@ -736,28 +750,43 @@ struct GLfunctions {
 
     Log(e_Notice, "OpenGLRenderer3D", "DeleteView", "Deleting view, id " + int_to_str(viewID));
 
-    View *view = &views.at(viewID);
+    DeleteViewBuffers(views.at(viewID));
+    //printf("done deleting view %i\n", viewID);
+  }
 
-    BindFrameBuffer(view->gBufferID);
+  void OpenGLRenderer3D::DeleteViewBuffers(View &view) {
+
+    BindFrameBuffer(view.gBufferID);
     SetFrameBufferTexture2D(e_TargetAttachment_Depth, 0);
     SetFrameBufferTexture2D(e_TargetAttachment_Color0, 0);
     SetFrameBufferTexture2D(e_TargetAttachment_Color1, 0);
     SetFrameBufferTexture2D(e_TargetAttachment_Color2, 0);
-    DeleteFrameBuffer(view->gBufferID);
+    DeleteFrameBuffer(view.gBufferID);
 
-    BindFrameBuffer(view->accumBufferID);
+    BindFrameBuffer(view.accumBufferID);
     SetFrameBufferTexture2D(e_TargetAttachment_Color0, 0);
     SetFrameBufferTexture2D(e_TargetAttachment_Color1, 0);
-    DeleteFrameBuffer(view->accumBufferID);
+    DeleteFrameBuffer(view.accumBufferID);
 
-    DeleteTexture(view->gBuffer_AlbedoTexID);
-    DeleteTexture(view->gBuffer_NormalTexID);
-    DeleteTexture(view->gBuffer_DepthTexID);
-    DeleteTexture(view->gBuffer_AuxTexID);
+    DeleteTexture(view.gBuffer_AlbedoTexID);
+    DeleteTexture(view.gBuffer_NormalTexID);
+    DeleteTexture(view.gBuffer_DepthTexID);
+    DeleteTexture(view.gBuffer_AuxTexID);
 
-    DeleteTexture(view->accumBuffer_AccumTexID);
-    DeleteTexture(view->accumBuffer_ModifierTexID);
-    //printf("done deleting view %i\n", viewID);
+    DeleteTexture(view.accumBuffer_AccumTexID);
+    DeleteTexture(view.accumBuffer_ModifierTexID);
+
+    BindFrameBuffer(0);
+  }
+
+  void OpenGLRenderer3D::SetRenderScale(float scale) {
+
+    if (scale < 0.25f) scale = 0.25f;
+    if (scale > 1.0f) scale = 1.0f;
+    // Just record the request. This can be called re-entrantly from JS while the
+    // cooperative engine is suspended mid-frame (ASYNCIFY), so doing GL work here
+    // freezes the engine. The rebuild happens at a safe point in CoopIterate.
+    pendingRenderScale = scale;
   }
 
   // general
@@ -2567,6 +2596,18 @@ struct GLfunctions {
   // one cooperative step of the renderer loop (see operator() above): pump SDL
   // input events, then handle any pending render messages on the main thread.
   bool OpenGLRenderer3D::CoopIterate() {
+    // apply a requested render-scale change at this safe point (no render
+    // message in flight), rebuilding each view's offscreen buffers in place so
+    // view IDs held by cameras stay valid.
+    if (fabs(pendingRenderScale - renderScale) > 0.001f) {
+      renderScale = pendingRenderScale;
+      for (unsigned int i = 0; i < views.size(); i++) {
+        DeleteViewBuffers(views.at(i));
+        CreateViewBuffers(views.at(i));
+      }
+      Log(e_Notice, "OpenGLRenderer3D", "CoopIterate", "Render scale set to " + real_to_str(renderScale));
+    }
+
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_WINDOWEVENT) {

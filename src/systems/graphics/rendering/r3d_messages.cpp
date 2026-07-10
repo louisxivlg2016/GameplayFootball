@@ -115,8 +115,9 @@ namespace blunted {
 
     renderer->BindFrameBuffer(view.gBufferID);
 
-    // framebuffer starts at lower left 0,0
-    renderer->SetViewport(0, 0, view.width, view.height);
+    // framebuffer starts at lower left 0,0 (offscreen size: may be scaled down
+    // for the low-end quality levels; presented upscaled by the postprocess pass)
+    renderer->SetViewport(0, 0, view.fbWidth, view.fbHeight);
 
     renderer->SetMatrix("projectionMatrix", projectionMatrix);
     renderer->SetMatrix("viewMatrix", viewMatrix);
@@ -173,8 +174,8 @@ namespace blunted {
     // ambient
     renderer->UseShader("ambient");
 
-    renderer->SetUniformFloat("ambient", "contextWidth", (float)view.width);
-    renderer->SetUniformFloat("ambient", "contextHeight", (float)view.height);
+    renderer->SetUniformFloat("ambient", "contextWidth", (float)view.fbWidth);
+    renderer->SetUniformFloat("ambient", "contextHeight", (float)view.fbHeight);
     renderer->SetUniformFloat("ambient", "contextX", (float)0);
     renderer->SetUniformFloat("ambient", "contextY", (float)0);
     renderer->SetUniformFloat2("ambient", "cameraClip", depthParamNear, depthParamFar);
@@ -205,8 +206,8 @@ namespace blunted {
     renderer->SetBlendingMode(e_BlendingMode_On);
     renderer->SetBlendingFunction(e_BlendingFunction_One, e_BlendingFunction_One);
 
-    renderer->SetUniformFloat("lighting", "contextWidth", (float)view.width);
-    renderer->SetUniformFloat("lighting", "contextHeight", (float)view.height);
+    renderer->SetUniformFloat("lighting", "contextWidth", (float)view.fbWidth);
+    renderer->SetUniformFloat("lighting", "contextHeight", (float)view.fbHeight);
     renderer->SetUniformFloat("lighting", "contextX", (float)0);
     renderer->SetUniformFloat("lighting", "contextY", (float)0);
     renderer->SetUniformMatrix4("lighting", "inverseProjectionViewMatrix", inverseProjectionViewMatrix);

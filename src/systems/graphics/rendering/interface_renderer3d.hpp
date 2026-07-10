@@ -72,6 +72,10 @@ namespace blunted {
     e_ViewRenderTarget target;
     int targetTexID;
     int x, y, width, height;
+    // offscreen (G-buffer/accum) size; equals width/height at render scale 1.0.
+    // The heavy passes render at this size, the postprocess pass upscales to the
+    // full width/height when presenting (low-end "potato" quality levels).
+    int fbWidth, fbHeight;
 
     int gBufferID;
     int gBuffer_DepthTexID;
@@ -224,6 +228,8 @@ namespace blunted {
       virtual int CreateView(float x_percent, float y_percent, float width_percent, float height_percent) = 0;
       virtual View &GetView(int viewID) = 0;
       virtual void DeleteView(int viewID) = 0;
+      // scale the offscreen render buffers (0.25 .. 1.0); present size is unchanged
+      virtual void SetRenderScale(float scale) {};
 
       // general
       virtual void SetCullingMode(e_CullingMode cullingMode) = 0;

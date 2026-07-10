@@ -9,6 +9,10 @@
 
 #include <iterator>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h> // EM_ASM (persist the wasm quality level)
+#endif
+
 SettingsPage::SettingsPage(Gui2WindowManager *windowManager, const Gui2PageData &pageData) : Gui2Page(windowManager, pageData) {
 
   Gui2Caption *title = new Gui2Caption(windowManager, "caption_settings", 20, 20, 60, 3, "Settings");
@@ -1274,6 +1278,24 @@ GraphicsPage::GraphicsPage(Gui2WindowManager *windowManager, const Gui2PageData 
     }
   }
 
+#ifdef __EMSCRIPTEN__
+  // graphics/CPU quality for low-end machines: potato (fastest) .. ultra (the
+  // old default). Applied instantly — no restart needed (render scale + shadows).
+  row++; // spacer
+  Gui2Caption *qualityCaption = new Gui2Caption(windowManager, "caption_graphics_quality", 0, 0, 30, 3, "Quality (potato = fastest)");
+  grid->AddView(qualityCaption, row, col);
+  row++;
+  if (row > 16) { row = 0; col++; }
+  const char *qualityNames[5] = { "1. Potato", "2. Low", "3. Medium", "4. High", "5. Ultra (default)" };
+  for (int q = 0; q < 5; q++) {
+    Gui2Button *qualityButton = new Gui2Button(windowManager, "button_graphics_quality" + int_to_str(q), 0, 0, 30, 3, qualityNames[q]);
+    qualityButton->sig_OnClick.connect(boost::bind(&GraphicsPage::SetQuality, this, q));
+    grid->AddView(qualityButton, row, col);
+    row++;
+    if (row > 16) { row = 0; col++; }
+  }
+#endif
+
   grid->UpdateLayout(0.5);
 
   this->AddView(grid);
@@ -1284,6 +1306,16 @@ GraphicsPage::GraphicsPage(Gui2WindowManager *windowManager, const Gui2PageData 
 
 GraphicsPage::~GraphicsPage() {
 }
+
+#ifdef __EMSCRIPTEN__
+extern "C" void gpf_set_quality(int level); // gametask.cpp
+
+void GraphicsPage::SetQuality(int level) {
+  gpf_set_quality(level);
+  // persist across page reloads: the page JS re-applies this on boot
+  EM_ASM({ try { localStorage.setItem('gpf-quality', $0); } catch (e) {} }, level);
+}
+#endif
 
 void GraphicsPage::SetResolution(int resIndex) {
   GetConfiguration()->SetBool("context_fullscreen", resolutions.at(resIndex).fullscreen);

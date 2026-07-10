@@ -204,6 +204,9 @@ class GraphicsPage : public Gui2Page {
 
   protected:
     void SetResolution(int resIndex);
+#ifdef __EMSCRIPTEN__
+    void SetQuality(int level); // potato .. ultra (wasm quality levels)
+#endif
 
     std::vector<Resolution> resolutions;
 

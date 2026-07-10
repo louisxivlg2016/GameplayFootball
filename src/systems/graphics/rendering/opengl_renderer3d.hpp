@@ -50,6 +50,8 @@ namespace blunted {
       virtual int CreateView(float x_percent, float y_percent, float width_percent, float height_percent);
       virtual View &GetView(int viewID);
       virtual void DeleteView(int viewID);
+      // low-end quality: resize the offscreen G-buffer/accum FBOs (0.25 .. 1.0)
+      virtual void SetRenderScale(float scale);
 
       // general
       virtual void SetCullingMode(e_CullingMode cullingMode);
@@ -138,10 +140,16 @@ namespace blunted {
 #endif
 
     protected:
+      // (re)allocate / release a view's offscreen FBOs at the current renderScale
+      void CreateViewBuffers(View &view);
+      void DeleteViewBuffers(View &view);
+
       SDL_GLContext context;
       SDL_Window* window;
       int context_width, context_height, context_bpp;
       bool contextIsActive;
+      float renderScale;        // offscreen render resolution factor (potato .. ultra)
+      float pendingRenderScale; // requested scale, applied at a safe point in CoopIterate
 
       float cameraNear;
       float cameraFar;

@@ -105,6 +105,19 @@ initMenu();
 initDrillAim();
 initKeeperArrows();
 
+// Re-apply the graphics quality picked in the native SETTINGS > GRAPHICS menu
+// (persisted in localStorage; 4 = ultra is the engine default, nothing to do).
+const applySavedQuality = (): void => {
+  let level = 4;
+  try { level = parseInt(localStorage.getItem("gpf-quality") ?? "4", 10); } catch { /* private mode */ }
+  if (!Number.isFinite(level) || level < 0 || level > 4) level = 4;
+  if (level === 4) return;
+  const M = (window as unknown as { Module?: { _gpf_set_quality?: (l: number) => void } }).Module;
+  if (M?._gpf_set_quality) M._gpf_set_quality(level);
+  else window.setTimeout(applySavedQuality, 2000); // wasm not up yet — retry
+};
+applySavedQuality();
+
 // R toggles the commentary (matches the web version); ignore when typing.
 window.addEventListener("keydown", (e) => {
   if (e.key === "r" || e.key === "R") {
