@@ -93,6 +93,16 @@ void Referee::Process() {
     }
   }
 
+#ifdef __EMSCRIPTEN__
+  // during the pre-match anthem ceremony, hold the kickoff countdown: the buffer
+  // times fire on exact equality with actualTime, so push them one tick per tick.
+  if (match->IsCeremonyActive() && buffer.active) {
+    buffer.stopTime += 10;
+    buffer.prepareTime += 10;
+    buffer.startTime += 10;
+  }
+#endif
+
   // keeper drill: the bot's penalty is SCRIPTED so it can never get stuck waiting
   // on a controller. Fire it toward a random spot in the human's goal, then clear
   // the set piece so the (human) keeper reacts and the next attempt is scheduled.

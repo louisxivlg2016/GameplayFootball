@@ -14,6 +14,7 @@ import { initNational } from "./national";
 import { initTraining } from "./training";
 import { initDrillAim } from "./drillaim";
 import { initKeeperArrows } from "./keeperarrows";
+import { initAnthem } from "./anthem";
 import {
   type RadioEvent,
   audioPeak,
@@ -104,6 +105,7 @@ initHomeMenu();
 initMenu();
 initDrillAim();
 initKeeperArrows();
+initAnthem();
 
 // Re-apply the graphics quality picked in the native SETTINGS > GRAPHICS menu
 // (persisted in localStorage; 4 = ultra is the engine default, nothing to do).

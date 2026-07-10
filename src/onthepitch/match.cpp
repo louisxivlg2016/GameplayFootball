@@ -45,6 +45,12 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   buf_actualTime_ms = 0;
   goalScoredTimer = 0;
 
+#ifdef __EMSCRIPTEN__
+  anthemPhase = -1;
+  anthemPhaseStart_ms = 0;
+  anthemChecked = false;
+#endif
+
   replayState->dirty = false;
 
   resetNetting = false;
@@ -510,6 +516,73 @@ void Match::SetSunShadow(bool enabled) {
   }
 }
 
+#ifdef __EMSCRIPTEN__
+
+// --- pre-match anthem ceremony ---------------------------------------------
+// 18 seconds per team; the page plays the audio and shows the banner/skip UI.
+
+static const unsigned long anthemDuration_ms = 18000;
+
+void Match::LineUpForAnthem() {
+  // both teams in a row near the centre line, facing the TV-camera side (-Y)
+  for (int t = 0; t < 2; t++) {
+    std::vector<Player*> players;
+    GetActiveTeamPlayers(t, players);
+    float xStart = (t == 0) ? -15.5f : 2.5f;
+    for (unsigned int i = 0; i < players.size(); i++) {
+      Vector3 pos(xStart + i * 1.3f, -1.5f, 0);
+      players.at(i)->ResetPosition(pos, pos + Vector3(0, -10, 0)); // face the camera
+    }
+  }
+}
+
+void Match::AnnounceAnthem(int teamIdx) {
+  std::string name = matchData->GetTeamData(teamIdx)->GetName();
+  // clang-format off
+  EM_ASM({
+    try { if (window.gpfAnthem) window.gpfAnthem($0, UTF8ToString($1)); } catch (e) {}
+  }, teamIdx, name.c_str());
+  // clang-format on
+}
+
+void Match::ProcessAnthemCeremony() {
+  // ask the page once, shortly after the match spins up, whether it wants a
+  // ceremony (it declines for training drills)
+  if (!anthemChecked && actualTime_ms >= 300) {
+    anthemChecked = true;
+    int wanted = EM_ASM_INT({
+      try { return (window.gpfCeremonyWanted && window.gpfCeremonyWanted()) ? 1 : 0; } catch (e) { return 0; }
+    });
+    printf("[anthem] check: wanted=%i inPlay=%i\n", wanted, IsInPlay() ? 1 : 0);
+    // note: PreMatch flips to 1stHalf at tick 0 (the initial kickoff buffer has
+    // prepareTime 0 + endPhase), so gate on "kickoff whistle not blown yet".
+    if (wanted && !IsInPlay()) {
+      anthemPhase = 0;
+      anthemPhaseStart_ms = actualTime_ms;
+      LineUpForAnthem();
+      AnnounceAnthem(0);
+    }
+  }
+
+  if (IsCeremonyActive() && actualTime_ms - anthemPhaseStart_ms >= anthemDuration_ms) {
+    SkipAnthem(); // advance to the next anthem / end the ceremony
+  }
+}
+
+void Match::SkipAnthem() {
+  if (!IsCeremonyActive()) return;
+  anthemPhase++;
+  anthemPhaseStart_ms = actualTime_ms;
+  if (anthemPhase == 1) {
+    AnnounceAnthem(1);
+  } else {
+    anthemPhase = -1;
+    EM_ASM({ try { if (window.gpfAnthemEnd) window.gpfAnthemEnd(); } catch (e) {} });
+  }
+}
+
+#endif
+
 void Match::SetRandomSunParams() {
 
   if (Verbose()) printf("setting random sun params\n");
@@ -799,6 +872,24 @@ void Match::UpdateIngameCamera() {
 
   int camMethod = 1; // 1 == wide, 2 == birds-eye, 3 == tele
 
+#ifdef __EMSCRIPTEN__
+  if (IsCeremonyActive()) {
+
+    // anthem ceremony: close camera slowly panning along the active team's row
+    // (players lined up by LineUpForAnthem at y = -1.5, facing -Y)
+    int t = GetAnthemPhase();
+    float xStart = (t == 0) ? -15.5f : 2.5f;
+    float rowLength = 10 * 1.3f;
+    float progress = clamp((actualTime_ms - GetAnthemPhaseStart()) / 18000.0f, 0.0f, 1.0f);
+    cameraNodePosition = Vector3(xStart + progress * rowLength, -1.5f - 5.5f, 1.7f); // eye height, 5.5m out
+    cameraNodeOrientation = QUATERNION_IDENTITY;                    // face +Y (toward the players)
+    cameraOrientation.SetAngleAxis(0.485f * pi, Vector3(1, 0, 0));  // almost horizontal
+    cameraFOV = 24.0f;
+    cameraNearCap = 0.5;
+    cameraFarCap = 200;
+
+  } else
+#endif
   if (GetReferee()->IsDrillActive()) {
 
     // training drill cameras
@@ -929,6 +1020,10 @@ void Match::Process() {
     // todonow: just once ^
     sig_OnGameOver(this);
   }
+
+#ifdef __EMSCRIPTEN__
+  ProcessAnthemCeremony();
+#endif
 
   if (!pause) {
 

@@ -150,8 +150,12 @@ export function startNativeMatch(): void {
 // a training drill (e_SetPiece value) to force once the match is up, or 0 = none
 let pendingDrill = 0;
 let pendingKeeper = false;
-export function setPendingDrill(setPiece: number): void { pendingDrill = setPiece; pendingKeeper = false; }
-export function setPendingKeeper(): void { pendingKeeper = true; pendingDrill = 0; }
+// true from picking a training tile until the drill session ends — the anthem
+// ceremony is skipped for drills (see anthem.ts gpfCeremonyWanted)
+let drillSession = false;
+export function isDrillSession(): boolean { return drillSession; }
+export function setPendingDrill(setPiece: number): void { pendingDrill = setPiece; pendingKeeper = false; drillSession = true; }
+export function setPendingKeeper(): void { pendingKeeper = true; pendingDrill = 0; drillSession = true; }
 function fireDrill(sp: number): void {
   const M = (window as unknown as { Module?: { _gpf_start_drill?: (n: number) => void } }).Module;
   M?._gpf_start_drill?.(sp);
@@ -161,7 +165,7 @@ function fireKeeper(): void {
   M?._gpf_start_keeper_drill?.();
 }
 // the C++ referee calls this when a drill session's reps are all done -> menu
-(window as unknown as { gpfDrillDone?: () => void }).gpfDrillDone = (): void => show();
+(window as unknown as { gpfDrillDone?: () => void }).gpfDrillDone = (): void => { drillSession = false; show(); };
 
 /** Called (via the wrapped gpfRadioReset) when a match actually starts. */
 export function onMatchStarted(): void {

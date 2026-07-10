@@ -111,6 +111,16 @@ class Match {
     void SetRandomSunParams();
     // low-end quality levels: toggle the sun's (expensive) shadow-map pass
     void SetSunShadow(bool enabled);
+#ifdef __EMSCRIPTEN__
+    // pre-match anthem ceremony: both teams lined up at the centre, a close
+    // camera pans along team 0's row during its anthem, then team 1's, then the
+    // normal kickoff proceeds. The page plays the actual anthem audio
+    // (window.gpfAnthem) and can skip via gpf_skip_anthem.
+    bool IsCeremonyActive() const { return anthemPhase == 0 || anthemPhase == 1; }
+    int GetAnthemPhase() const { return anthemPhase; }
+    unsigned long GetAnthemPhaseStart() const { return anthemPhaseStart_ms; }
+    void SkipAnthem();
+#endif
     void RandomizeAdboards(boost::intrusive_ptr<Node> stadiumNode);
     void UpdateControllerSetup();
     void SpamMessage(const std::string &msg, int time_ms = 3000);
@@ -257,6 +267,16 @@ class Match {
     boost::intrusive_ptr<Node> cameraNode;
     boost::intrusive_ptr<Camera> camera;
     boost::intrusive_ptr<Node> sunNode;
+
+#ifdef __EMSCRIPTEN__
+    // anthem ceremony state (see IsCeremonyActive above)
+    void ProcessAnthemCeremony();
+    void LineUpForAnthem();
+    void AnnounceAnthem(int teamIdx);
+    int anthemPhase;                  // -1 off/done, 0 = team 0's anthem, 1 = team 1's
+    unsigned long anthemPhaseStart_ms;
+    bool anthemChecked;               // asked the page once whether it wants a ceremony
+#endif
 
     boost::intrusive_ptr<Node> stadiumNode;
     boost::intrusive_ptr<Node> goalsNode;

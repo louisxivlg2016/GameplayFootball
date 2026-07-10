@@ -2624,7 +2624,11 @@ struct GLfunctions {
         default:
           break;
       }
-      if (contextIsActive) UserEventManager::GetInstance().InputSDLEvent(event);
+      // keyboard events pass even when the canvas lost OS focus: the browser
+      // only delivers real keys when focused anyway, and the page's synthetic
+      // menu-driving keys (gpf_menu_key) must always work.
+      if (contextIsActive || event.type == SDL_KEYDOWN || event.type == SDL_KEYUP)
+        UserEventManager::GetInstance().InputSDLEvent(event);
     }
     return DrainMessages();
   }

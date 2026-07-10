@@ -115,6 +115,13 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_keeper_drill() {
   if (m && m->GetReferee()) m->GetReferee()->StartKeeperDrill(10);
 }
 
+// Skip the current national anthem (the "Passer" button on the ceremony banner).
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_skip_anthem() {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (m) m->SkipAnthem();
+}
+
 // dir: -1 = dive screen-left, +1 = screen-right, 0 = restore the AI keeper.
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_keeper_dive(int dir) {
   boost::shared_ptr<GameTask> gt = GetGameTask();
