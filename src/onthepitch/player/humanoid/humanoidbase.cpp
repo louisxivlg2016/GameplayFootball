@@ -1001,6 +1001,26 @@ void HumanoidBase::ResetPosition(const Vector3 &newPos, const Vector3 &focusPos)
   animApplyBuffer.position = startPos;
   animApplyBuffer.orientation = startAngle;
   animApplyBuffer.offsets.clear();
+#ifdef __EMSCRIPTEN__
+  // pre-match anthem ceremony: hold a crossed-arms stance. ResetPosition pins the
+  // lined-up players every frame with empty offsets, so the arm pose must be set
+  // HERE or it gets wiped. Angles tuned by eye (needs a screenshot to refine).
+  if (match->IsCeremonyActive()) {
+    offsets.clear();
+    Quaternion lsX, rsX, lsZ, rsZ, le, re;
+    lsX.SetAngleAxis(0.20f * pi, Vector3(1, 0, 0));   // upper arms slightly forward
+    rsX.SetAngleAxis(0.20f * pi, Vector3(1, 0, 0));
+    lsZ.SetAngleAxis(-0.30f * pi, Vector3(0, 0, 1));  // adduct the arms inward so the
+    rsZ.SetAngleAxis(0.30f * pi, Vector3(0, 0, 1));   // folded forearms cross over the chest
+    le.SetAngleAxis(-0.72f * pi, Vector3(1, 0, 0));   // forearms fold up to chest height
+    re.SetAngleAxis(-0.72f * pi, Vector3(1, 0, 0));
+    SetOffset("left_shoulder", 0.9f, (lsZ * lsX).GetNormalized());
+    SetOffset("right_shoulder", 0.9f, (rsZ * rsX).GetNormalized());
+    SetOffset("left_elbow", 0.9f, le.GetNormalized());
+    SetOffset("right_elbow", 0.9f, re.GetNormalized());
+    animApplyBuffer.offsets = offsets;
+  }
+#endif
   buf_animApplyBuffer = animApplyBuffer;
 
   interruptAnim = e_InterruptAnim_None;
