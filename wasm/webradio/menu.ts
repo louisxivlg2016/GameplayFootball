@@ -51,10 +51,15 @@ function setMusic(on: boolean): void {
   if (on) void music!.play().catch(() => {});
   else music!.pause();
 }
-/** Lower the music while a match is on air so the commentary stays clear. */
+/** Stop the menu music entirely while a match is on air, resume it back at the
+ *  menu. (The user wants no menu theme during matches.) */
 function duck(on: boolean): void {
-  if (music) music.volume = on ? MUSIC_VOL * 0.22 : MUSIC_VOL;
+  if (!music) return;
+  if (on) { music.pause(); }
+  else { music.volume = MUSIC_VOL; if (musicOn) void music.play().catch(() => {}); }
 }
+/** Called when the home menu comes back (see homemenu.show). */
+export function resumeMenuMusic(): void { duck(false); }
 
 // ---- overlay UI (styled like the web version's top-right controls) ----
 const CSS = `

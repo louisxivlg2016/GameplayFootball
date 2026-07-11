@@ -188,6 +188,23 @@ let fadeTimer: number | null = null;
 let banner: HTMLElement | null = null;
 let bannerLabel: HTMLElement | null = null;
 
+// The anthem recordings (military-band ogg/oga) are quiet, so route each one
+// through a WebAudio gain node (>1) to make it clearly audible over the game.
+let actx: AudioContext | null = null;
+const ANTHEM_GAIN = 3.0;
+function boostAudio(a: HTMLAudioElement): void {
+  try {
+    const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AC) return;
+    actx = actx || new AC();
+    if (actx.state === "suspended") void actx.resume();
+    const src = actx.createMediaElementSource(a); // once-per-element; fine, new element each anthem
+    const g = actx.createGain();
+    g.gain.value = ANTHEM_GAIN;
+    src.connect(g).connect(actx.destination);
+  } catch { /* routing failed — element still plays at its own volume */ }
+}
+
 function stopAudio(): void {
   if (fadeTimer !== null) { clearInterval(fadeTimer); fadeTimer = null; }
   if (audio) { try { audio.pause(); } catch { /* already */ } audio = null; }
@@ -263,6 +280,7 @@ export function initAnthem(): void {
     const a = new Audio("/img-proxy?u=" + encodeURIComponent(url));
     a.volume = 1.0;
     audio = a;
+    boostAudio(a);
     a.play().then(() => console.log(`[gpf-anthem] playing ${teamName}`))
       .catch((e) => console.warn("[gpf-anthem] play blocked:", e?.message || e));
     // fade out toward the end of the 18s phase (C++ side owns the timing)

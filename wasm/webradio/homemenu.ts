@@ -11,6 +11,7 @@ import { hideClubs, showClubs } from "./clubs";
 import { hideLineup, showLineup } from "./lineup";
 import { hideNational, showNational } from "./national";
 import { hideTraining, showTraining } from "./training";
+import { resumeMenuMusic } from "./menu";
 
 const prox = (u: string): string => `/img-proxy?u=${encodeURIComponent(u)}`;
 const PITCH_BG = prox(
@@ -189,7 +190,7 @@ export function onMatchStarted(): void {
 }
 
 export function hide(): void { root?.classList.add("hidden"); }
-export function show(): void { root?.classList.remove("hidden"); }
+export function show(): void { root?.classList.remove("hidden"); resumeMenuMusic(); }
 
 function iconBtn(icon: string, label: string, active: boolean, onClick?: () => void): HTMLElement {
   const b = document.createElement("button");

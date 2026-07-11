@@ -1117,8 +1117,12 @@ void Match::Process() {
         // slow decay
         excitement = clamp(excitement * 0.998f + cur_excitement * 0.002f, 0.0f, 1.0f);
       }
-      crowd01->SetGain((excitement) * 0.5f * GetConfiguration()->GetReal("audio_volume", 0.5f));
-      crowd02->SetGain(clamp((excitement - 0.3f) * 1.43f, 0.0f, 1.0f) * 0.5f * GetConfiguration()->GetReal("audio_volume", 0.5f));
+      float crowdDuck = 1.0f;
+#ifdef __EMSCRIPTEN__
+      if (IsCeremonyActive()) crowdDuck = 0.12f; // hush the crowd during the anthem
+#endif
+      crowd01->SetGain((excitement) * 0.5f * GetConfiguration()->GetReal("audio_volume", 0.5f) * crowdDuck);
+      crowd02->SetGain(clamp((excitement - 0.3f) * 1.43f, 0.0f, 1.0f) * 0.5f * GetConfiguration()->GetReal("audio_volume", 0.5f) * crowdDuck);
     }
 
 
