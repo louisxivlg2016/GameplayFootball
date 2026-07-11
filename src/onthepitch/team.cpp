@@ -14,6 +14,50 @@
 
 #include "managers/resourcemanagerpool.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <SDL2/SDL.h>
+#include <algorithm>
+// national-team overrides (defined in gametask.cpp)
+extern int gpf_natColorSet[2];
+extern unsigned char gpf_natColor[2][3];
+extern std::vector<std::string> gpf_natNames[2];
+
+// Recolour a kit texture toward a solid national colour while keeping the
+// original shading (folds, seams, shadows) so the shirt still looks like cloth
+// instead of a flat fill. Operates in place on a private copy of the surface.
+static void gpf_RecolorKit(SDL_Surface *s, const unsigned char col[3]) {
+  if (!s) return;
+  bool mustLock = SDL_MUSTLOCK(s);
+  if (mustLock) SDL_LockSurface(s);
+  const int bpp = s->format->BytesPerPixel;
+  for (int y = 0; y < s->h; y++) {
+    Uint8 *rowp = (Uint8 *)s->pixels + y * s->pitch;
+    for (int x = 0; x < s->w; x++) {
+      Uint8 *p = rowp + x * bpp;
+      Uint32 pix = 0;
+      if (bpp == 4) pix = *(Uint32 *)p;
+      else if (bpp == 3) pix = p[0] | (p[1] << 8) | (p[2] << 16);
+      else if (bpp == 2) pix = *(Uint16 *)p;
+      else pix = *p;
+      Uint8 r, g, b, a;
+      SDL_GetRGBA(pix, s->format, &r, &g, &b, &a);
+      float lum = (0.299f * r + 0.587f * g + 0.114f * b) / 255.0f;
+      float shade = 0.30f + 1.00f * lum;      // keep highlights & shadows
+      if (shade > 1.35f) shade = 1.35f;
+      Uint8 nr = (Uint8)std::min(255.0f, col[0] * shade);
+      Uint8 ng = (Uint8)std::min(255.0f, col[1] * shade);
+      Uint8 nb = (Uint8)std::min(255.0f, col[2] * shade);
+      Uint32 np = SDL_MapRGBA(s->format, nr, ng, nb, a);
+      if (bpp == 4) *(Uint32 *)p = np;
+      else if (bpp == 3) { p[0] = np & 0xff; p[1] = (np >> 8) & 0xff; p[2] = (np >> 16) & 0xff; }
+      else if (bpp == 2) *(Uint16 *)p = (Uint16)np;
+      else *p = (Uint8)np;
+    }
+  }
+  if (mustLock) SDL_UnlockSurface(s);
+}
+#endif
+
 Team::Team(int id, Match *match, TeamData *teamData) : id(id), match(match), teamData(teamData) {
   assert(id == 0 || id == 1);
   assert(teamData->GetPlayerNum() >= playerNum); // does team have enough players?
@@ -74,23 +118,53 @@ void Team::InitPlayers(boost::intrusive_ptr<Node> fullbodyNode, std::map<Vector3
 
   Log(e_Notice, "Team", "Team", "Creating players");
 
+#ifdef __EMSCRIPTEN__
+  // one national-colour-tinted outfield kit for the whole team, built lazily on
+  // the first outfield player and reused. Unique resource name per build so a
+  // later match doesn't pick up a stale tint from the resource cache.
+  boost::intrusive_ptr<Resource<Surface> > natKit;
+#endif
+
   // load all players in the team, even the players who sit on the bench. aww.
   for (int i = 0; i < (signed int)teamData->GetPlayerNum(); i++) {
     PlayerData *playerData = teamData->GetPlayerData(i);
+#ifdef __EMSCRIPTEN__
+    // real-squad names picked in the HTML menu (shirt order); before the player
+    // builds its floating name caption from GetLastName().
+    if (!gpf_natNames[GetID()].empty() && i < (signed int)gpf_natNames[GetID()].size()) {
+      playerData->SetLastName(gpf_natNames[GetID()][i]);
+    }
+#endif
     Player *player = new Player(this, playerData);
     players.push_back(player);
 
     if (i < activePlayerCount) {
       // activate playerCount players (the starting eleven, usually)
       std::string kitFilename;
+      bool isGK = GetFormationEntry(player->GetID()).role == e_PlayerRole_GK;
       //printf("%i player id\n", player->GetID());
-      if (GetFormationEntry(player->GetID()).role != e_PlayerRole_GK) {
+      if (!isGK) {
         kitFilename = GetTeamData()->GetKitUrl() + "_kit_0" + int_to_str(GetMenuTask()->GetTeamKitNum(GetID())) + ".png";
         if (!boost::filesystem::exists(kitFilename)) kitFilename = (GetID() == 0) ? "media/textures/almost_white.png" : "media/textures/almost_black.png";
       } else {
         kitFilename = "media/objects/players/textures/goalie_kit.png";
       }
       kit = ResourceManagerPool::GetInstance().GetManager<Surface>(e_ResourceType_Surface)->Fetch(kitFilename);
+#ifdef __EMSCRIPTEN__
+      // tint the outfield kit to the picked nation's colour (goalies keep their
+      // own kit). FetchCopy deep-copies the surface so the shared cache stays
+      // clean; recolour once, reuse for every outfield player.
+      if (gpf_natColorSet[GetID()] && !isGK) {
+        if (natKit == boost::intrusive_ptr<Resource<Surface> >()) {
+          static int natKitSeq = 0;
+          std::string uname = "natkit_" + int_to_str(++natKitSeq);
+          natKit = ResourceManagerPool::GetInstance().GetManager<Surface>(e_ResourceType_Surface)
+                       ->FetchCopy(kitFilename, uname);
+          gpf_RecolorKit(natKit->GetResource()->GetData(), gpf_natColor[GetID()]);
+        }
+        kit = natKit;
+      }
+#endif
       player->Activate(playerNode, fullbodyNode, colorCoords, kit, match->GetAnimCollection());
     }
   }

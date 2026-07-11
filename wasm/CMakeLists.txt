@@ -98,6 +98,7 @@ set(GPF_EM_LINK
      -lopenal \
      -sINITIAL_MEMORY=1073741824 \
      -sEXIT_RUNTIME=0 -sASSERTIONS=1 -sGL_ASSERTIONS=0 \
+     -sEXPORTED_RUNTIME_METHODS=ccall,cwrap \
      -sASYNCIFY=1 -sASYNCIFY_STACK_SIZE=262144 \
      -sALLOW_MEMORY_GROWTH=0 \
      --preload-file ${GPF_ROOT}/data@/data \

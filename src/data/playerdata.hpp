@@ -21,6 +21,7 @@ class PlayerData {
 
     std::string GetFirstName() const { return firstName; }
     std::string GetLastName() const { return lastName; }
+    void SetLastName(const std::string &n) { lastName = n; } // wasm: real-squad name override
     int GetDatabaseID() const { return databaseID; }
     const std::vector<e_PlayerRole> &GetRoles() const;
 

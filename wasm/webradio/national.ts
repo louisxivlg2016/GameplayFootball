@@ -6,6 +6,7 @@
 import { startNativeMatch } from "./homemenu";
 import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
+import { applyNationOverrides } from "./squads";
 
 interface Nation { name: string; flag: string; color: string; iso: string }
 interface Confed { id: string; label: string; icon: string; teams: Nation[] }
@@ -142,6 +143,8 @@ function launch(home: Nation, away: Nation): void {
     { img: flagImg(home.iso), emoji: home.flag, code: isoCode(home.iso) },
     { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },
   );
+  // real kit colours + real squad names, pushed to the engine before it builds
+  applyNationOverrides({ name: home.name, color: home.color }, { name: away.name, color: away.color });
   hideNational();
   startNativeMatch();
 }

@@ -7,6 +7,7 @@
 import { startNativeMatch } from "./homemenu";
 import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
+import { applyClubColors } from "./squads";
 
 interface Club { name: string; code: string; city: string; color: string; wiki: string }
 interface League { id: string; country: string; flag: string; clubs: Club[] }
@@ -134,6 +135,7 @@ function updateClubStatus(): void {
 }
 async function launchClubs(home: Club, away: Club): Promise<void> {
   setAnthemOverride(home.name, away.name); // club name -> its country's anthem
+  applyClubColors(home.color, away.color); // recolour kits to the club colours
   hideClubs();
   startNativeMatch();
   const [lh, la] = await Promise.all([fetchLogo(home), fetchLogo(away)]);

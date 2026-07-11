@@ -37,6 +37,40 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_quality(int level) {
   if (m) m->SetSunShadow(level >= 2);
 }
 
+// National-team overrides, set from the HTML menu BEFORE the match builds
+// (Team::InitPlayers reads them): recolor the kit to the picked nation's colour
+// and replace the DB player names with the real squad. Team index 0 = home, 1 =
+// away. gpf_natColorSet gates the recolour; gpf_natNames[t] is the shirt-ordered
+// last-name list (empty -> keep the DB names).
+int gpf_natColorSet[2] = {0, 0};
+unsigned char gpf_natColor[2][3] = {{0, 0, 0}, {0, 0, 0}};
+std::vector<std::string> gpf_natNames[2];
+
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_team_color(int team, int r, int g, int b) {
+  if (team < 0 || team > 1) return;
+  gpf_natColorSet[team] = 1;
+  gpf_natColor[team][0] = (unsigned char)r;
+  gpf_natColor[team][1] = (unsigned char)g;
+  gpf_natColor[team][2] = (unsigned char)b;
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_team_names(int team, const char *names) {
+  if (team < 0 || team > 1 || !names) return;
+  gpf_natNames[team].clear();
+  std::string s(names), cur;
+  for (size_t i = 0; i < s.size(); i++) {
+    if (s[i] == '|') { if (!cur.empty()) gpf_natNames[team].push_back(cur); cur.clear(); }
+    else cur.push_back(s[i]);
+  }
+  if (!cur.empty()) gpf_natNames[team].push_back(cur);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_clear_team_overrides() {
+  gpf_natColorSet[0] = gpf_natColorSet[1] = 0;
+  gpf_natNames[0].clear();
+  gpf_natNames[1].clear();
+}
+
 // Training drills from the HTML menu: force the live match into a specific set
 // piece (1=KickOff,3=FreeKick,4=Corner,6=Penalty — e_SetPiece values) for team 0.
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {
