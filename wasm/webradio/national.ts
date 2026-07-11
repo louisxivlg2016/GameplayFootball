@@ -4,6 +4,7 @@
  * Same visual language as the CLUB screen. Opened from the NATIONAL sidebar item.
  */
 import { startNativeMatch } from "./homemenu";
+import { setAnthemOverride } from "./anthem";
 
 interface Nation { name: string; flag: string; color: string }
 interface Confed { id: string; label: string; icon: string; teams: Nation[] }
@@ -107,9 +108,28 @@ body.gpf-national-open #gpf-menu { display:none !important; }
 `;
 
 let root: HTMLElement | null = null;
+let statusEl: HTMLElement | null = null;
+let homePick: Nation | null = null; // "your team" chosen with JOUER
 
-export function showNational(): void { root?.classList.add("show"); document.body.classList.add("gpf-national-open"); }
+function updateStatus(): void {
+  if (!statusEl) return;
+  statusEl.innerHTML = homePick
+    ? `Ton équipe : <b>${homePick.flag} ${homePick.name}</b> — choisis l'adversaire (VS)`
+    : `Choisis <b>ton équipe</b> (JOUER)`;
+}
+
+export function showNational(): void {
+  homePick = null; updateStatus();
+  root?.classList.add("show"); document.body.classList.add("gpf-national-open");
+}
 export function hideNational(): void { root?.classList.remove("show"); document.body.classList.remove("gpf-national-open"); }
+
+// home vs away picked -> the ceremony plays each country's anthem, then kickoff.
+function launch(home: Nation, away: Nation): void {
+  setAnthemOverride(home.name, away.name);
+  hideNational();
+  startNativeMatch();
+}
 
 function renderGrid(grid: HTMLElement, conf: Confed): void {
   grid.innerHTML = "";
@@ -119,9 +139,16 @@ function renderGrid(grid: HTMLElement, conf: Confed): void {
     card.style.setProperty("--nat-color", nat.color);
     card.innerHTML =
       `<span class="nat-flag">${nat.flag}</span><b>${nat.name}</b>` +
-      `<span class="nat-actions"><button title="Jouer avec cette équipe">JOUER</button>` +
-      `<button title="Affronter cette équipe">VS</button></span>`;
-    card.querySelector(".nat-actions button")!.addEventListener("click", () => { hideNational(); startNativeMatch(); });
+      `<span class="nat-actions"><button class="nat-play" title="Jouer avec cette équipe">JOUER</button>` +
+      `<button class="nat-vs" title="Affronter cette équipe">VS</button></span>`;
+    card.querySelector(".nat-play")!.addEventListener("click", () => {
+      homePick = nat;                 // pick your team, then choose an opponent
+      updateStatus();
+    });
+    card.querySelector(".nat-vs")!.addEventListener("click", () => {
+      if (!homePick) { homePick = nat; updateStatus(); return; } // no home yet -> treat as your team
+      launch(homePick, nat);
+    });
     grid.appendChild(card);
   }
 }
@@ -138,7 +165,7 @@ export function initNational(): void {
       <div class="menu-panel-head">
         <button class="nat-back">← Menu</button>
         <span>Équipes nationales</span>
-        <b>Tous les pays</b>
+        <b class="nat-status">Choisis <b>ton équipe</b> (JOUER)</b>
       </div>
       <div class="conf-tabs"></div>
       <div class="nat-grid"></div>
@@ -161,6 +188,7 @@ export function initNational(): void {
     tabEls.push(b);
   }
   root.querySelector(".nat-back")!.addEventListener("click", hideNational);
+  statusEl = root.querySelector<HTMLElement>(".nat-status");
   renderGrid(grid, active);
   document.body.appendChild(root);
 }

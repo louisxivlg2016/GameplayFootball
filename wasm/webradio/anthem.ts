@@ -188,6 +188,16 @@ let fadeTimer: number | null = null;
 let banner: HTMLElement | null = null;
 let bannerLabel: HTMLElement | null = null;
 
+// When the player picks teams in the NATIONAL/CLUB menu, those choices override
+// the (limited) DB team names for the ceremony, so e.g. choosing France plays
+// the French anthem. Home = team 0, away = team 1. Cleared after the ceremony.
+let overrideHome: string | null = null;
+let overrideAway: string | null = null;
+export function setAnthemOverride(home: string | null, away: string | null): void {
+  overrideHome = home;
+  overrideAway = away;
+}
+
 // The anthem recordings (military-band ogg/oga) are quiet, so route each one
 // through a WebAudio gain node (>1) to make it clearly audible over the game.
 let actx: AudioContext | null = null;
@@ -274,8 +284,9 @@ export function initAnthem(): void {
   w.gpfAnthem = (idx: number, teamName: string): void => {
     setRadioSuppressed(true); // the commentator stays silent during the anthems
     stopAudio();
-    showBanner(teamName);
-    const url = resolveAnthemUrl(teamName);
+    const name = (idx === 0 ? overrideHome : overrideAway) || teamName;
+    showBanner(name);
+    const url = resolveAnthemUrl(name);
     if (!url) return; // no anthem found — ceremony continues silently
     const a = new Audio("/img-proxy?u=" + encodeURIComponent(url));
     a.volume = 1.0;
@@ -290,6 +301,8 @@ export function initAnthem(): void {
   w.gpfAnthemEnd = (): void => {
     stopAudio();
     hideBanner();
+    overrideHome = null;
+    overrideAway = null;
     // ceremony over, kickoff coming — let the commentator back in and greet
     setRadioSuppressed(false);
     try { radio("opening", {}); } catch { /* radio not ready */ }
