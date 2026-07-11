@@ -275,7 +275,8 @@ class Match {
     void AnnounceAnthem(int teamIdx);
     int anthemPhase;                  // -1 off/done, 0 = team 0's anthem, 1 = team 1's
     unsigned long anthemPhaseStart_ms;
-    bool anthemChecked;               // asked the page once whether it wants a ceremony
+    bool anthemWanted;                // decided at construction (page not a drill)
+    bool anthemChecked;               // ceremony already started once
 #endif
 
     boost::intrusive_ptr<Node> stadiumNode;

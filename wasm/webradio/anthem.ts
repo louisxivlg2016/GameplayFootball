@@ -139,7 +139,26 @@ const CLUB_TO_COUNTRY: Array<[string, string]> = [
   ["ajax", "Netherlands"], ["psv", "Netherlands"], ["feyenoord", "Netherlands"],
   ["porto", "Portugal"], ["benfica", "Portugal"], ["sporting", "Portugal"],
   ["celtic", "Scotland"], ["rangers", "Scotland"],
+  // the shipped default DB teams (fictional names -> the club they stand in for)
+  ["masterdam", "Netherlands"],      // Ajax
+  ["rood wit", "Netherlands"], ["eindhoven", "Netherlands"], // PSV
+  ["gunners", "England"],            // Arsenal
+  ["red devils", "England"],         // Man United
+  ["cataluna", "Spain"],             // Barcelona (accent-stripped "cataluña")
+  ["galacticos", "Spain"],           // Real Madrid
+  ["bavaria", "Germany"],            // Bayern
+  ["gelben", "Germany"],             // Dortmund ("die Gelben")
 ];
+
+// last-resort fallback so the ceremony always has music: a deterministic pick
+// from a handful of big anthems, keyed off the team name.
+const FALLBACK_ORDER = ["England", "France", "Spain", "Italy", "Germany", "Brazil", "Argentina", "Netherlands"];
+function fallbackAnthem(teamName: string): string {
+  let h = 0;
+  const n = normalize(teamName);
+  for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
+  return ANTHEMS[FALLBACK_ORDER[h % FALLBACK_ORDER.length]];
+}
 
 const normalize = (s: string): string =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
@@ -160,7 +179,8 @@ function resolveAnthemUrl(teamName: string): string | null {
   for (const [frag, country] of CLUB_TO_COUNTRY) {
     if (n.includes(frag) && ANTHEMS[country]) return ANTHEMS[country];
   }
-  return null;
+  // 4) unknown team -> a deterministic fallback so we always have an anthem
+  return fallbackAnthem(teamName);
 }
 
 let audio: HTMLAudioElement | null = null;
@@ -241,9 +261,10 @@ export function initAnthem(): void {
     const url = resolveAnthemUrl(teamName);
     if (!url) return; // no anthem found — ceremony continues silently
     const a = new Audio("/img-proxy?u=" + encodeURIComponent(url));
-    a.volume = 0.9;
+    a.volume = 1.0;
     audio = a;
-    a.play().catch(() => { /* autoplay policy — banner still shows */ });
+    a.play().then(() => console.log(`[gpf-anthem] playing ${teamName}`))
+      .catch((e) => console.warn("[gpf-anthem] play blocked:", e?.message || e));
     // fade out toward the end of the 18s phase (C++ side owns the timing)
     window.setTimeout(() => { if (audio === a) fadeOutAndStop(a, 1800); }, 15800);
   };

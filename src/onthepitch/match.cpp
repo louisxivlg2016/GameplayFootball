@@ -48,6 +48,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
 #ifdef __EMSCRIPTEN__
   anthemPhase = -1;
   anthemPhaseStart_ms = 0;
+  anthemWanted = false;
   anthemChecked = false;
 #endif
 
@@ -389,6 +390,15 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   gpfRadioReset();
   gpfRadioSetTeams(matchData->GetTeamData(0)->GetName().c_str(),
                    matchData->GetTeamData(1)->GetName().c_str());
+#ifdef __EMSCRIPTEN__
+  // Decide the anthem ceremony HERE, before the opening line: if a ceremony will
+  // run, skip "opening" entirely (the page re-fires it at kickoff, once the
+  // anthems are done) so the commentator never talks over the anthem.
+  anthemWanted = EM_ASM_INT({
+    try { return (window.gpfCeremonyWanted && window.gpfCeremonyWanted()) ? 1 : 0; } catch (e) { return 0; }
+  });
+  if (!anthemWanted)
+#endif
   gpfRadioEvent("opening");
 
 
@@ -546,22 +556,15 @@ void Match::AnnounceAnthem(int teamIdx) {
 }
 
 void Match::ProcessAnthemCeremony() {
-  // ask the page once, shortly after the match spins up, whether it wants a
-  // ceremony (it declines for training drills)
-  if (!anthemChecked && actualTime_ms >= 300) {
+  // start the ceremony shortly after kickoff setup (so LineUpForAnthem isn't
+  // overwritten by the initial kickoff's PrepareSetPiece). anthemWanted was
+  // decided at construction, before the opening line.
+  if (anthemWanted && !anthemChecked && actualTime_ms >= 300) {
     anthemChecked = true;
-    int wanted = EM_ASM_INT({
-      try { return (window.gpfCeremonyWanted && window.gpfCeremonyWanted()) ? 1 : 0; } catch (e) { return 0; }
-    });
-    printf("[anthem] check: wanted=%i inPlay=%i\n", wanted, IsInPlay() ? 1 : 0);
-    // note: PreMatch flips to 1stHalf at tick 0 (the initial kickoff buffer has
-    // prepareTime 0 + endPhase), so gate on "kickoff whistle not blown yet".
-    if (wanted && !IsInPlay()) {
-      anthemPhase = 0;
-      anthemPhaseStart_ms = actualTime_ms;
-      LineUpForAnthem();
-      AnnounceAnthem(0);
-    }
+    anthemPhase = 0;
+    anthemPhaseStart_ms = actualTime_ms;
+    LineUpForAnthem();
+    AnnounceAnthem(0);
   }
 
   if (IsCeremonyActive() && actualTime_ms - anthemPhaseStart_ms >= anthemDuration_ms) {
