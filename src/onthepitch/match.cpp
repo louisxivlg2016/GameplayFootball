@@ -563,9 +563,12 @@ void Match::ProcessAnthemCeremony() {
     anthemChecked = true;
     anthemPhase = 0;
     anthemPhaseStart_ms = actualTime_ms;
-    LineUpForAnthem();
     AnnounceAnthem(0);
   }
+
+  // keep both teams pinned in the centre row every frame — otherwise their AI
+  // controllers walk them back to their kickoff formation (each into its own half).
+  if (IsCeremonyActive()) LineUpForAnthem();
 
   if (IsCeremonyActive() && actualTime_ms - anthemPhaseStart_ms >= anthemDuration_ms) {
     SkipAnthem(); // advance to the next anthem / end the ceremony
