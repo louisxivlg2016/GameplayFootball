@@ -795,6 +795,23 @@ void Humanoid::CalculateGeomOffsets() {
   SetOffset("right_elbow", 0.0, QUATERNION_IDENTITY);
   SetOffset("body", 0.0, QUATERNION_IDENTITY);
 
+#ifdef __EMSCRIPTEN__
+  // pre-match anthem ceremony: fold the arms across the chest (crossed-arms
+  // stance) via bone offsets on top of the idle pose. adaptArmsToOpp below is
+  // gated on IsInPlay(), so it won't fight this. Angles tuned by eye.
+  if (match->IsCeremonyActive()) {
+    Quaternion ls, rs, le, re;
+    ls.SetAngleAxis(0.28f * pi, Vector3(1, 0, 0));   // left upper arm forward/down
+    rs.SetAngleAxis(0.28f * pi, Vector3(1, 0, 0));   // right upper arm forward/down
+    le.SetAngleAxis(-0.75f * pi, Vector3(1, 0, 0));  // left forearm folds up across chest
+    re.SetAngleAxis(-0.75f * pi, Vector3(1, 0, 0));  // right forearm folds up across chest
+    SetOffset("left_shoulder", 0.9f, ls.GetNormalized());
+    SetOffset("right_shoulder", 0.9f, rs.GetNormalized());
+    SetOffset("left_elbow", 0.95f, le.GetNormalized());
+    SetOffset("right_elbow", 0.95f, re.GetNormalized());
+  }
+#endif
+
   bool adaptLegsToTrueVelocity = true;
   float adaptLegsToTrueVelocity_influence = 0.7f;
   bool adaptBodyToBallPosition = true;
