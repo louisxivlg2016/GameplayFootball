@@ -910,14 +910,17 @@ void Match::UpdateIngameCamera() {
     // Keeper drill uses the SAME camera as the penalty (it IS a penalty, just with
     // the bot shooting), so it falls through to the penalty branch below.
     if (drillType == e_SetPiece_Corner) {
-      // corner: camera high and BEHIND the corner taker, looking across the box
-      // at the goal so you see the whole pitch + goal.
-      Vector3 target = Vector3((pitchHalfW - 3.0f) * oppSide, 0.0f, 1.0f);      // near the goal mouth
-      cameraNodePosition = ballPos + Vector3(4.0f * oppSide, 9.0f, 0.0f);       // beyond goal line + behind corner
-      cameraNodePosition.coords[2] = 13.0f;                                     // up high
+      // corner: camera BEHIND the taker along the taker->goal line, so the taker
+      // is in the foreground and the box + goal are ahead (you can see where you
+      // aim). Placing it on that diagonal (not a fixed +y offset) keeps the taker
+      // framed whichever corner the kick is from.
+      Vector3 target = Vector3((pitchHalfW - 9.0f) * oppSide, 0.0f, 1.2f);      // in front of the goal
+      Vector3 behind = (ballPos - target).Get2D();                             // goal -> corner direction
+      if (behind.GetLength() > 0.01f) behind = behind.GetNormalized();
+      cameraNodePosition = ballPos + behind * 8.0f + Vector3(0.0f, 0.0f, 6.5f); // 8m behind taker, 6.5m up
       cameraNodeOrientation.SetAngleAxis((target - cameraNodePosition).GetAngle2D() + 1.5f * pi, Vector3(0, 0, 1));
-      cameraOrientation.SetAngleAxis(0.41f * pi, Vector3(1, 0, 0));
-      cameraFOV = 36.0f;
+      cameraOrientation.SetAngleAxis(0.40f * pi, Vector3(1, 0, 0));            // tilt down
+      cameraFOV = 40.0f;
 
     } else {
       // penalty / free kick: camera BEHIND the shooter, facing the goal.
