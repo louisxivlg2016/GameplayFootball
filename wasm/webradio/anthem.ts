@@ -198,22 +198,10 @@ export function setAnthemOverride(home: string | null, away: string | null): voi
   overrideAway = away;
 }
 
-// The anthem recordings (military-band ogg/oga) are quiet, so route each one
-// through a WebAudio gain node (>1) to make it clearly audible over the game.
-let actx: AudioContext | null = null;
-const ANTHEM_GAIN = 3.0;
-function boostAudio(a: HTMLAudioElement): void {
-  try {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return;
-    actx = actx || new AC();
-    if (actx.state === "suspended") void actx.resume();
-    const src = actx.createMediaElementSource(a); // once-per-element; fine, new element each anthem
-    const g = actx.createGain();
-    g.gain.value = ANTHEM_GAIN;
-    src.connect(g).connect(actx.destination);
-  } catch { /* routing failed — element still plays at its own volume */ }
-}
+// NOTE: an earlier WebAudio gain-node "boost" made some anthems silent in a live
+// match (the game runs its own AudioContext; routing the element through a second
+// one is unreliable). We now play the plain element — proven to play every codec
+// — and rely on ducking the game audio (menu music off, crowd hushed) instead.
 
 function stopAudio(): void {
   if (fadeTimer !== null) { clearInterval(fadeTimer); fadeTimer = null; }
@@ -298,7 +286,6 @@ export function initAnthem(): void {
     const a = new Audio("/img-proxy?u=" + encodeURIComponent(url));
     a.volume = 1.0;
     audio = a;
-    boostAudio(a);
     a.addEventListener("ended", () => advance(a)); // full anthem played -> next
     a.play().then(() => console.log(`[gpf-anthem] playing ${name} (full)`))
       .catch((e) => {
