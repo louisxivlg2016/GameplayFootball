@@ -536,13 +536,14 @@ void Match::SetSunShadow(bool enabled) {
 static const unsigned long anthemDuration_ms = 240000;
 
 void Match::LineUpForAnthem() {
-  // both teams in a row near the centre line, facing the TV-camera side (-Y)
+  // both teams shoulder-to-shoulder in a tight row near the centre line, facing
+  // the TV-camera side (-Y) — like a national-anthem line-up.
   for (int t = 0; t < 2; t++) {
     std::vector<Player*> players;
     GetActiveTeamPlayers(t, players);
-    float xStart = (t == 0) ? -15.5f : 2.5f;
+    float xStart = (t == 0) ? -9.5f : 1.0f;
     for (unsigned int i = 0; i < players.size(); i++) {
-      Vector3 pos(xStart + i * 1.3f, -1.5f, 0);
+      Vector3 pos(xStart + i * 0.85f, -1.5f, 0);
       players.at(i)->ResetPosition(pos, pos + Vector3(0, -10, 0)); // face the camera
     }
   }
@@ -886,10 +887,10 @@ void Match::UpdateIngameCamera() {
     // anthem ceremony: close camera slowly panning along the active team's row
     // (players lined up by LineUpForAnthem at y = -1.5, facing -Y)
     int t = GetAnthemPhase();
-    float xStart = (t == 0) ? -15.5f : 2.5f;
-    float rowLength = 10 * 1.3f;
+    float xStart = (t == 0) ? -9.5f : 1.0f;
+    float rowLength = 10 * 0.85f;
     float progress = clamp((actualTime_ms - GetAnthemPhaseStart()) / 28000.0f, 0.0f, 1.0f); // pan ~28s then hold
-    cameraNodePosition = Vector3(xStart + progress * rowLength, -1.5f - 5.5f, 1.7f); // eye height, 5.5m out
+    cameraNodePosition = Vector3(xStart + progress * rowLength, -1.5f - 5.0f, 1.7f); // eye height, 5m out
     cameraNodeOrientation = QUATERNION_IDENTITY;                    // face +Y (toward the players)
     cameraOrientation.SetAngleAxis(0.485f * pi, Vector3(1, 0, 0));  // almost horizontal
     cameraFOV = 24.0f;
