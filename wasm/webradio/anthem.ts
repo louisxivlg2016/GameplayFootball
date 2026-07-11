@@ -281,21 +281,30 @@ export function initAnthem(): void {
 
   w.gpfCeremonyWanted = (): boolean => !isDrillSession();
 
+  // the anthem is played IN FULL; when it ends we advance the ceremony to the
+  // next team (or kickoff) via the C++ skip hook — so it's not cut short.
+  const advance = (a: HTMLAudioElement): void => {
+    if (audio !== a) return; // superseded or already stopped
+    (window as unknown as { Module?: AnthemModule }).Module?._gpf_skip_anthem?.();
+  };
+
   w.gpfAnthem = (idx: number, teamName: string): void => {
     setRadioSuppressed(true); // the commentator stays silent during the anthems
     stopAudio();
     const name = (idx === 0 ? overrideHome : overrideAway) || teamName;
     showBanner(name);
-    const url = resolveAnthemUrl(name);
-    if (!url) return; // no anthem found — ceremony continues silently
+    const url = resolveAnthemUrl(name); // always resolves (has a fallback)
+    if (!url) return;
     const a = new Audio("/img-proxy?u=" + encodeURIComponent(url));
     a.volume = 1.0;
     audio = a;
     boostAudio(a);
-    a.play().then(() => console.log(`[gpf-anthem] playing ${teamName}`))
-      .catch((e) => console.warn("[gpf-anthem] play blocked:", e?.message || e));
-    // fade out toward the end of the 18s phase (C++ side owns the timing)
-    window.setTimeout(() => { if (audio === a) fadeOutAndStop(a, 1800); }, 15800);
+    a.addEventListener("ended", () => advance(a)); // full anthem played -> next
+    a.play().then(() => console.log(`[gpf-anthem] playing ${name} (full)`))
+      .catch((e) => {
+        console.warn("[gpf-anthem] play blocked:", e?.message || e);
+        window.setTimeout(() => advance(a), 2500); // couldn't play — don't hang
+      });
   };
 
   w.gpfAnthemEnd = (): void => {

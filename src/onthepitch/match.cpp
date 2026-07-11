@@ -531,7 +531,9 @@ void Match::SetSunShadow(bool enabled) {
 // --- pre-match anthem ceremony ---------------------------------------------
 // 18 seconds per team; the page plays the audio and shows the banner/skip UI.
 
-static const unsigned long anthemDuration_ms = 18000;
+// Safety cap only: the page plays each anthem IN FULL and calls gpf_skip_anthem
+// when the audio actually ends, so this just guards against a stuck/failed clip.
+static const unsigned long anthemDuration_ms = 240000;
 
 void Match::LineUpForAnthem() {
   // both teams in a row near the centre line, facing the TV-camera side (-Y)
@@ -886,7 +888,7 @@ void Match::UpdateIngameCamera() {
     int t = GetAnthemPhase();
     float xStart = (t == 0) ? -15.5f : 2.5f;
     float rowLength = 10 * 1.3f;
-    float progress = clamp((actualTime_ms - GetAnthemPhaseStart()) / 18000.0f, 0.0f, 1.0f);
+    float progress = clamp((actualTime_ms - GetAnthemPhaseStart()) / 28000.0f, 0.0f, 1.0f); // pan ~28s then hold
     cameraNodePosition = Vector3(xStart + progress * rowLength, -1.5f - 5.5f, 1.7f); // eye height, 5.5m out
     cameraNodeOrientation = QUATERNION_IDENTITY;                    // face +Y (toward the players)
     cameraOrientation.SetAngleAxis(0.485f * pi, Vector3(1, 0, 0));  // almost horizontal
