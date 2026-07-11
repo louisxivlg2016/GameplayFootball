@@ -16,15 +16,20 @@ let slot1: HTMLElement | null = null;
 // badge positions as a fraction of the canvas (tuned to the C++ scoreboard)
 const BADGE_Y = 0.028;
 const BADGE_H = 0.05;
-const BADGE_X0 = 0.163; // home badge centre
-const BADGE_X1 = 0.283; // away badge centre
+const BADGE_X0 = 0.292; // home team badge centre (over the C++ scoreboard)
+const BADGE_X1 = 0.392; // away team badge centre
 
 function fill(slot: HTMLElement, f: ScoreFlag | null): void {
   if (!f) { slot.innerHTML = ""; slot.style.display = "none"; return; }
   slot.style.display = "flex";
-  slot.innerHTML = f.img
-    ? `<img src="${f.img}" style="width:100%;height:100%;object-fit:contain">`
-    : `<span style="font-size:80%;line-height:1">${f.emoji ?? ""}</span>`;
+  const emojiSpan = `<span style="font-size:80%;line-height:1">${f.emoji ?? ""}</span>`;
+  if (f.img) {
+    slot.innerHTML =
+      `<img src="${f.img}" style="width:100%;height:100%;object-fit:cover;border-radius:2px"` +
+      ` onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${f.emoji ?? ""}',style:'font-size:80%'}))">`;
+  } else {
+    slot.innerHTML = emojiSpan;
+  }
 }
 
 function place(): void {

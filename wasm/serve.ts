@@ -121,7 +121,7 @@ Bun.serve({
     // server-side and re-serve them with our isolation headers.
     if (path === "/img-proxy") {
       const u = url.searchParams.get("u") || "";
-      if (!/^https:\/\/(images\.unsplash\.com|upload\.wikimedia\.org)\//.test(u)) {
+      if (!/^https:\/\/(images\.unsplash\.com|upload\.wikimedia\.org|flagcdn\.com)\//.test(u)) {
         return new Response("bad host", { status: 400 });
       }
       try {

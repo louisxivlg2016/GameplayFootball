@@ -7,67 +7,71 @@ import { startNativeMatch } from "./homemenu";
 import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
 
-interface Nation { name: string; flag: string; color: string }
+interface Nation { name: string; flag: string; color: string; iso: string }
 interface Confed { id: string; label: string; icon: string; teams: Nation[] }
+
+// real flag image (renders everywhere, unlike flag emoji on Linux/Windows)
+const flagImg = (iso: string): string =>
+  "/img-proxy?u=" + encodeURIComponent(`https://flagcdn.com/w160/${iso}.png`);
 
 const CONFEDS: Confed[] = [
   { id: "eu", label: "Europe", icon: "🇪🇺", teams: [
-    { name: "France", flag: "🇫🇷", color: "#1a2a6c" },
-    { name: "Espagne", flag: "🇪🇸", color: "#c60b1e" },
-    { name: "Italie", flag: "🇮🇹", color: "#0064aa" },
-    { name: "Allemagne", flag: "🇩🇪", color: "#111111" },
-    { name: "Angleterre", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", color: "#ffffff" },
-    { name: "Portugal", flag: "🇵🇹", color: "#046a38" },
-    { name: "Pays-Bas", flag: "🇳🇱", color: "#f36c21" },
-    { name: "Belgique", flag: "🇧🇪", color: "#e30613" },
-    { name: "Croatie", flag: "🇭🇷", color: "#ff0000" },
-    { name: "Norvège", flag: "🇳🇴", color: "#ba0c2f" },
-    { name: "Danemark", flag: "🇩🇰", color: "#c60c30" },
-    { name: "Suisse", flag: "🇨🇭", color: "#d52b1e" },
-    { name: "Pologne", flag: "🇵🇱", color: "#dc143c" },
-    { name: "Turquie", flag: "🇹🇷", color: "#e30a17" },
-    { name: "Autriche", flag: "🇦🇹", color: "#ed2939" },
-    { name: "Serbie", flag: "🇷🇸", color: "#c6363c" },
-    { name: "Ukraine", flag: "🇺🇦", color: "#005bbb" },
-    { name: "Suède", flag: "🇸🇪", color: "#006aa7" },
-    { name: "Écosse", flag: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", color: "#0065bf" },
-    { name: "Pays de Galles", flag: "🏴󠁧󠁢󠁷󠁬󠁳󠁿", color: "#c8102e" },
+    { name: "France", flag: "🇫🇷", color: "#1a2a6c", iso: "fr" },
+    { name: "Espagne", flag: "🇪🇸", color: "#c60b1e", iso: "es" },
+    { name: "Italie", flag: "🇮🇹", color: "#0064aa", iso: "it" },
+    { name: "Allemagne", flag: "🇩🇪", color: "#111111", iso: "de" },
+    { name: "Angleterre", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", color: "#ffffff", iso: "gb-eng" },
+    { name: "Portugal", flag: "🇵🇹", color: "#046a38", iso: "pt" },
+    { name: "Pays-Bas", flag: "🇳🇱", color: "#f36c21", iso: "nl" },
+    { name: "Belgique", flag: "🇧🇪", color: "#e30613", iso: "be" },
+    { name: "Croatie", flag: "🇭🇷", color: "#ff0000", iso: "hr" },
+    { name: "Norvège", flag: "🇳🇴", color: "#ba0c2f", iso: "no" },
+    { name: "Danemark", flag: "🇩🇰", color: "#c60c30", iso: "dk" },
+    { name: "Suisse", flag: "🇨🇭", color: "#d52b1e", iso: "ch" },
+    { name: "Pologne", flag: "🇵🇱", color: "#dc143c", iso: "pl" },
+    { name: "Turquie", flag: "🇹🇷", color: "#e30a17", iso: "tr" },
+    { name: "Autriche", flag: "🇦🇹", color: "#ed2939", iso: "at" },
+    { name: "Serbie", flag: "🇷🇸", color: "#c6363c", iso: "rs" },
+    { name: "Ukraine", flag: "🇺🇦", color: "#005bbb", iso: "ua" },
+    { name: "Suède", flag: "🇸🇪", color: "#006aa7", iso: "se" },
+    { name: "Écosse", flag: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", color: "#0065bf", iso: "gb-sct" },
+    { name: "Pays de Galles", flag: "🏴󠁧󠁢󠁷󠁬󠁳󠁿", color: "#c8102e", iso: "gb-wls" },
   ] },
   { id: "sa", label: "Amérique du Sud", icon: "🌎", teams: [
-    { name: "Argentine", flag: "🇦🇷", color: "#75aadb" },
-    { name: "Brésil", flag: "🇧🇷", color: "#009c3b" },
-    { name: "Uruguay", flag: "🇺🇾", color: "#7bafd4" },
-    { name: "Colombie", flag: "🇨🇴", color: "#fcd116" },
-    { name: "Chili", flag: "🇨🇱", color: "#d52b1e" },
-    { name: "Équateur", flag: "🇪🇨", color: "#ffdd00" },
-    { name: "Pérou", flag: "🇵🇪", color: "#d91023" },
-    { name: "Paraguay", flag: "🇵🇾", color: "#d52b1e" },
+    { name: "Argentine", flag: "🇦🇷", color: "#75aadb", iso: "ar" },
+    { name: "Brésil", flag: "🇧🇷", color: "#009c3b", iso: "br" },
+    { name: "Uruguay", flag: "🇺🇾", color: "#7bafd4", iso: "uy" },
+    { name: "Colombie", flag: "🇨🇴", color: "#fcd116", iso: "co" },
+    { name: "Chili", flag: "🇨🇱", color: "#d52b1e", iso: "cl" },
+    { name: "Équateur", flag: "🇪🇨", color: "#ffdd00", iso: "ec" },
+    { name: "Pérou", flag: "🇵🇪", color: "#d91023", iso: "pe" },
+    { name: "Paraguay", flag: "🇵🇾", color: "#d52b1e", iso: "py" },
   ] },
   { id: "af", label: "Afrique", icon: "🌍", teams: [
-    { name: "Maroc", flag: "🇲🇦", color: "#c1272d" },
-    { name: "Sénégal", flag: "🇸🇳", color: "#00853f" },
-    { name: "Nigéria", flag: "🇳🇬", color: "#008751" },
-    { name: "Égypte", flag: "🇪🇬", color: "#ce1126" },
-    { name: "Cameroun", flag: "🇨🇲", color: "#007a5e" },
-    { name: "Ghana", flag: "🇬🇭", color: "#006b3f" },
-    { name: "Côte d'Ivoire", flag: "🇨🇮", color: "#f77f00" },
-    { name: "Algérie", flag: "🇩🇿", color: "#006233" },
-    { name: "Tunisie", flag: "🇹🇳", color: "#e70013" },
-    { name: "Mali", flag: "🇲🇱", color: "#14b53a" },
+    { name: "Maroc", flag: "🇲🇦", color: "#c1272d", iso: "ma" },
+    { name: "Sénégal", flag: "🇸🇳", color: "#00853f", iso: "sn" },
+    { name: "Nigéria", flag: "🇳🇬", color: "#008751", iso: "ng" },
+    { name: "Égypte", flag: "🇪🇬", color: "#ce1126", iso: "eg" },
+    { name: "Cameroun", flag: "🇨🇲", color: "#007a5e", iso: "cm" },
+    { name: "Ghana", flag: "🇬🇭", color: "#006b3f", iso: "gh" },
+    { name: "Côte d'Ivoire", flag: "🇨🇮", color: "#f77f00", iso: "ci" },
+    { name: "Algérie", flag: "🇩🇿", color: "#006233", iso: "dz" },
+    { name: "Tunisie", flag: "🇹🇳", color: "#e70013", iso: "tn" },
+    { name: "Mali", flag: "🇲🇱", color: "#14b53a", iso: "ml" },
   ] },
   { id: "na", label: "Amér. du Nord", icon: "🌎", teams: [
-    { name: "États-Unis", flag: "🇺🇸", color: "#3c3b6e" },
-    { name: "Mexique", flag: "🇲🇽", color: "#006847" },
-    { name: "Canada", flag: "🇨🇦", color: "#ff0000" },
-    { name: "Costa Rica", flag: "🇨🇷", color: "#002b7f" },
+    { name: "États-Unis", flag: "🇺🇸", color: "#3c3b6e", iso: "us" },
+    { name: "Mexique", flag: "🇲🇽", color: "#006847", iso: "mx" },
+    { name: "Canada", flag: "🇨🇦", color: "#ff0000", iso: "ca" },
+    { name: "Costa Rica", flag: "🇨🇷", color: "#002b7f", iso: "cr" },
   ] },
   { id: "as", label: "Asie / Océanie", icon: "🌏", teams: [
-    { name: "Japon", flag: "🇯🇵", color: "#bc002d" },
-    { name: "Corée du Sud", flag: "🇰🇷", color: "#003478" },
-    { name: "Australie", flag: "🇦🇺", color: "#00843d" },
-    { name: "Arabie Saoudite", flag: "🇸🇦", color: "#006c35" },
-    { name: "Iran", flag: "🇮🇷", color: "#239f40" },
-    { name: "Qatar", flag: "🇶🇦", color: "#8a1538" },
+    { name: "Japon", flag: "🇯🇵", color: "#bc002d", iso: "jp" },
+    { name: "Corée du Sud", flag: "🇰🇷", color: "#003478", iso: "kr" },
+    { name: "Australie", flag: "🇦🇺", color: "#00843d", iso: "au" },
+    { name: "Arabie Saoudite", flag: "🇸🇦", color: "#006c35", iso: "sa" },
+    { name: "Iran", flag: "🇮🇷", color: "#239f40", iso: "ir" },
+    { name: "Qatar", flag: "🇶🇦", color: "#8a1538", iso: "qa" },
   ] },
 ];
 
@@ -128,7 +132,8 @@ export function hideNational(): void { root?.classList.remove("show"); document.
 // home vs away picked -> the ceremony plays each country's anthem, then kickoff.
 function launch(home: Nation, away: Nation): void {
   setAnthemOverride(home.name, away.name);
-  setScoreFlags({ emoji: home.flag }, { emoji: away.flag }); // flags in the score bar
+  // real flag images on the score-bar badges (emoji fallback if they fail)
+  setScoreFlags({ img: flagImg(home.iso), emoji: home.flag }, { img: flagImg(away.iso), emoji: away.flag });
   hideNational();
   startNativeMatch();
 }
