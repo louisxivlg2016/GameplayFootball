@@ -378,6 +378,17 @@ void Referee::StartKeeperDrill(int reps) {
   ForceSetPiece(e_SetPiece_Penalty, botTeam);
 }
 
+void Referee::RestartAfterCeremony() {
+  // the initial kickoff's prepareTime already fired before the ceremony, so
+  // re-arm the countdown from now: PrepareSetPiece runs again (players reform to
+  // the kickoff formation) and the whistle follows ~2.5s later.
+  buffer.stopTime = match->GetActualTime_ms();
+  buffer.prepareTime = match->GetActualTime_ms() + 100;
+  buffer.startTime = buffer.prepareTime + 2500;
+  buffer.endPhase = false;
+  buffer.active = true;
+}
+
 void Referee::NotifyDrillShotTaken() {
   if (drillType == e_SetPiece_None) return;
   // end the set-piece phase so the goalkeeper (and everyone) resume live play,

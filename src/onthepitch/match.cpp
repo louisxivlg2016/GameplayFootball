@@ -586,6 +586,7 @@ void Match::SkipAnthem() {
     AnnounceAnthem(1);
   } else {
     anthemPhase = -1;
+    GetReferee()->RestartAfterCeremony(); // players reform, then kickoff
     EM_ASM({ try { if (window.gpfAnthemEnd) window.gpfAnthemEnd(); } catch (e) {} });
   }
 }

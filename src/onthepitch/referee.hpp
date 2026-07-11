@@ -78,6 +78,9 @@ class Referee {
     // The user drew an aim line and the ball was launched directly (gpf_drill_shoot):
     // end the set-piece phase so the keeper reacts, then schedule the next attempt.
     void NotifyDrillShotTaken();
+    // Anthem ceremony finished: re-run the kickoff countdown so the players
+    // reform into their natural positions, then the whistle blows a beat later.
+    void RestartAfterCeremony();
 
   protected:
     Match *match;
