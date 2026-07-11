@@ -12,6 +12,7 @@ import { hideLineup, showLineup } from "./lineup";
 import { hideNational, showNational } from "./national";
 import { hideTraining, showTraining } from "./training";
 import { resumeMenuMusic } from "./menu";
+import { clearScoreFlags } from "./scoreflags";
 
 const prox = (u: string): string => `/img-proxy?u=${encodeURIComponent(u)}`;
 const PITCH_BG = prox(
@@ -133,9 +134,9 @@ export function startNativeMatch(): void {
   hide();
   hideLineup();
 
-  const skipAll = new URLSearchParams(location.search).get("debug-skip-all") === "1";
-  if (!skipAll) return; // let the player navigate the native menu themselves
-
+  // We select teams from the HTML menus (Club / National / Lineup), so drive the
+  // native menu straight through its competition/team-select pages into the
+  // match — the player never sees the native selection screen.
   // hammer Enter through the native menu until the match is created; the
   // gpfRadioReset hook (match start) clears this timer.
   let taps = 0;
@@ -190,7 +191,7 @@ export function onMatchStarted(): void {
 }
 
 export function hide(): void { root?.classList.add("hidden"); }
-export function show(): void { root?.classList.remove("hidden"); resumeMenuMusic(); }
+export function show(): void { root?.classList.remove("hidden"); resumeMenuMusic(); clearScoreFlags(); }
 
 function iconBtn(icon: string, label: string, active: boolean, onClick?: () => void): HTMLElement {
   const b = document.createElement("button");

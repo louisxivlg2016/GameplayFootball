@@ -5,6 +5,8 @@
  * static reproduction of the web #club screen (see CLUBS_SPEC.md).
  */
 import { startNativeMatch } from "./homemenu";
+import { setAnthemOverride } from "./anthem";
+import { setScoreFlags } from "./scoreflags";
 
 interface Club { name: string; code: string; city: string; color: string; wiki: string }
 interface League { id: string; country: string; flag: string; clubs: Club[] }
@@ -116,12 +118,26 @@ async function fetchLogo(club: Club): Promise<string | null> {
 }
 
 export function showClubs(): void {
+  homePick = null; updateClubStatus();
   root?.classList.add("show");
   document.body.classList.add("gpf-clubs-open");
 }
 export function hideClubs(): void {
   root?.classList.remove("show");
   document.body.classList.remove("gpf-clubs-open");
+}
+
+let homePick: Club | null = null;
+function updateClubStatus(): void {
+  const s = root?.querySelector<HTMLElement>(".club-status");
+  if (s) s.innerHTML = homePick ? `Ton club : <b>${homePick.name}</b> — choisis l'adversaire (VS)` : `Choisis <b>ton club</b> (JOUER)`;
+}
+async function launchClubs(home: Club, away: Club): Promise<void> {
+  setAnthemOverride(home.name, away.name); // club name -> its country's anthem
+  hideClubs();
+  startNativeMatch();
+  const [lh, la] = await Promise.all([fetchLogo(home), fetchLogo(away)]);
+  setScoreFlags(lh ? { img: lh } : { emoji: "🛡️" }, la ? { img: la } : { emoji: "🛡️" });
 }
 
 function renderGrid(grid: HTMLElement, league: League): void {
@@ -133,9 +149,13 @@ function renderGrid(grid: HTMLElement, league: League): void {
     card.innerHTML =
       `<span class="club-crest"><span>${club.code}</span></span>` +
       `<b>${club.name}</b><small>${club.city}</small>` +
-      `<span class="club-actions"><button title="Jouer avec ce club">JOUER</button>` +
-      `<button title="Affronter ce club">VS</button></span>`;
-    card.querySelector(".club-actions button")!.addEventListener("click", () => { hideClubs(); startNativeMatch(); });
+      `<span class="club-actions"><button class="club-play" title="Jouer avec ce club">JOUER</button>` +
+      `<button class="club-vs" title="Affronter ce club">VS</button></span>`;
+    card.querySelector(".club-play")!.addEventListener("click", () => { homePick = club; updateClubStatus(); });
+    card.querySelector(".club-vs")!.addEventListener("click", () => {
+      if (!homePick) { homePick = club; updateClubStatus(); return; }
+      void launchClubs(homePick, club);
+    });
     grid.appendChild(card);
     void fetchLogo(club).then((src) => {
       if (src) {
@@ -158,7 +178,7 @@ export function initClubs(): void {
       <div class="menu-panel-head">
         <button class="club-back">← Menu</button>
         <span>Clubs · effectifs réels</span>
-        <b>Tous les clubs par pays</b>
+        <b class="club-status">Choisis <b>ton club</b> (JOUER)</b>
       </div>
       <div class="club-league-tabs"></div>
       <div class="club-grid"></div>

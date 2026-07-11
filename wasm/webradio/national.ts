@@ -5,6 +5,7 @@
  */
 import { startNativeMatch } from "./homemenu";
 import { setAnthemOverride } from "./anthem";
+import { setScoreFlags } from "./scoreflags";
 
 interface Nation { name: string; flag: string; color: string }
 interface Confed { id: string; label: string; icon: string; teams: Nation[] }
@@ -127,6 +128,7 @@ export function hideNational(): void { root?.classList.remove("show"); document.
 // home vs away picked -> the ceremony plays each country's anthem, then kickoff.
 function launch(home: Nation, away: Nation): void {
   setAnthemOverride(home.name, away.name);
+  setScoreFlags({ emoji: home.flag }, { emoji: away.flag }); // flags in the score bar
   hideNational();
   startNativeMatch();
 }
