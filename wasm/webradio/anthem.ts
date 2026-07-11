@@ -9,6 +9,7 @@
  * out via gpfCeremonyWanted.
  */
 import { isDrillSession } from "./homemenu";
+import { radio, setRadioSuppressed } from "./radioEngine";
 
 interface AnthemModule { _gpf_skip_anthem?: () => void }
 
@@ -234,6 +235,7 @@ export function initAnthem(): void {
   w.gpfCeremonyWanted = (): boolean => !isDrillSession();
 
   w.gpfAnthem = (idx: number, teamName: string): void => {
+    setRadioSuppressed(true); // the commentator stays silent during the anthems
     stopAudio();
     showBanner(teamName);
     const url = resolveAnthemUrl(teamName);
@@ -249,5 +251,8 @@ export function initAnthem(): void {
   w.gpfAnthemEnd = (): void => {
     stopAudio();
     hideBanner();
+    // ceremony over, kickoff coming — let the commentator back in and greet
+    setRadioSuppressed(false);
+    try { radio("opening", {}); } catch { /* radio not ready */ }
   };
 }

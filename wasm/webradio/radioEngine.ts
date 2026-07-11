@@ -72,7 +72,24 @@ export function audioPeak(): number {
 }
 
 let enabled = true;
+// The commentator is silenced while the pre-match national anthem plays (kept
+// separate from `enabled`, the user's R toggle, so it restores exactly).
+let ceremonySuppressed = false;
 export const RADIO_STATE_EVENT = "gpf-radio-statechange";
+
+/** Silence the commentary during the anthem ceremony (and stop any line already
+ *  playing). The play-by-play loop and events are no-ops while suppressed. */
+export function setRadioSuppressed(s: boolean): void {
+  ceremonySuppressed = s;
+  if (s) {
+    stopCurrent();
+    playerGen++;
+    playerBusy = false;
+    queuedFlow = null;
+    pendingText = null;
+    try { window.speechSynthesis?.cancel(); } catch { /* no synth */ }
+  }
+}
 
 function dispatchRadioState(): void {
   if (typeof window === "undefined") return;
@@ -838,7 +855,7 @@ export function radioIdle(): boolean {
 /** Continuous play-by-play line. If the mic is busy, the line is synthesized
  *  right away (the worker is free while audio plays) and chained next. */
 export function radioFlow(text: string): void {
-  if (!enabled) return;
+  if (!enabled || ceremonySuppressed) return;
   const language = ensureVoiceForCurrentLanguage();
   const usingPiper = !!getPiperVoiceId(language);
   if (!piperReadyForLanguage(language)) {
@@ -947,6 +964,7 @@ export function radio(
     target?: string;
   } = {},
 ): void {
+  if (ceremonySuppressed) return; // no commentary during the anthem
   const language = ensureVoiceForCurrentLanguage();
   const copy = getRadioPack(language);
   const team = info.team !== undefined ? teamName(info.team, language) : "";
