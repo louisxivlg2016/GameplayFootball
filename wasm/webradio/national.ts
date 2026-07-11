@@ -130,10 +130,18 @@ export function showNational(): void {
 export function hideNational(): void { root?.classList.remove("show"); document.body.classList.remove("gpf-national-open"); }
 
 // home vs away picked -> the ceremony plays each country's anthem, then kickoff.
+// FR, DE, ENG… — the country code shown over the C++ team name ("ARS")
+const isoCode = (iso: string): string =>
+  (iso.includes("-") ? iso.split("-")[1]! : iso).toUpperCase();
+
 function launch(home: Nation, away: Nation): void {
   setAnthemOverride(home.name, away.name);
-  // real flag images on the score-bar badges (emoji fallback if they fail)
-  setScoreFlags({ img: flagImg(home.iso), emoji: home.flag }, { img: flagImg(away.iso), emoji: away.flag });
+  // real flag images on the score-bar badges (emoji fallback if they fail),
+  // plus the country code over the baked-in team name
+  setScoreFlags(
+    { img: flagImg(home.iso), emoji: home.flag, code: isoCode(home.iso) },
+    { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },
+  );
   hideNational();
   startNativeMatch();
 }

@@ -137,7 +137,10 @@ async function launchClubs(home: Club, away: Club): Promise<void> {
   hideClubs();
   startNativeMatch();
   const [lh, la] = await Promise.all([fetchLogo(home), fetchLogo(away)]);
-  setScoreFlags(lh ? { img: lh } : { emoji: "🛡️" }, la ? { img: la } : { emoji: "🛡️" });
+  setScoreFlags(
+    lh ? { img: lh, code: home.code } : { emoji: "🛡️", code: home.code },
+    la ? { img: la, code: away.code } : { emoji: "🛡️", code: away.code },
+  );
 }
 
 function renderGrid(grid: HTMLElement, league: League): void {

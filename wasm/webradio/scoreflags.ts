@@ -5,19 +5,23 @@
  * or the club's crest (image). Positioned over the game <canvas> and re-tracked
  * on resize. Cleared when we return to the menu.
  */
-export interface ScoreFlag { emoji?: string; img?: string }
+export interface ScoreFlag { emoji?: string; img?: string; code?: string }
 
 let home: ScoreFlag | null = null;
 let away: ScoreFlag | null = null;
 let root: HTMLElement | null = null;
 let slot0: HTMLElement | null = null;
 let slot1: HTMLElement | null = null;
+let lab0: HTMLElement | null = null;
+let lab1: HTMLElement | null = null;
 
-// badge positions as a fraction of the canvas (tuned to the C++ scoreboard)
+// positions as a fraction of the canvas (tuned to the C++ scoreboard)
 const BADGE_Y = 0.028;
 const BADGE_H = 0.05;
 const BADGE_X0 = 0.292; // home team badge centre (over the C++ scoreboard)
 const BADGE_X1 = 0.392; // away team badge centre
+const NAME_X0 = 0.334;  // home team name ("ARS") centre
+const NAME_X1 = 0.435;  // away team name centre
 
 function fill(slot: HTMLElement, f: ScoreFlag | null): void {
   if (!f) { slot.innerHTML = ""; slot.style.display = "none"; return; }
@@ -32,9 +36,18 @@ function fill(slot: HTMLElement, f: ScoreFlag | null): void {
   }
 }
 
+// paint the country/club code over the C++ team-name text ("ARS"), on a small
+// dark plate so the baked-in name underneath doesn't bleed through.
+function fillLabel(lab: HTMLElement, f: ScoreFlag | null): void {
+  const code = (f?.code ?? "").trim();
+  if (!code) { lab.style.display = "none"; return; }
+  lab.style.display = "flex";
+  lab.textContent = code;
+}
+
 function place(): void {
   const canvas = document.getElementById("canvas");
-  if (!canvas || !root || !slot0 || !slot1) return;
+  if (!canvas || !root || !slot0 || !slot1 || !lab0 || !lab1) return;
   if (!home && !away) { root.style.display = "none"; return; }
   const r = canvas.getBoundingClientRect();
   if (r.width < 10) { root.style.display = "none"; return; }
@@ -50,11 +63,23 @@ function place(): void {
   };
   style(slot0, BADGE_X0);
   style(slot1, BADGE_X1);
+  // code plate: same height as the badge, wide enough for 3 letters (ENG/WAL)
+  const lw = h * 1.8;
+  const styleLab = (lab: HTMLElement, cx: number): void => {
+    lab.style.left = `${r.left + r.width * cx - lw / 2}px`;
+    lab.style.top = `${y}px`;
+    lab.style.width = `${lw}px`;
+    lab.style.height = `${h}px`;
+    lab.style.fontSize = `${h * 0.6}px`;
+  };
+  styleLab(lab0, NAME_X0);
+  styleLab(lab1, NAME_X1);
 }
 
 export function setScoreFlags(h: ScoreFlag | null, a: ScoreFlag | null): void {
   home = h; away = a;
   if (slot0 && slot1) { fill(slot0, home); fill(slot1, away); }
+  if (lab0 && lab1) { fillLabel(lab0, home); fillLabel(lab1, away); }
   place();
 }
 export function clearScoreFlags(): void { setScoreFlags(null, null); }
@@ -75,7 +100,19 @@ export function initScoreFlags(): void {
     return s;
   };
   slot0 = mkSlot(); slot1 = mkSlot();
-  root.append(slot0, slot1);
+  const mkLab = (): HTMLElement => {
+    const s = document.createElement("div");
+    Object.assign(s.style, {
+      position: "fixed", display: "none", alignItems: "center", justifyContent: "center",
+      color: "#fff", fontWeight: "900", fontFamily: "Arial, Helvetica, sans-serif",
+      letterSpacing: "0.02em", lineHeight: "1", overflow: "hidden", whiteSpace: "nowrap",
+      background: "linear-gradient(#3b3b3b,#1e1e1e)", borderRadius: "2px",
+      textShadow: "0 1px 1px #000",
+    } as CSSStyleDeclaration);
+    return s;
+  };
+  lab0 = mkLab(); lab1 = mkLab();
+  root.append(slot0, slot1, lab0, lab1);
   document.body.appendChild(root);
 
   window.addEventListener("resize", place);
