@@ -50,6 +50,14 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   anthemPhaseStart_ms = 0;
   anthemWanted = false;
   anthemChecked = false;
+  challengePending = false;
+  challengeActive = false;
+  challengeResultSent = false;
+  chReqHome = chReqAway = 0;
+  chReqClockMin = 88;
+  chObjective = chPlayerSide = 0;
+  chBaseline[0] = chBaseline[1] = 0;
+  chEnd_ms = 5400000UL;
 #endif
 
   replayState->dirty = false;
@@ -591,6 +599,60 @@ void Match::SkipAnthem() {
   }
 }
 
+void Match::StartChallenge(int homeScore, int awayScore, int clockMin, int objective, int playerSide) {
+  chReqHome = homeScore;
+  chReqAway = awayScore;
+  chReqClockMin = (clockMin < 1) ? 1 : (clockMin > 89 ? 89 : clockMin);
+  chObjective = objective;
+  chPlayerSide = (playerSide == 1) ? 1 : 0;
+  challengePending = true;
+  challengeActive = false;
+  challengeResultSent = false;
+}
+
+void Match::ProcessChallenge() {
+  // apply once the match is actually rolling, so the kickoff (which resets the
+  // clock to 0) can't wipe our injected score/clock.
+  if (challengePending) {
+    if (IsInPlay() && matchPhase == e_MatchPhase_1stHalf) {
+      GetMatchData()->SetGoalCount(0, chReqHome);
+      GetMatchData()->SetGoalCount(1, chReqAway);
+      SetMatchPhase(e_MatchPhase_2ndHalf);              // sets clock to 45:00...
+      matchTime_ms = (unsigned long)chReqClockMin * 60000UL; // ...then jump to the drama
+      chEnd_ms = 5400000UL;                             // 90:00
+      if (matchTime_ms >= chEnd_ms) matchTime_ms = chEnd_ms - 60000UL;
+      chBaseline[0] = chReqHome;
+      chBaseline[1] = chReqAway;
+      challengePending = false;
+      challengeActive = true;
+    }
+    return;
+  }
+  if (!challengeActive || challengeResultSent) return;
+
+  const int me = chPlayerSide, opp = 1 - chPlayerSide;
+  const int myG = GetScore(me), oppG = GetScore(opp);
+  int win = -1;
+
+  // early resolution
+  if (chObjective == 0) {                 // SCORE: net a goal -> instant win
+    if (myG > chBaseline[me]) win = 1;
+  } else if (chObjective == 2) {          // HOLD: concede -> instant fail
+    if (oppG > chBaseline[opp]) win = 0;
+  }
+  // full-time resolution
+  if (win < 0 && matchTime_ms >= chEnd_ms) {
+    if (chObjective == 0)      win = (myG > chBaseline[me]) ? 1 : 0;
+    else if (chObjective == 1) win = (myG > oppG) ? 1 : 0;              // WIN: be ahead
+    else                       win = (oppG > chBaseline[opp]) ? 0 : 1;  // HOLD
+  }
+  if (win >= 0) {
+    challengeResultSent = true;
+    challengeActive = false;
+    gpfChallengeResult(win);
+  }
+}
+
 #endif
 
 void Match::SetRandomSunParams() {
@@ -1036,6 +1098,7 @@ void Match::Process() {
 
 #ifdef __EMSCRIPTEN__
   ProcessAnthemCeremony();
+  ProcessChallenge();
 #endif
 
   if (!pause) {

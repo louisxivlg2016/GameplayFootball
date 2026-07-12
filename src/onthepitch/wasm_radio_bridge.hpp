@@ -35,6 +35,11 @@ inline void gpfRadioReset() {
   EM_ASM({ try { if (window.gpfRadioReset) window.gpfRadioReset(); } catch (e) {} });
 }
 
+// DEFI challenge outcome (win = 1 succeeded, 0 failed).
+inline void gpfChallengeResult(int win) {
+  EM_ASM({ try { if (window.gpfChallengeResult) window.gpfChallengeResult($0); } catch (e) {} }, win);
+}
+
 // One play-by-play snapshot (pushed ~once per game-second from Match::Process).
 inline void gpfRadioTick(int loose, const char *carrier, int teamId, int keeper,
                          double depth, double speed, const char *oppName, double oppDist,
@@ -56,6 +61,7 @@ inline void gpfRadioTick(int loose, const char *carrier, int teamId, int keeper,
 inline void gpfRadioEvent(const char *, const char * = "", int = -1, int = -1, int = -1) {}
 inline void gpfRadioSetTeams(const char *, const char *) {}
 inline void gpfRadioReset() {}
+inline void gpfChallengeResult(int) {}
 inline void gpfRadioTick(int, const char *, int, int, double, double, const char *, double,
                          int, int, double, int, int) {}
 

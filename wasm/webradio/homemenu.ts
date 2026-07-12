@@ -12,6 +12,7 @@ import { hideLineup, showLineup } from "./lineup";
 import { hideNational, showNational } from "./national";
 import { hideTraining, showTraining } from "./training";
 import { showSettings } from "./settings";
+import { showDefi, hideDefi } from "./defi";
 import { resumeMenuMusic } from "./menu";
 import { clearScoreFlags } from "./scoreflags";
 
@@ -159,6 +160,10 @@ let drillSession = false;
 export function isDrillSession(): boolean { return drillSession; }
 export function setPendingDrill(setPiece: number): void { pendingDrill = setPiece; pendingKeeper = false; drillSession = true; }
 export function setPendingKeeper(): void { pendingKeeper = true; pendingDrill = 0; drillSession = true; }
+// DEFI: skip the anthem (reuse drillSession) and fire the challenge once live.
+let pendingChallenge = false;
+export function setPendingChallenge(): void { pendingChallenge = true; drillSession = true; }
+export function endChallengeSession(): void { drillSession = false; pendingChallenge = false; }
 function fireDrill(sp: number): void {
   const M = (window as unknown as { Module?: { _gpf_start_drill?: (n: number) => void } }).Module;
   M?._gpf_start_drill?.(sp);
@@ -178,6 +183,7 @@ export function onMatchStarted(): void {
   hideTraining();
   hideClubs();
   hideNational();
+  hideDefi();
   if (pendingKeeper) {
     pendingKeeper = false;
     // let the match settle, then start the keeper drill (bot takes penalties).
@@ -188,6 +194,10 @@ export function onMatchStarted(): void {
     // let the match kick off + settle, then start the drill session. The C++
     // referee then re-forces the same set piece 10x and calls window.gpfDrillDone.
     window.setTimeout(() => fireDrill(sp), 3000);
+  } else if (pendingChallenge) {
+    pendingChallenge = false;
+    // let the match kick off, then the DEFI panel arms the challenge (score/clock)
+    window.setTimeout(() => { (window as unknown as { __gpfFireChallenge?: () => void }).__gpfFireChallenge?.(); }, 3200);
   }
 }
 
@@ -257,7 +267,7 @@ export function initHomeMenu(): void {
   const sidebar = root.querySelector(".menu-sidebar")!;
   sidebar.append(
     iconBtn("⌂", "Main", true), iconBtn("◎", "Club", false, showClubs),
-    iconBtn("◔", "National", false, showNational), iconBtn("◌", "Defi", false),
+    iconBtn("◔", "National", false, showNational), iconBtn("◌", "Defi", false, showDefi),
     imgBtn("/menu-assets/settings-button.png", "Settings", showSettings),
   );
 

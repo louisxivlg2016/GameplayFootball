@@ -120,6 +120,12 @@ class Match {
     int GetAnthemPhase() const { return anthemPhase; }
     unsigned long GetAnthemPhaseStart() const { return anthemPhaseStart_ms; }
     void SkipAnthem();
+    // DEFI challenges: jump the live match to a preset score + clock and watch a
+    // win condition. objective 0 = score a goal, 1 = be ahead at full time,
+    // 2 = hold the current result. playerSide is always 0 (the HTML arranges the
+    // chosen team as home). The applied state is deferred until the match is in
+    // play so the kickoff can't reset it. Result pushed via gpfChallengeResult.
+    void StartChallenge(int homeScore, int awayScore, int clockMin, int objective, int playerSide);
 #endif
     void RandomizeAdboards(boost::intrusive_ptr<Node> stadiumNode);
     void UpdateControllerSetup();
@@ -277,6 +283,14 @@ class Match {
     unsigned long anthemPhaseStart_ms;
     bool anthemWanted;                // decided at construction (page not a drill)
     bool anthemChecked;               // ceremony already started once
+    // DEFI challenge state
+    void ProcessChallenge();
+    bool challengePending;            // requested, waiting for kickoff to apply
+    bool challengeActive;             // applied, watching the win condition
+    bool challengeResultSent;
+    int chReqHome, chReqAway, chReqClockMin, chObjective, chPlayerSide;
+    int chBaseline[2];
+    unsigned long chEnd_ms;
 #endif
 
     boost::intrusive_ptr<Node> stadiumNode;

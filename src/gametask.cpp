@@ -107,6 +107,15 @@ extern "C" EMSCRIPTEN_KEEPALIVE int gpf_get_key(int action) {
   return 0;
 }
 
+// DEFI challenge from the HTML menu: jump the live match to a preset score +
+// clock with a win condition. The HTML always makes the player's chosen team the
+// home side, so playerSide is 0. Deferred inside Match until the match is live.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_challenge(int homeScore, int awayScore, int clockMin, int objective, int playerSide) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (m) m->StartChallenge(homeScore, awayScore, clockMin, objective, playerSide);
+}
+
 // Training drills from the HTML menu: force the live match into a specific set
 // piece (1=KickOff,3=FreeKick,4=Corner,6=Penalty — e_SetPiece values) for team 0.
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {
