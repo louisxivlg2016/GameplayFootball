@@ -9,6 +9,7 @@ import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads } from "./squads";
 import { CLUB_SQUADS } from "./clubsquads";
+import { showLineup, squadXI } from "./lineup";
 
 interface Club { name: string; code: string; city: string; color: string; wiki: string }
 interface League { id: string; country: string; flag: string; clubs: Club[] }
@@ -134,7 +135,7 @@ function updateClubStatus(): void {
   const s = root?.querySelector<HTMLElement>(".club-status");
   if (s) s.innerHTML = homePick ? `Ton club : <b>${homePick.name}</b> — choisis l'adversaire (VS)` : `Choisis <b>ton club</b> (JOUER)`;
 }
-async function launchClubs(home: Club, away: Club): Promise<void> {
+async function doPlayClubs(home: Club, away: Club): Promise<void> {
   setAnthemOverride(home.name, away.name); // club name -> anthem + radio team name
   // real club XI + kit colour per side
   applyMatchSquads(
@@ -148,6 +149,14 @@ async function launchClubs(home: Club, away: Club): Promise<void> {
     lh ? { img: lh, code: home.code } : { emoji: "🛡️", code: home.code },
     la ? { img: la, code: away.code } : { emoji: "🛡️", code: away.code },
   );
+}
+function launchClubs(home: Club, away: Club): void {
+  // pick your XI first (your club is home), then play
+  const names = CLUB_SQUADS[home.code];
+  hideClubs();
+  const play = (): void => { void doPlayClubs(home, away); };
+  if (names && names.length) showLineup({ teamName: home.name, starters: squadXI(names), onPlay: play });
+  else play();
 }
 
 function renderGrid(grid: HTMLElement, league: League): void {

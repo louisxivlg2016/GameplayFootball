@@ -277,7 +277,7 @@ export function initHomeMenu(): void {
 
   const actions = root.querySelector(".menu-main-actions")!;
   actions.append(
-    card("/menu-assets/play-button.png", "Match amical", showLineup),
+    card("/menu-assets/play-button.png", "Match amical", () => showLineup()),
     card("/menu-assets/training-button.png", "Entraînement", showTraining),
     card("/menu-assets/worldcup-button.png", "Coupe du monde", startNativeMatch),
   );

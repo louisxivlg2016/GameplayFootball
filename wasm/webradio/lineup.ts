@@ -1,16 +1,42 @@
 /**
- * Lineup / formation screen with the "Remplaçants" panel — a faithful static
- * reproduction of the web version's #56 screen (Manchester City). Shown when the
- * MATCH AMICAL card is clicked; "Jouer le match" hides it and launches the C++
- * game. CSS + data extracted from web/index.html + clubSquads.ts (see LINEUP_SPEC.md).
+ * Lineup / formation screen with the "Remplaçants" panel. Shown before a match
+ * so you see your XI (photo + name + position cards on the pitch), then
+ * "Jouer le match" runs the caller's launch. Manchester City (with ratings +
+ * bench) is the default for MATCH AMICAL; Club / National / DEFI pass their own
+ * real XI via showLineup(cfg) — photos from Wikipedia, positions in a 4-3-3, no
+ * invented ratings.
  */
-import { startNativeMatch } from "./homemenu";
+import { startNativeMatch, show as showHome } from "./homemenu";
 
 const prox = (u: string): string => `/img-proxy?u=${encodeURIComponent(u)}`;
 
-interface P { name: string; pos: string; rating: number; x?: number; y?: number; focus?: boolean }
+export interface P { name: string; pos: string; rating?: number; photo?: string; x?: number; y?: number; focus?: boolean }
+export interface LineupConfig { teamName: string; starters: P[]; subs?: P[]; onPlay: () => void }
 
-// Screenshot XI (slot-index aligned with the pitch coordinates), focused = Marmoush.
+// generic 4-3-3 slots, index-aligned with a GK-first squad array
+const SLOTS: Array<{ pos: string; x: number; y: number }> = [
+  { pos: "GB", x: 50, y: 90 },
+  { pos: "DD", x: 82, y: 70 }, { pos: "DC", x: 60, y: 73 }, { pos: "DC", x: 40, y: 73 }, { pos: "DG", x: 18, y: 70 },
+  { pos: "MDC", x: 50, y: 57 }, { pos: "MC", x: 33, y: 47 }, { pos: "MC", x: 67, y: 47 },
+  { pos: "AD", x: 80, y: 22 }, { pos: "BU", x: 50, y: 14 }, { pos: "AG", x: 20, y: 22 },
+];
+
+// "T.HERNANDEZ" / "MBAPPE" / "DE.PAUL" -> "Hernandez" / "Mbappe" / "De Paul"
+function niceLabel(raw: string): string {
+  const parts = raw.split(".").map((t) => t.trim()).filter((t) => t.length > 1)
+    .map((t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
+  return parts.length ? parts.join(" ") : raw;
+}
+
+// build a pitch XI from a GK-first surname array (used by Club/National/DEFI)
+export function squadXI(names: string[]): P[] {
+  return names.slice(0, 11).map((n, i) => {
+    const label = niceLabel(n);
+    return { name: label, pos: SLOTS[i]!.pos, x: SLOTS[i]!.x, y: SLOTS[i]!.y, photo: label };
+  });
+}
+
+// Manchester City screenshot XI (has real ratings + a bench) — the MATCH AMICAL default
 const XI: P[] = [
   { name: "Omar Marmoush", pos: "BU", rating: 84, x: 50, y: 90, focus: true },
   { name: "Matheus Nunes", pos: "DD", rating: 80, x: 18, y: 69 },
@@ -38,12 +64,10 @@ const CSS = `
 #gpf-lineup { position:fixed; inset:0; z-index:2147483200; color:#fff; display:none;
   font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif; }
 #gpf-lineup.show { display:block; }
-/* hide the SON/RADIO STADE/LANGUE pills on the lineup screen so they don't cover
-   the "Jouer le match" button (they belong to the menu screen, like the web #56) */
 body.gpf-lineup-open #gpf-menu { display:none !important; }
 #gpf-lineup .menu-shell { position:absolute; inset:12px; display:flex; flex-direction:column;
   padding:18px 22px; box-sizing:border-box;
-  background:linear-gradient(180deg,rgba(5,22,15,.35),rgba(5,22,15,.78)),
+  background:linear-gradient(180deg,rgba(5,22,15,.5),rgba(5,22,15,.9)),
     url("${prox("https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1600&q=80")}") center 48% / cover;
   border:2px solid rgba(255,255,255,.14); border-radius:6px; box-shadow:0 20px 48px rgba(0,0,0,.45); }
 #gpf-lineup .lineup-panel { flex:1; min-height:0; display:grid; grid-template-rows:auto minmax(0,1fr); gap:12px; }
@@ -57,6 +81,8 @@ body.gpf-lineup-open #gpf-menu { display:none !important; }
   font-weight:900; box-shadow:0 7px 0 #b58c12,0 12px 20px rgba(0,0,0,.38); }
 #gpf-lineup .lineup-start:active { transform:translateY(3px); box-shadow:0 4px 0 #b58c12; }
 #gpf-lineup .lineup-layout { min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:14px; }
+#gpf-lineup .lineup-layout.no-bench { grid-template-columns:minmax(0,1fr); }
+#gpf-lineup .lineup-layout.no-bench .lineup-bench { display:none; }
 #gpf-lineup .lineup-pitch { position:relative; min-height:0; overflow:hidden; border:3px solid rgba(255,255,255,.28);
   border-radius:8px; box-shadow:inset 0 0 0 4px rgba(0,0,0,.16);
   background:
@@ -72,7 +98,7 @@ body.gpf-lineup-open #gpf-menu { display:none !important; }
   transform:translate(-50%,-50%); display:grid; grid-template-rows:auto auto 1fr auto; align-items:center;
   justify-items:center; padding:6px 5px; color:#1b1205; background:linear-gradient(160deg,#f8b752,#c66d28);
   border:2px solid rgba(255,255,255,.48); border-radius:9px; font-family:inherit; box-shadow:0 10px 18px rgba(0,0,0,.4); }
-#gpf-lineup .player-card strong { justify-self:start; font-size:18px; font-weight:900; }
+#gpf-lineup .player-card strong { justify-self:start; font-size:18px; font-weight:900; min-height:1px; }
 #gpf-lineup .player-card span { justify-self:end; margin-top:-21px; padding:2px 4px; color:#fff;
   background:rgba(30,105,55,.92); border-radius:4px; font-size:10px; font-weight:900; }
 #gpf-lineup .player-card b { align-self:end; max-width:100%; color:#fff; font-size:10px; text-align:center;
@@ -98,26 +124,57 @@ body.gpf-lineup-open #gpf-menu { display:none !important; }
 @media (max-width:900px){ #gpf-lineup .lineup-layout{ grid-template-columns:1fr; } #gpf-lineup .lineup-bench{ max-height:34vh; } }
 `;
 
-const photoCache = new Map<string, string>();
-async function loadPhoto(name: string, head: HTMLElement): Promise<void> {
-  if (photoCache.has(name)) { head.innerHTML = `<img src="${photoCache.get(name)}" alt="">`; return; }
-  try {
-    const api = `https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&format=json&pithumbsize=160&origin=*&titles=${encodeURIComponent(name)}|${encodeURIComponent(name + " footballer")}`;
-    const data = await (await fetch(api)).json();
-    const pages: Record<string, { thumbnail?: { source?: string } }> = data?.query?.pages ?? {};
-    const src = Object.values(pages).find((p) => p?.thumbnail?.source)?.thumbnail?.source;
-    if (src) { const u = prox(src); photoCache.set(name, u); head.innerHTML = `<img src="${u}" alt="">`; }
-  } catch { /* keep initials fallback */ }
-}
 function initials(name: string): string {
   return name.split(" ").slice(0, 2).map((p) => p[0] || "").join("").toUpperCase();
 }
 
 let root: HTMLElement | null = null;
+let pitchEl: HTMLElement | null = null;
+let benchEl: HTMLElement | null = null;
+let layoutEl: HTMLElement | null = null;
+let titleEl: HTMLElement | null = null;
+let startBtn: HTMLButtonElement | null = null;
 
-export function showLineup(): void {
+const DEFAULT: LineupConfig = {
+  teamName: "Manchester City", starters: XI, subs: BENCH,
+  onPlay: () => { hideLineup(); startNativeMatch(); },
+};
+
+function render(cfg: LineupConfig): void {
+  if (!pitchEl || !benchEl || !layoutEl || !titleEl || !startBtn) return;
+  titleEl.textContent = cfg.teamName;
+  pitchEl.innerHTML = "";
+  for (const p of cfg.starters) {
+    const c = document.createElement("button");
+    c.className = "player-card" + (p.focus ? " player-card-focused" : "");
+    c.style.left = `${p.x ?? 50}%`; c.style.top = `${p.y ?? 50}%`;
+    const head = document.createElement("i");
+    head.className = "player-head"; head.textContent = initials(p.name);
+    c.innerHTML = `<strong>${p.rating ?? ""}</strong><span>${p.pos}</span>`;
+    c.appendChild(head);
+    const nm = document.createElement("b"); nm.textContent = p.name; c.appendChild(nm);
+    pitchEl.appendChild(c);
+  }
+  const subs = cfg.subs ?? [];
+  layoutEl.classList.toggle("no-bench", subs.length === 0);
+  benchEl.innerHTML = `<span>Remplaçants</span>`;
+  for (const p of subs) {
+    const c = document.createElement("button");
+    c.className = "bench-card";
+    const head = document.createElement("i");
+    head.className = "player-head"; head.textContent = initials(p.name);
+    c.innerHTML = `<strong>${p.rating ?? ""}</strong>`;
+    c.appendChild(head);
+    c.insertAdjacentHTML("beforeend", `<b>${p.name}</b><em>${p.pos}</em>`);
+    benchEl.appendChild(c);
+  }
+  startBtn.onclick = (): void => cfg.onPlay();
+}
+
+export function showLineup(cfg?: LineupConfig): void {
+  render(cfg ?? DEFAULT);
   root?.classList.add("show");
-  document.body.classList.add("gpf-lineup-open"); // hides the top-right pills
+  document.body.classList.add("gpf-lineup-open");
 }
 export function hideLineup(): void {
   root?.classList.remove("show");
@@ -136,7 +193,7 @@ export function initLineup(): void {
       <div class="lineup-top">
         <button class="lineup-back">← Menu</button>
         <div style="text-align:center">
-          <span>Manchester City</span><b>Choisis tes joueurs avant le match</b>
+          <span class="lineup-team">Manchester City</span><b>Choisis tes joueurs avant le match</b>
         </div>
         <button class="lineup-start">Jouer le match</button>
       </div>
@@ -146,35 +203,12 @@ export function initLineup(): void {
       </div>
     </div></div>`;
 
-  const pitch = root.querySelector(".lineup-pitch")!;
-  for (const p of XI) {
-    const c = document.createElement("button");
-    c.className = "player-card" + (p.focus ? " player-card-focused" : "");
-    c.style.left = `${p.x}%`; c.style.top = `${p.y}%`;
-    const head = document.createElement("i");
-    head.className = "player-head"; head.textContent = initials(p.name);
-    c.innerHTML = `<strong>${p.rating}</strong><span>${p.pos}</span>`;
-    c.appendChild(head);
-    const nm = document.createElement("b"); nm.textContent = p.name; c.appendChild(nm);
-    pitch.appendChild(c);
-    void loadPhoto(p.name, head);
-  }
-
-  const bench = root.querySelector(".lineup-bench")!;
-  for (const p of BENCH) {
-    const c = document.createElement("button");
-    c.className = "bench-card";
-    const head = document.createElement("i");
-    head.className = "player-head"; head.textContent = initials(p.name);
-    c.innerHTML = `<strong>${p.rating}</strong>`;
-    c.appendChild(head);
-    c.insertAdjacentHTML("beforeend", `<b>${p.name}</b><em>${p.pos}</em>`);
-    bench.appendChild(c);
-    void loadPhoto(p.name, head);
-  }
-
-  root.querySelector(".lineup-start")!.addEventListener("click", () => { hideLineup(); startNativeMatch(); });
-  root.querySelector(".lineup-back")!.addEventListener("click", hideLineup);
+  pitchEl = root.querySelector<HTMLElement>(".lineup-pitch");
+  benchEl = root.querySelector<HTMLElement>(".lineup-bench");
+  layoutEl = root.querySelector<HTMLElement>(".lineup-layout");
+  titleEl = root.querySelector<HTMLElement>(".lineup-team");
+  startBtn = root.querySelector<HTMLButtonElement>(".lineup-start");
+  root.querySelector(".lineup-back")!.addEventListener("click", () => { hideLineup(); showHome(); });
 
   document.body.appendChild(root);
 }

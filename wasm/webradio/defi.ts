@@ -12,6 +12,7 @@ import { startNativeMatch, setPendingChallenge, endChallengeSession, show as sho
 import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads } from "./squads";
 import { setAnthemOverride } from "./anthem";
+import { showLineup, squadXI } from "./lineup";
 
 interface Team { name: string; iso: string; flag: string; color: string }
 // objective: 0 = SCORE a goal, 1 = WIN (be ahead at full time), 2 = HOLD (don't concede)
@@ -159,20 +160,25 @@ function launch(c: Challenge, side: "a" | "b"): void {
   const awayScore = side === "a" ? c.bScore : c.aScore;
   const homeSquad = side === "a" ? c.sqa : c.sqb;
   const awaySquad = side === "a" ? c.sqb : c.sqa;
-  // era-accurate XIs + kit colours for this exact World Cup match
-  applyMatchSquads({ color: home.color, names: homeSquad }, { color: away.color, names: awaySquad });
-  setAnthemOverride(home.name, away.name); // radio says the country + the right anthem
-  setScoreFlags(
-    { img: flagImg(home.iso), emoji: home.flag, code: isoCode(home.iso) },
-    { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },
-  );
-  armed = {
-    hs: homeScore, as: awayScore, min: c.minute, obj: c.obj, goal: OBJ_TXT[c.obj], cup: c.cup,
-    label: `${home.flag} ${home.name} ${homeScore}‑${awayScore} ${away.name} ${away.flag} — ${c.minute}ᵉ`,
+  const play = (): void => {
+    // era-accurate XIs + kit colours for this exact World Cup match
+    applyMatchSquads({ color: home.color, names: homeSquad }, { color: away.color, names: awaySquad });
+    setAnthemOverride(home.name, away.name); // radio says the country + the right anthem
+    setScoreFlags(
+      { img: flagImg(home.iso), emoji: home.flag, code: isoCode(home.iso) },
+      { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },
+    );
+    armed = {
+      hs: homeScore, as: awayScore, min: c.minute, obj: c.obj, goal: OBJ_TXT[c.obj], cup: c.cup,
+      label: `${home.flag} ${home.name} ${homeScore}‑${awayScore} ${away.name} ${away.flag} — ${c.minute}ᵉ`,
+    };
+    setPendingChallenge();  // skips the anthem; onMatchStarted -> __gpfFireChallenge
+    hideDefi();
+    startNativeMatch();
   };
-  setPendingChallenge();  // skips the anthem; onMatchStarted -> __gpfFireChallenge
+  // pick your XI first (your chosen side is home), then play
   hideDefi();
-  startNativeMatch();
+  showLineup({ teamName: `${home.flag} ${home.name}`, starters: squadXI(homeSquad), onPlay: play });
 }
 
 // called by homemenu.onMatchStarted once the match is rolling
