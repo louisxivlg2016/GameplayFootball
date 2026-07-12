@@ -71,6 +71,22 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_clear_team_overrides() {
   gpf_natNames[1].clear();
 }
 
+// Generic engine-config bridge for the HTML SETTINGS panel: read/write any
+// GetConfiguration() key (gameplay assist sliders, audio_volume, …) so the web
+// menu can expose the same knobs as the native SETTINGS pages.
+extern "C" EMSCRIPTEN_KEEPALIVE float gpf_get_config_float(const char *name, float def) {
+  return GetConfiguration() ? GetConfiguration()->GetReal(name, def) : def;
+}
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_config_float(const char *name, float val) {
+  if (GetConfiguration()) GetConfiguration()->Set(name, val);
+}
+extern "C" EMSCRIPTEN_KEEPALIVE int gpf_get_config_bool(const char *name, int def) {
+  return (GetConfiguration() && GetConfiguration()->GetBool(name, def != 0)) ? 1 : 0;
+}
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_config_bool(const char *name, int val) {
+  if (GetConfiguration()) GetConfiguration()->SetBool(name, val != 0);
+}
+
 // Training drills from the HTML menu: force the live match into a specific set
 // piece (1=KickOff,3=FreeKick,4=Corner,6=Penalty — e_SetPiece values) for team 0.
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {

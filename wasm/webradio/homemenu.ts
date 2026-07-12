@@ -11,6 +11,7 @@ import { hideClubs, showClubs } from "./clubs";
 import { hideLineup, showLineup } from "./lineup";
 import { hideNational, showNational } from "./national";
 import { hideTraining, showTraining } from "./training";
+import { showSettings } from "./settings";
 import { resumeMenuMusic } from "./menu";
 import { clearScoreFlags } from "./scoreflags";
 
@@ -205,7 +206,7 @@ function iconBtn(icon: string, label: string, active: boolean, onClick?: () => v
 }
 
 /** Sidebar button whose icon is an image (used for the golden SETTINGS button). */
-function imgBtn(src: string, label: string): HTMLElement {
+function imgBtn(src: string, label: string, onClick?: () => void): HTMLElement {
   const b = document.createElement("button");
   b.className = "menu-sidebar-button";
   const s = document.createElement("span");
@@ -216,6 +217,7 @@ function imgBtn(src: string, label: string): HTMLElement {
   s.appendChild(im);
   const t = document.createElement("b"); t.textContent = label;
   b.append(s, t);
+  if (onClick) b.addEventListener("click", onClick);
   return b;
 }
 
@@ -256,7 +258,7 @@ export function initHomeMenu(): void {
   sidebar.append(
     iconBtn("⌂", "Main", true), iconBtn("◎", "Club", false, showClubs),
     iconBtn("◔", "National", false, showNational), iconBtn("◌", "Defi", false),
-    imgBtn("/menu-assets/settings-button.png", "Settings"),
+    imgBtn("/menu-assets/settings-button.png", "Settings", showSettings),
   );
 
   const actions = root.querySelector(".menu-main-actions")!;
