@@ -13,6 +13,7 @@ import { hideNational, showNational } from "./national";
 import { hideTraining, showTraining } from "./training";
 import { showSettings } from "./settings";
 import { showDefi, hideDefi } from "./defi";
+import { setAnthemOverride } from "./anthem";
 import { resumeMenuMusic } from "./menu";
 import { clearScoreFlags } from "./scoreflags";
 
@@ -202,7 +203,10 @@ export function onMatchStarted(): void {
 }
 
 export function hide(): void { root?.classList.add("hidden"); }
-export function show(): void { root?.classList.remove("hidden"); resumeMenuMusic(); clearScoreFlags(); }
+export function show(): void {
+  root?.classList.remove("hidden"); resumeMenuMusic(); clearScoreFlags();
+  setAnthemOverride(null, null); // don't leak a picked team name into a plain match
+}
 
 function iconBtn(icon: string, label: string, active: boolean, onClick?: () => void): HTMLElement {
   const b = document.createElement("button");

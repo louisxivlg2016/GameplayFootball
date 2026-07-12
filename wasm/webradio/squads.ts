@@ -71,6 +71,24 @@ export function applyNationOverrides(
   setOne(1, away.name, away.color);
 }
 
+// DEFI: apply an EXPLICIT squad (era-accurate names) + colour per side, so a
+// 2006 challenge fields the 2006 XI, not the current one.
+export function applyMatchSquads(
+  home: { color: string; names: string[] },
+  away: { color: string; names: string[] },
+): void {
+  const m = mod();
+  if (!m) return;
+  m._gpf_clear_team_overrides?.();
+  const one = (team: number, color: string, names: string[]): void => {
+    const [r, g, b] = hexToRgb(color);
+    m._gpf_set_team_color?.(team, r, g, b);
+    if (names.length && m.ccall) m.ccall("gpf_set_team_names", null, ["number", "string"], [team, names.join("|")]);
+  };
+  one(0, home.color, home.names);
+  one(1, away.color, away.names);
+}
+
 // Clubs: recolour kits to the club colour, but keep DB names (no real rosters).
 export function applyClubColors(homeColor: string, awayColor: string): void {
   const m = mod();

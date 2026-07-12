@@ -197,6 +197,11 @@ export function setAnthemOverride(home: string | null, away: string | null): voi
   overrideHome = home;
   overrideAway = away;
 }
+// the picked display names, so the radio can say "France" instead of the DB
+// team name ("Gunners"). Read by radioMain when the engine reports its teams.
+export function getTeamOverride(): [string | null, string | null] {
+  return [overrideHome, overrideAway];
+}
 
 // NOTE: an earlier WebAudio gain-node "boost" made some anthems silent in a live
 // match (the game runs its own AudioContext; routing the element through a second

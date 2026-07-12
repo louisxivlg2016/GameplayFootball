@@ -10,13 +10,15 @@
  */
 import { startNativeMatch, setPendingChallenge, endChallengeSession, show as showHome } from "./homemenu";
 import { setScoreFlags } from "./scoreflags";
-import { applyNationOverrides } from "./squads";
+import { applyMatchSquads } from "./squads";
+import { setAnthemOverride } from "./anthem";
 
 interface Team { name: string; iso: string; flag: string; color: string }
 // objective: 0 = SCORE a goal, 1 = WIN (be ahead at full time), 2 = HOLD (don't concede)
 interface Challenge {
   a: Team; b: Team; aScore: number; bScore: number; minute: number;
   obj: 0 | 1 | 2; play: "a" | "b" | "both"; cup: string; sub: string;
+  sqa: string[]; sqb: string[]; // era-accurate XIs for team a / team b
 }
 
 const T: Record<string, Team> = {
@@ -36,26 +38,55 @@ const T: Record<string, Team> = {
   Maroc: { name: "Maroc", iso: "ma", flag: "🇲🇦", color: "#c1272d" },
 };
 
+// era-accurate XIs (GK first, UPPERCASE ASCII for the in-game font; the radio
+// Title-cases them). Each challenge fields the squad of its actual World Cup.
+const SQ = {
+  ARG2022: ["E.MARTINEZ", "MOLINA", "ROMERO", "OTAMENDI", "TAGLIAFICO", "DE.PAUL", "E.FERNANDEZ", "MAC.ALLISTER", "MESSI", "DI.MARIA", "J.ALVAREZ"],
+  FRA2022: ["LLORIS", "KOUNDE", "VARANE", "UPAMECANO", "T.HERNANDEZ", "TCHOUAMENI", "RABIOT", "GRIEZMANN", "DEMBELE", "MBAPPE", "GIROUD"],
+  ITA2006: ["BUFFON", "ZAMBROTTA", "CANNAVARO", "MATERAZZI", "GROSSO", "GATTUSO", "PIRLO", "PERROTTA", "TOTTI", "TONI", "CAMORANESI"],
+  FRA2006: ["BARTHEZ", "SAGNOL", "THURAM", "GALLAS", "ABIDAL", "VIEIRA", "MAKELELE", "RIBERY", "ZIDANE", "MALOUDA", "HENRY"],
+  GER2014: ["NEUER", "LAHM", "BOATENG", "HUMMELS", "HOWEDES", "SCHWEINSTEIGER", "KROOS", "KHEDIRA", "MULLER", "OZIL", "KLOSE"],
+  ARG2014: ["ROMERO", "ZABALETA", "GARAY", "DEMICHELIS", "ROJO", "MASCHERANO", "BIGLIA", "PEREZ", "MESSI", "HIGUAIN", "LAVEZZI"],
+  ESP2010: ["CASILLAS", "RAMOS", "PIQUE", "PUYOL", "CAPDEVILA", "BUSQUETS", "XAVI", "ALONSO", "INIESTA", "PEDRO", "VILLA"],
+  NED2010: ["STEKELENBURG", "VD.WIEL", "HEITINGA", "MATHIJSEN", "BRONCKHORST", "VAN.BOMMEL", "DE.JONG", "SNEIJDER", "KUYT", "ROBBEN", "V.PERSIE"],
+  FRA1998: ["BARTHEZ", "THURAM", "DESAILLY", "LEBOEUF", "LIZARAZU", "KAREMBEU", "DESCHAMPS", "PETIT", "ZIDANE", "DJORKAEFF", "GUIVARCH"],
+  BRA1998: ["TAFFAREL", "CAFU", "ALDAIR", "JUNIOR.BAIANO", "R.CARLOS", "DUNGA", "C.SAMPAIO", "RIVALDO", "LEONARDO", "RONALDO", "BEBETO"],
+  MAR2022: ["BOUNOU", "HAKIMI", "AGUERD", "SAISS", "MAZRAOUI", "AMRABAT", "OUNAHI", "AMALLAH", "ZIYECH", "EN.NESYRI", "BOUFAL"],
+  POR2022: ["D.COSTA", "DALOT", "PEPE", "R.DIAS", "GUERREIRO", "R.NEVES", "W.CARVALHO", "B.SILVA", "B.FERNANDES", "J.FELIX", "G.RAMOS"],
+  CRO2018: ["SUBASIC", "VRSALJKO", "LOVREN", "VIDA", "STRINIC", "BROZOVIC", "RAKITIC", "MODRIC", "REBIC", "MANDZUKIC", "PERISIC"],
+  FRA2018: ["LLORIS", "PAVARD", "VARANE", "UMTITI", "L.HERNANDEZ", "KANTE", "POGBA", "MATUIDI", "MBAPPE", "GRIEZMANN", "GIROUD"],
+  ENG1986: ["SHILTON", "STEVENS", "BUTCHER", "FENWICK", "SANSOM", "HODDLE", "REID", "S.STEVEN", "HODGE", "BEARDSLEY", "LINEKER"],
+  ARG1986: ["PUMPIDO", "CUCIUFFO", "RUGGERI", "BROWN", "OLARTICOECHEA", "GIUSTI", "BATISTA", "BURRUCHAGA", "MARADONA", "VALDANO", "ENRIQUE"],
+};
+
 const OBJ_TXT = ["⚽ Marque un but pour l'emporter !", "🏆 Sois devant au coup de sifflet final !", "🛡️ Défends le résultat, ne concède rien !"];
 
 // each is anchored to a real World Cup match (score/minute close to the real one)
 const CH: Challenge[] = [
   { a: T.Argentine, b: T.France, aScore: 2, bScore: 2, minute: 88, obj: 0, play: "both",
-    cup: "🏆 CdM 2022 · Qatar · Finale", sub: "88ᵉ — le but de la gagne (avant les tirs au but)" },
+    cup: "🏆 CdM 2022 · Qatar · Finale", sub: "88ᵉ — le but de la gagne (avant les tirs au but)",
+    sqa: SQ.ARG2022, sqb: SQ.FRA2022 },
   { a: T.Italie, b: T.France, aScore: 1, bScore: 1, minute: 88, obj: 0, play: "both",
-    cup: "🏆 CdM 2006 · Allemagne · Finale", sub: "88ᵉ — Zidane ou Materazzi, à toi de trancher" },
+    cup: "🏆 CdM 2006 · Allemagne · Finale", sub: "88ᵉ — Zidane ou Materazzi, à toi de trancher",
+    sqa: SQ.ITA2006, sqb: SQ.FRA2006 },
   { a: T.Allemagne, b: T.Argentine, aScore: 0, bScore: 0, minute: 88, obj: 0, play: "both",
-    cup: "🏆 CdM 2014 · Brésil · Finale", sub: "88ᵉ — trouve le but à la Götze" },
+    cup: "🏆 CdM 2014 · Brésil · Finale", sub: "88ᵉ — trouve le but à la Götze",
+    sqa: SQ.GER2014, sqb: SQ.ARG2014 },
   { a: T.Espagne, b: T["Pays-Bas"], aScore: 0, bScore: 0, minute: 88, obj: 0, play: "both",
-    cup: "🏆 CdM 2010 · Afrique du Sud · Finale", sub: "88ᵉ — le but d'Iniesta t'attend" },
+    cup: "🏆 CdM 2010 · Afrique du Sud · Finale", sub: "88ᵉ — le but d'Iniesta t'attend",
+    sqa: SQ.ESP2010, sqb: SQ.NED2010 },
   { a: T.France, b: T["Brésil"], aScore: 2, bScore: 0, minute: 85, obj: 2, play: "a",
-    cup: "🏆 CdM 1998 · France · Finale", sub: "85ᵉ — défends le sacre à domicile" },
+    cup: "🏆 CdM 1998 · France · Finale", sub: "85ᵉ — défends le sacre à domicile",
+    sqa: SQ.FRA1998, sqb: SQ.BRA1998 },
   { a: T.Maroc, b: T.Portugal, aScore: 1, bScore: 0, minute: 80, obj: 2, play: "a",
-    cup: "🏆 CdM 2022 · Qatar · Quart", sub: "80ᵉ — tiens l'exploit historique" },
+    cup: "🏆 CdM 2022 · Qatar · Quart", sub: "80ᵉ — tiens l'exploit historique",
+    sqa: SQ.MAR2022, sqb: SQ.POR2022 },
   { a: T.Croatie, b: T.France, aScore: 1, bScore: 2, minute: 70, obj: 0, play: "a",
-    cup: "🏆 CdM 2018 · Russie · Finale", sub: "70ᵉ — reviens dans la finale" },
+    cup: "🏆 CdM 2018 · Russie · Finale", sub: "70ᵉ — reviens dans la finale",
+    sqa: SQ.CRO2018, sqb: SQ.FRA2018 },
   { a: T.Angleterre, b: T.Argentine, aScore: 1, bScore: 2, minute: 85, obj: 0, play: "a",
-    cup: "🏆 CdM 1986 · Mexique · Quart", sub: "85ᵉ — réponds à la main de Dieu" },
+    cup: "🏆 CdM 1986 · Mexique · Quart", sub: "85ᵉ — réponds à la main de Dieu",
+    sqa: SQ.ENG1986, sqb: SQ.ARG1986 },
 ];
 
 const flagImg = (iso: string): string => "/img-proxy?u=" + encodeURIComponent(`https://flagcdn.com/w160/${iso}.png`);
@@ -126,7 +157,11 @@ function launch(c: Challenge, side: "a" | "b"): void {
   const away = side === "a" ? c.b : c.a;
   const homeScore = side === "a" ? c.aScore : c.bScore;
   const awayScore = side === "a" ? c.bScore : c.aScore;
-  applyNationOverrides({ name: home.name, color: home.color }, { name: away.name, color: away.color });
+  const homeSquad = side === "a" ? c.sqa : c.sqb;
+  const awaySquad = side === "a" ? c.sqb : c.sqa;
+  // era-accurate XIs + kit colours for this exact World Cup match
+  applyMatchSquads({ color: home.color, names: homeSquad }, { color: away.color, names: awaySquad });
+  setAnthemOverride(home.name, away.name); // radio says the country + the right anthem
   setScoreFlags(
     { img: flagImg(home.iso), emoji: home.flag, code: isoCode(home.iso) },
     { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },

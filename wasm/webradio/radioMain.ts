@@ -14,7 +14,7 @@ import { initNational } from "./national";
 import { initTraining } from "./training";
 import { initDrillAim } from "./drillaim";
 import { initKeeperArrows } from "./keeperarrows";
-import { initAnthem } from "./anthem";
+import { initAnthem, getTeamOverride } from "./anthem";
 import { initScoreFlags } from "./scoreflags";
 import { initSettings, applySavedKeys } from "./settings";
 import { initDefi } from "./defi";
@@ -62,8 +62,12 @@ const bridge = { events: [] as string[], ticks: 0, teams: ["", ""] as string[], 
 (window as unknown as { __gpfRadioBridge: typeof bridge }).__gpfRadioBridge = bridge;
 
 w.gpfRadioSetTeams = (home, away): void => {
-  bridge.teams = [home, away];
-  setRadioTeams(home, away);
+  // prefer the display names the player picked (France/Italie/PSG…) over the DB
+  // team names (Gunners…) the engine reports, so the commentary names them right.
+  const [oh, oa] = getTeamOverride();
+  const h = oh || home, a = oa || away;
+  bridge.teams = [h, a];
+  setRadioTeams(h, a);
 };
 
 w.gpfRadioReset = (): void => {
@@ -73,12 +77,23 @@ w.gpfRadioReset = (): void => {
   radioReset();
 };
 
+// The engine hands us player last names in the in-game font's ALL-CAPS ASCII
+// (e.g. "MBAPPE", "T.HERNANDEZ", "DE.BRUYNE") — the neural voice would spell
+// those out like acronyms. Normalise to a spoken form: drop initials, split on
+// the dot, Title-case each part ("Mbappe", "Hernandez", "De Bruyne").
+function niceName(raw: string): string {
+  if (!raw) return raw;
+  const parts = raw.split(".").map((t) => t.trim()).filter((t) => t.length > 1)
+    .map((t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
+  return parts.length ? parts.join(" ") : raw;
+}
+
 w.gpfRadioEvent = (event, player, team, score0, score1): void => {
   bridge.events.push(event + (player ? `:${player}` : ""));
   if (bridge.events.length > 40) bridge.events.shift();
   console.log(`[gpf-radio] event: ${event}${player ? " " + player : ""}`);
   const info: { team?: number; score?: [number, number]; player?: string } = {};
-  if (player) info.player = player;
+  if (player) info.player = niceName(player);
   if (team >= 0) info.team = team;
   if (score0 >= 0) info.score = [score0, score1];
   radio(event as RadioEvent, info);
@@ -88,6 +103,8 @@ w.gpfRadioEvent = (event, player, team, score0, score1): void => {
 
 w.gpfRadioTick = (snap): void => {
   bridge.ticks++;
+  snap.carrier = niceName(snap.carrier);
+  snap.oppName = niceName(snap.oppName);
   bridge.lastCarrier = snap.carrier;
   snap.gen = matchGen;
   snap.ended = snap.ended || matchEnded;
