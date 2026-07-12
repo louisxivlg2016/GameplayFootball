@@ -7,7 +7,8 @@
 import { startNativeMatch } from "./homemenu";
 import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
-import { applyClubColors } from "./squads";
+import { applyMatchSquads } from "./squads";
+import { CLUB_SQUADS } from "./clubsquads";
 
 interface Club { name: string; code: string; city: string; color: string; wiki: string }
 interface League { id: string; country: string; flag: string; clubs: Club[] }
@@ -134,8 +135,12 @@ function updateClubStatus(): void {
   if (s) s.innerHTML = homePick ? `Ton club : <b>${homePick.name}</b> — choisis l'adversaire (VS)` : `Choisis <b>ton club</b> (JOUER)`;
 }
 async function launchClubs(home: Club, away: Club): Promise<void> {
-  setAnthemOverride(home.name, away.name); // club name -> its country's anthem
-  applyClubColors(home.color, away.color); // recolour kits to the club colours
+  setAnthemOverride(home.name, away.name); // club name -> anthem + radio team name
+  // real club XI + kit colour per side
+  applyMatchSquads(
+    { color: home.color, names: CLUB_SQUADS[home.code] || [] },
+    { color: away.color, names: CLUB_SQUADS[away.code] || [] },
+  );
   hideClubs();
   startNativeMatch();
   const [lh, la] = await Promise.all([fetchLogo(home), fetchLogo(away)]);
