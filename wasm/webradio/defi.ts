@@ -16,7 +16,7 @@ interface Team { name: string; iso: string; flag: string; color: string }
 // objective: 0 = SCORE a goal, 1 = WIN (be ahead at full time), 2 = HOLD (don't concede)
 interface Challenge {
   a: Team; b: Team; aScore: number; bScore: number; minute: number;
-  obj: 0 | 1 | 2; play: "a" | "b" | "both"; title: string; sub: string;
+  obj: 0 | 1 | 2; play: "a" | "b" | "both"; cup: string; sub: string;
 }
 
 const T: Record<string, Team> = {
@@ -38,23 +38,24 @@ const T: Record<string, Team> = {
 
 const OBJ_TXT = ["⚽ Marque un but pour l'emporter !", "🏆 Sois devant au coup de sifflet final !", "🛡️ Défends le résultat, ne concède rien !"];
 
+// each is anchored to a real World Cup match (score/minute close to the real one)
 const CH: Challenge[] = [
-  { a: T.France, b: T.Argentine, aScore: 2, bScore: 2, minute: 88, obj: 0, play: "both",
-    title: "France 2‑2 Argentine", sub: "88ᵉ — le but de la gagne" },
-  { a: T.Angleterre, b: T.Espagne, aScore: 1, bScore: 1, minute: 90, obj: 0, play: "both",
-    title: "Angleterre 1‑1 Espagne", sub: "90ᵉ — arrache la victoire" },
-  { a: T.Uruguay, b: T.Colombie, aScore: 1, bScore: 1, minute: 85, obj: 0, play: "both",
-    title: "Uruguay 1‑1 Colombie", sub: "85ᵉ — fais la différence" },
-  { a: T.Espagne, b: T.Allemagne, aScore: 2, bScore: 2, minute: 87, obj: 0, play: "both",
-    title: "Espagne 2‑2 Allemagne", sub: "87ᵉ — brise l'égalité" },
-  { a: T["Pays-Bas"], b: T.Belgique, aScore: 2, bScore: 1, minute: 86, obj: 2, play: "a",
-    title: "Pays‑Bas 2‑1 Belgique", sub: "86ᵉ — défends l'avantage" },
-  { a: T.Italie, b: T.Croatie, aScore: 1, bScore: 0, minute: 89, obj: 2, play: "a",
-    title: "Italie 1‑0 Croatie", sub: "89ᵉ — garde ta cage inviolée" },
-  { a: T["Brésil"], b: T.Argentine, aScore: 0, bScore: 1, minute: 76, obj: 1, play: "a",
-    title: "Brésil 0‑1 Argentine", sub: "76ᵉ — renverse le classico" },
-  { a: T.Portugal, b: T.Maroc, aScore: 1, bScore: 2, minute: 80, obj: 1, play: "a",
-    title: "Portugal 1‑2 Maroc", sub: "80ᵉ — comeback obligatoire" },
+  { a: T.Argentine, b: T.France, aScore: 2, bScore: 2, minute: 88, obj: 0, play: "both",
+    cup: "🏆 CdM 2022 · Qatar · Finale", sub: "88ᵉ — le but de la gagne (avant les tirs au but)" },
+  { a: T.Italie, b: T.France, aScore: 1, bScore: 1, minute: 88, obj: 0, play: "both",
+    cup: "🏆 CdM 2006 · Allemagne · Finale", sub: "88ᵉ — Zidane ou Materazzi, à toi de trancher" },
+  { a: T.Allemagne, b: T.Argentine, aScore: 0, bScore: 0, minute: 88, obj: 0, play: "both",
+    cup: "🏆 CdM 2014 · Brésil · Finale", sub: "88ᵉ — trouve le but à la Götze" },
+  { a: T.Espagne, b: T["Pays-Bas"], aScore: 0, bScore: 0, minute: 88, obj: 0, play: "both",
+    cup: "🏆 CdM 2010 · Afrique du Sud · Finale", sub: "88ᵉ — le but d'Iniesta t'attend" },
+  { a: T.France, b: T["Brésil"], aScore: 2, bScore: 0, minute: 85, obj: 2, play: "a",
+    cup: "🏆 CdM 1998 · France · Finale", sub: "85ᵉ — défends le sacre à domicile" },
+  { a: T.Maroc, b: T.Portugal, aScore: 1, bScore: 0, minute: 80, obj: 2, play: "a",
+    cup: "🏆 CdM 2022 · Qatar · Quart", sub: "80ᵉ — tiens l'exploit historique" },
+  { a: T.Croatie, b: T.France, aScore: 1, bScore: 2, minute: 70, obj: 0, play: "a",
+    cup: "🏆 CdM 2018 · Russie · Finale", sub: "70ᵉ — reviens dans la finale" },
+  { a: T.Angleterre, b: T.Argentine, aScore: 1, bScore: 2, minute: 85, obj: 0, play: "a",
+    cup: "🏆 CdM 1986 · Mexique · Quart", sub: "85ᵉ — réponds à la main de Dieu" },
 ];
 
 const flagImg = (iso: string): string => "/img-proxy?u=" + encodeURIComponent(`https://flagcdn.com/w160/${iso}.png`);
@@ -80,6 +81,8 @@ body.gpf-defi-open #gpf-home, body.gpf-defi-open #gpf-menu { display:none !impor
   grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; padding-right:4px; }
 #gpf-defi .df-card { display:flex; flex-direction:column; gap:8px; padding:14px; background:rgba(5,18,12,.72);
   border:1px solid rgba(255,255,255,.12); border-radius:12px; }
+#gpf-defi .df-cup { text-align:center; font-size:11px; font-weight:900; letter-spacing:.5px; color:#ffe94a;
+  text-transform:uppercase; opacity:.92; }
 #gpf-defi .df-teams { display:flex; align-items:center; justify-content:center; gap:10px; font-size:15px; font-weight:900; }
 #gpf-defi .df-teams img { width:30px; height:22px; object-fit:cover; border-radius:3px; box-shadow:0 0 0 1px rgba(0,0,0,.4); }
 #gpf-defi .df-score { color:#ffe94a; }
@@ -112,7 +115,7 @@ body.gpf-defi-open #gpf-home, body.gpf-defi-open #gpf-menu { display:none !impor
 let root: HTMLElement | null = null;
 let hud: HTMLElement | null = null;
 let resultEl: HTMLElement | null = null;
-let armed: { hs: number; as: number; min: number; obj: number; goal: string; label: string } | null = null;
+let armed: { hs: number; as: number; min: number; obj: number; goal: string; label: string; cup: string } | null = null;
 
 export function showDefi(): void { root?.classList.add("show"); document.body.classList.add("gpf-defi-open"); }
 export function hideDefi(): void { root?.classList.remove("show"); document.body.classList.remove("gpf-defi-open"); }
@@ -129,7 +132,7 @@ function launch(c: Challenge, side: "a" | "b"): void {
     { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },
   );
   armed = {
-    hs: homeScore, as: awayScore, min: c.minute, obj: c.obj, goal: OBJ_TXT[c.obj],
+    hs: homeScore, as: awayScore, min: c.minute, obj: c.obj, goal: OBJ_TXT[c.obj], cup: c.cup,
     label: `${home.flag} ${home.name} ${homeScore}‑${awayScore} ${away.name} ${away.flag} — ${c.minute}ᵉ`,
   };
   setPendingChallenge();  // skips the anthem; onMatchStarted -> __gpfFireChallenge
@@ -142,7 +145,7 @@ function fireChallenge(): void {
   if (!armed) return;
   mod()?._gpf_start_challenge?.(armed.hs, armed.as, armed.min, armed.obj, 0);
   if (hud) {
-    hud.innerHTML = `${armed.goal}<small>${armed.label}</small>`;
+    hud.innerHTML = `${armed.goal}<small>${armed.label}</small><small>${armed.cup}</small>`;
     hud.classList.add("show");
   }
 }
@@ -164,6 +167,7 @@ function renderGrid(grid: HTMLElement): void {
     card.className = "df-card";
     const badge = (t: Team): string => `<img src="${flagImg(t.iso)}" alt=""><span>${isoCode(t.iso)}</span>`;
     card.innerHTML =
+      `<div class="df-cup">${c.cup}</div>` +
       `<div class="df-teams">${badge(c.a)}<span class="df-score">${c.aScore} ‑ ${c.bScore}</span>${badge(c.b)}</div>` +
       `<div class="df-sub">${c.sub}</div>` +
       `<div class="df-goal">${OBJ_TXT[c.obj]}</div>` +
