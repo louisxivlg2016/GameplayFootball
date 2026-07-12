@@ -16,10 +16,12 @@ let lab0: HTMLElement | null = null;
 let lab1: HTMLElement | null = null;
 
 // positions as a fraction of the canvas (tuned to the C++ scoreboard)
-const BADGE_Y = 0.028;
-const BADGE_H = 0.05;
-const BADGE_X0 = 0.292; // home team badge centre (over the C++ scoreboard)
-const BADGE_X1 = 0.392; // away team badge centre
+const BADGE_Y = 0.026;
+const BADGE_H = 0.052;
+const BADGE_W = 1.42;   // flag width as a multiple of its height — wide enough to
+                        // fully cover the old red club shield underneath
+const BADGE_X0 = 0.286; // home team badge centre (over the C++ scoreboard)
+const BADGE_X1 = 0.386; // away team badge centre
 const NAME_X0 = 0.334;  // home team name ("ARS") centre
 const NAME_X1 = 0.435;  // away team name centre
 
@@ -54,10 +56,11 @@ function place(): void {
   root.style.display = "block";
   const h = Math.max(14, r.height * BADGE_H);
   const y = r.top + r.height * BADGE_Y;
+  const bw = h * BADGE_W;
   const style = (slot: HTMLElement, cx: number): void => {
-    slot.style.left = `${r.left + r.width * cx - h / 2}px`;
+    slot.style.left = `${r.left + r.width * cx - bw / 2}px`;
     slot.style.top = `${y}px`;
-    slot.style.width = `${h}px`;
+    slot.style.width = `${bw}px`;
     slot.style.height = `${h}px`;
     slot.style.fontSize = `${h}px`;
   };
