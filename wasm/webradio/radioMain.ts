@@ -16,7 +16,7 @@ import { initDrillAim } from "./drillaim";
 import { initKeeperArrows } from "./keeperarrows";
 import { initAnthem } from "./anthem";
 import { initScoreFlags } from "./scoreflags";
-import { initSettings } from "./settings";
+import { initSettings, applySavedKeys } from "./settings";
 import {
   type RadioEvent,
   audioPeak,
@@ -123,6 +123,7 @@ const applySavedQuality = (): void => {
   else window.setTimeout(applySavedQuality, 2000); // wasm not up yet — retry
 };
 applySavedQuality();
+applySavedKeys(); // re-apply any custom key bindings from a previous session
 
 // R toggles the commentary (matches the web version); ignore when typing.
 window.addEventListener("keydown", (e) => {

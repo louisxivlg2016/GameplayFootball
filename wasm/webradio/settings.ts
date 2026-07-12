@@ -7,6 +7,8 @@
  */
 interface NativeModule {
   _gpf_set_quality?: (level: number) => void;
+  _gpf_rebind_key?: (action: number, keycode: number) => void;
+  _gpf_get_key?: (action: number) => number;
   ccall?: (name: string, ret: string | null, types: string[], args: unknown[]) => unknown;
 }
 const M = (): NativeModule | undefined => (window as unknown as { Module?: NativeModule }).Module;
@@ -36,22 +38,83 @@ const GAMEPLAY: Array<[string, string, number]> = [
   ["Quantification directionnelle (plus « D-pad »)", "gameplay_quantizeddirectionbias", 0.0],
 ];
 
-// controller reference (default keyboard bindings from gamedefines.hpp)
-const CONTROLS: Array<[string, string]> = [
-  ["Se déplacer", "Flèches ↑ ↓ ← →"],
-  ["Passe (au ballon)", "S"],
-  ["Passe en profondeur", "W"],
-  ["Centre / lob", "A"],
-  ["Tir", "D"],
-  ["Changer de joueur", "Q"],
-  ["Sprint", "E"],
-  ["Spécial / geste", "Z"],
-  ["Dribble lent", "C"],
-  ["Gardien / tacle / pressing (sans ballon)", "W / A / S / D"],
-  ["Sélection", "F1"],
-  ["Valider / démarrer", "Entrée"],
-  ["Radio commentaire (activer/couper)", "R"],
+// rebindable keyboard actions, in e_ButtonFunction order (matches the engine's
+// input_keyboard_<i> config index). label + section header for the first row.
+const KEYS: Array<[string, string?]> = [
+  ["Haut", "Déplacement"], ["Droite"], ["Bas"], ["Gauche"],
+  ["Passe en profondeur", "Avec le ballon"], ["Centre / lob"], ["Passe"], ["Tir"],
+  ["Gardien à la balle", "Sans le ballon"], ["Tacle glissé"], ["Pressing"], ["Pressing d'équipe"],
+  ["Changer de joueur", "Général"], ["Spécial / geste"], ["Sprint"], ["Dribble lent"],
+  ["Sélection"], ["Valider / démarrer"],
 ];
+// SDL_Keycode defaults (defaultKeyIDs in gamedefines.hpp)
+const DEFAULT_KEYS = [
+  1073741906, 1073741903, 1073741905, 1073741904, // up right down left
+  119, 97, 115, 100,   // W A S D  (on ball)
+  119, 97, 115, 100,   // W A S D  (off ball)
+  113, 122, 101, 99,   // Q Z E C
+  1073741882, 13,      // F1, Return
+];
+
+// map a browser KeyboardEvent to an SDL_Keycode the engine understands
+function jsToSDL(e: KeyboardEvent): number | null {
+  const named: Record<string, number> = {
+    ArrowUp: 1073741906, ArrowDown: 1073741905, ArrowLeft: 1073741904, ArrowRight: 1073741903,
+    Enter: 13, Escape: 27, " ": 32, Spacebar: 32, Tab: 9, Backspace: 8, Delete: 127,
+    F1: 1073741882, F2: 1073741883, F3: 1073741884, F4: 1073741885, F5: 1073741886, F6: 1073741887,
+    F7: 1073741888, F8: 1073741889, F9: 1073741890, F10: 1073741891, F11: 1073741892, F12: 1073741893,
+  };
+  if (e.key === "Shift") return e.code === "ShiftRight" ? 1073742053 : 1073742049;
+  if (e.key === "Control") return e.code === "ControlRight" ? 1073742052 : 1073742048;
+  if (e.key === "Alt") return e.code === "AltRight" ? 1073742054 : 1073742050;
+  if (named[e.key] !== undefined) return named[e.key];
+  if (e.key.length === 1) {
+    const c = e.key.toLowerCase().charCodeAt(0);
+    if (c >= 32 && c < 127) return c;
+  }
+  return null;
+}
+// SDL_Keycode -> short display name
+function sdlName(kc: number): string {
+  const rev: Record<number, string> = {
+    1073741906: "↑", 1073741905: "↓", 1073741904: "←", 1073741903: "→",
+    13: "Entrée", 27: "Échap", 32: "Espace", 9: "Tab", 8: "⌫", 127: "Suppr",
+    1073742049: "Maj G", 1073742053: "Maj D", 1073742048: "Ctrl G", 1073742052: "Ctrl D",
+    1073742050: "Alt", 1073742054: "Alt Gr",
+    1073741882: "F1", 1073741883: "F2", 1073741884: "F3", 1073741885: "F4", 1073741886: "F5",
+    1073741887: "F6", 1073741888: "F7", 1073741889: "F8", 1073741890: "F9", 1073741891: "F10",
+    1073741892: "F11", 1073741893: "F12",
+  };
+  if (rev[kc]) return rev[kc];
+  if (kc >= 33 && kc < 127) return String.fromCharCode(kc).toUpperCase();
+  return "?";
+}
+
+const KEYS_LS = "gpf-keys"; // { action: keycode } overrides, persisted
+function loadSavedKeys(): Record<number, number> {
+  try { return JSON.parse(localStorage.getItem(KEYS_LS) || "{}"); } catch { return {}; }
+}
+function saveKey(action: number, keycode: number): void {
+  const all = loadSavedKeys(); all[action] = keycode;
+  try { localStorage.setItem(KEYS_LS, JSON.stringify(all)); } catch { /* private */ }
+}
+function currentKey(action: number): number {
+  const saved = loadSavedKeys();
+  if (saved[action] !== undefined) return saved[action];
+  const live = M()?._gpf_get_key?.(action);
+  return live && live > 0 ? live : DEFAULT_KEYS[action];
+}
+function rebind(action: number, keycode: number): void {
+  M()?._gpf_rebind_key?.(action, keycode);
+  saveKey(action, keycode);
+}
+// re-apply persisted rebinds to the engine on boot (like the quality level)
+export function applySavedKeys(): void {
+  const m = M();
+  if (!m?._gpf_rebind_key) { window.setTimeout(applySavedKeys, 2000); return; }
+  const saved = loadSavedKeys();
+  for (const k of Object.keys(saved)) m._gpf_rebind_key(Number(k), saved[Number(k)]);
+}
 
 const QUALITY = ["Potato", "Basse", "Moyenne", "Haute", "Ultra"];
 
@@ -93,9 +156,16 @@ body.gpf-settings-open #gpf-menu { display:none !important; }
   font:inherit; font-size:13px; font-weight:900; }
 #gpf-settings .set-toggle.on { color:#08120c; background:#7ee787; border-color:#b6f5bd; }
 #gpf-settings .set-reset { align-self:flex-start; }
-#gpf-settings .set-ref { display:grid; grid-template-columns:1fr auto; gap:6px 18px; padding:12px 14px;
-  background:rgba(5,18,12,.55); border:1px solid rgba(255,255,255,.1); border-radius:8px; font-size:13px; }
-#gpf-settings .set-ref .k { color:#ffe94a; font-weight:900; text-align:right; }
+#gpf-settings .set-section { font-size:11px; font-weight:900; letter-spacing:1.2px; text-transform:uppercase;
+  color:#9fe6b6; margin:6px 0 -4px 2px; }
+#gpf-settings .set-keyrow { display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:9px 14px; background:rgba(5,18,12,.55); border:1px solid rgba(255,255,255,.1); border-radius:8px;
+  font-size:13px; font-weight:700; }
+#gpf-settings .set-key { pointer-events:auto; cursor:pointer; min-width:120px; min-height:34px; padding:0 14px;
+  color:#08120c; background:#ffe94a; border:1px solid #fff3a6; border-radius:7px; font:inherit; font-size:12px;
+  font-weight:900; letter-spacing:.5px; }
+#gpf-settings .set-key.capturing { color:#fff; background:#c0392b; border-color:#e57368; animation:gpfblink 1s infinite; }
+@keyframes gpfblink { 50% { opacity:.5; } }
 #gpf-settings .set-note { font-size:12px; color:#9fb3a8; }
 `;
 
@@ -205,16 +275,59 @@ function renderAudio(): void {
   body.appendChild(note);
 }
 
+let capturing = false; // a rebind is waiting for a keypress
+
 function renderControls(): void {
   if (!body) return;
+  capturing = false;
   body.innerHTML = "";
-  const ref = document.createElement("div");
-  ref.className = "set-ref";
-  ref.innerHTML = CONTROLS.map(([a, k]) => `<div>${a}</div><div class="k">${k}</div>`).join("");
-  body.appendChild(ref);
+  KEYS.forEach(([label, section], action) => {
+    if (section) {
+      const h = document.createElement("div");
+      h.className = "set-section"; h.textContent = section;
+      body!.appendChild(h);
+    }
+    const row = document.createElement("div");
+    row.className = "set-keyrow";
+    row.innerHTML = `<span>${label}</span>`;
+    const btn = document.createElement("button");
+    btn.className = "set-key";
+    btn.textContent = sdlName(currentKey(action));
+    btn.addEventListener("click", () => {
+      if (capturing) return;
+      capturing = true;
+      btn.classList.add("capturing");
+      btn.textContent = "…appuie sur une touche";
+      const onKey = (e: KeyboardEvent): void => {
+        e.preventDefault(); e.stopPropagation();
+        window.removeEventListener("keydown", onKey, true);
+        capturing = false;
+        btn.classList.remove("capturing");
+        if (e.key === "Escape") { btn.textContent = sdlName(currentKey(action)); return; } // cancel
+        const kc = jsToSDL(e);
+        if (kc === null) { btn.textContent = sdlName(currentKey(action)); return; }
+        rebind(action, kc);
+        btn.textContent = sdlName(kc);
+      };
+      window.addEventListener("keydown", onKey, true);
+    });
+    row.appendChild(btn);
+    body!.appendChild(row);
+  });
+  const resetRow = document.createElement("div");
+  resetRow.className = "set-btns set-reset";
+  const reset = document.createElement("button");
+  reset.textContent = "↺ Touches par défaut";
+  reset.addEventListener("click", () => {
+    try { localStorage.removeItem(KEYS_LS); } catch { /* */ }
+    DEFAULT_KEYS.forEach((kc, a) => M()?._gpf_rebind_key?.(a, kc));
+    renderControls();
+  });
+  resetRow.appendChild(reset);
+  body.appendChild(resetRow);
   const note = document.createElement("div");
   note.className = "set-note";
-  note.textContent = "Commandes clavier par défaut (comme la version native).";
+  note.textContent = "Clique une touche puis appuie sur la nouvelle touche (Échap pour annuler). S'applique tout de suite.";
   body.appendChild(note);
 }
 

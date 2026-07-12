@@ -15,6 +15,7 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include "onthepitch/player/controller/icontroller.hpp"
+#include "hid/keyboard.hpp"
 #include "systems/graphics/rendering/interface_renderer3d.hpp"
 
 // Graphics quality level, 0 (potato) .. 4 (ultra / the old default). Read by the
@@ -85,6 +86,25 @@ extern "C" EMSCRIPTEN_KEEPALIVE int gpf_get_config_bool(const char *name, int de
 }
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_config_bool(const char *name, int val) {
   if (GetConfiguration()) GetConfiguration()->SetBool(name, val != 0);
+}
+
+// Keyboard rebinding for the HTML SETTINGS panel. action = e_ButtonFunction
+// (0..17), keycode = SDL_Keycode. Write the config key the engine reads AND
+// re-apply the whole mapping to the live keyboard device so it takes effect now
+// (the keyboard is controllers[0], created at boot).
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_rebind_key(int action, int keycode) {
+  if (action < 0 || action >= e_ButtonFunction_Size) return;
+  if (GetConfiguration())
+    GetConfiguration()->SetInt(("input_keyboard_" + std::to_string(action)).c_str(), keycode);
+  const std::vector<IHIDevice *> &ctrls = GetControllers();
+  if (!ctrls.empty() && ctrls.at(0)) static_cast<HIDKeyboard *>(ctrls.at(0))->LoadConfig();
+}
+extern "C" EMSCRIPTEN_KEEPALIVE int gpf_get_key(int action) {
+  if (action < 0 || action >= e_ButtonFunction_Size) return 0;
+  const std::vector<IHIDevice *> &ctrls = GetControllers();
+  if (!ctrls.empty() && ctrls.at(0))
+    return (int)static_cast<HIDKeyboard *>(ctrls.at(0))->GetFunctionMapping((e_ButtonFunction)action);
+  return 0;
 }
 
 // Training drills from the HTML menu: force the live match into a specific set
