@@ -29,12 +29,17 @@ function niceLabel(raw: string): string {
   return parts.length ? parts.join(" ") : raw;
 }
 
+// bench positions — the squads list subs GK→defenders→midfielders→forwards, so
+// index maps to a plausible role (approximate; the real spot is taken from the
+// starter it replaces on swap-in).
+const SUB_POS = ["GB", "DC", "DG", "MC", "MC", "BU", "AD"];
+
 // build a config from a full GK-first squad: first 11 = XI, rest = bench
 export function teamLineup(teamName: string, squad: string[], hint: string, onPlay: (names: string[]) => void): void {
   const starters: P[] = squad.slice(0, 11).map((n, i) => ({
     name: niceLabel(n), raw: n, pos: SLOTS[i]!.pos, x: SLOTS[i]!.x, y: SLOTS[i]!.y, hint,
   }));
-  const subs: P[] = squad.slice(11).map((n) => ({ name: niceLabel(n), raw: n, pos: "REMP", hint }));
+  const subs: P[] = squad.slice(11).map((n, i) => ({ name: niceLabel(n), raw: n, pos: SUB_POS[i] ?? "REMP", hint }));
   showLineup({ teamName, starters, subs, onPlay });
 }
 
