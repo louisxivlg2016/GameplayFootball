@@ -18,6 +18,7 @@ import { initAnthem, getTeamOverride } from "./anthem";
 import { initScoreFlags } from "./scoreflags";
 import { initSettings, applySavedKeys } from "./settings";
 import { initDefi } from "./defi";
+import { initTouch } from "./touch";
 import {
   type RadioEvent,
   audioPeak,
@@ -129,6 +130,7 @@ initAnthem();
 initScoreFlags();
 initSettings();
 initDefi();
+initTouch();
 
 // Re-apply the graphics quality picked in the native SETTINGS > GRAPHICS menu
 // (persisted in localStorage; 4 = ultra is the engine default, nothing to do).

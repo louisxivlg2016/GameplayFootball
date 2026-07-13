@@ -50,6 +50,20 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_menu_key(int down) {
   ev.key.keysym.mod = 0;
   SDL_PushEvent(&ev);
 }
+
+// On-screen touch controls: push an arbitrary key into SDL so the in-game
+// HIDKeyboard reads it (joystick -> arrow keys, action buttons -> W/S/D/E…).
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_game_key(int keycode, int down) {
+  SDL_Event ev;
+  SDL_zero(ev);
+  ev.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+  ev.key.state = down ? SDL_PRESSED : SDL_RELEASED;
+  ev.key.repeat = 0;
+  ev.key.keysym.sym = (SDL_Keycode)keycode;
+  ev.key.keysym.scancode = SDL_GetScancodeFromKey((SDL_Keycode)keycode);
+  ev.key.keysym.mod = 0;
+  SDL_PushEvent(&ev);
+}
 #endif
 
 #include "base/log.hpp"
