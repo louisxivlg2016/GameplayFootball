@@ -176,9 +176,11 @@ function launch(c: Challenge, side: "a" | "b"): void {
     hideDefi();
     startNativeMatch();
   };
-  // pick your XI first (your chosen side is home), then play
+  // pick your XI first (your chosen side is home), then play. Pass the World Cup
+  // year so the lineup cards use era photos of the players.
+  const year = c.cup.match(/\d{4}/)?.[0];
   hideDefi();
-  teamLineup(`${home.flag} ${home.name}`, homeSquad, home.name, play);
+  teamLineup(`${home.flag} ${home.name}`, homeSquad, home.name, play, year);
 }
 
 // called by homemenu.onMatchStarted once the match is rolling

@@ -12,7 +12,7 @@ import { POS } from "./positions";
 
 const prox = (u: string): string => `/img-proxy?u=${encodeURIComponent(u)}`;
 
-export interface P { name: string; pos: string; raw?: string; rating?: number; hint?: string; x?: number; y?: number; focus?: boolean }
+export interface P { name: string; pos: string; raw?: string; rating?: number; hint?: string; year?: string; x?: number; y?: number; focus?: boolean }
 export interface LineupConfig { teamName: string; starters: P[]; subs: P[]; onPlay: (names: string[]) => void }
 
 // generic 4-3-3 slots, index-aligned with a GK-first squad array
@@ -35,12 +35,13 @@ function niceLabel(raw: string): string {
 // starter it replaces on swap-in).
 const SUB_POS = ["GB", "DC", "DG", "MC", "MC", "BU", "AD"];
 
-// build a config from a full GK-first squad: first 11 = XI, rest = bench
-export function teamLineup(teamName: string, squad: string[], hint: string, onPlay: (names: string[]) => void): void {
+// build a config from a full GK-first squad: first 11 = XI, rest = bench.
+// year (DEFI) makes the cards use an era photo of the player when available.
+export function teamLineup(teamName: string, squad: string[], hint: string, onPlay: (names: string[]) => void, year?: string): void {
   const starters: P[] = squad.slice(0, 11).map((n, i) => ({
-    name: niceLabel(n), raw: n, pos: SLOTS[i]!.pos, x: SLOTS[i]!.x, y: SLOTS[i]!.y, hint,
+    name: niceLabel(n), raw: n, pos: SLOTS[i]!.pos, x: SLOTS[i]!.x, y: SLOTS[i]!.y, hint, year,
   }));
-  const subs: P[] = squad.slice(11).map((n, i) => ({ name: niceLabel(n), raw: n, pos: POS[n] ?? SUB_POS[i] ?? "REMP", hint }));
+  const subs: P[] = squad.slice(11).map((n, i) => ({ name: niceLabel(n), raw: n, pos: POS[n] ?? SUB_POS[i] ?? "REMP", hint, year }));
   showLineup({ teamName, starters, subs, onPlay });
 }
 
@@ -131,7 +132,36 @@ body.gpf-lineup-open #gpf-menu { display:none !important; }
 `;
 
 const photoCache = new Map<string, string>();
+// Commons files that aren't a photo of the player himself
+const JUNK = /collage|troph|museum|stadium|ballon|logo|coin|stamp|award|\.pdf|\.svg|champion|\bsquad\b|\bteam\b|banner|mural|graffiti|statue|\bwax\b|autograph|shirt|jersey|\bboot|panini|sticker|signature|memorial|funeral|grave|plaque/i;
+
+// DEFI: an era photo of the player — Commons file whose title names BOTH the
+// player and the year (so we never show a trophy, a collage or the wrong guy).
+async function loadEraPhoto(p: P, head: HTMLElement): Promise<boolean> {
+  if (!p.year) return false;
+  const surname = (p.name.split(" ").pop() ?? p.name).toLowerCase();
+  const key = `era:${p.name}:${p.year}`;
+  if (photoCache.has(key)) { head.innerHTML = `<img src="${photoCache.get(key)}" alt="">`; return true; }
+  try {
+    const term = `${p.name} ${p.year} football`;
+    const api = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url&iiurlwidth=200&format=json&origin=*`;
+    const data = await (await fetch(api)).json();
+    const pages: Array<{ title?: string; imageinfo?: Array<{ thumburl?: string }> }> = Object.values(data?.query?.pages ?? {});
+    for (const pg of pages) {
+      const title = (pg.title ?? "").replace(/^File:/, "");
+      const low = title.toLowerCase();
+      const url = pg.imageinfo?.[0]?.thumburl;
+      if (!url || JUNK.test(low)) continue;
+      if (low.includes(surname) && low.includes(p.year)) {
+        const u = prox(url); photoCache.set(key, u); head.innerHTML = `<img src="${u}" alt="">`; return true;
+      }
+    }
+  } catch { /* fall through to the recent photo */ }
+  return false;
+}
+
 async function loadPhoto(p: P, head: HTMLElement): Promise<void> {
+  if (await loadEraPhoto(p, head)) return; // DEFI era photo when confidently found
   const term = `${p.name}${p.hint ? " " + p.hint : ""} footballer`;
   if (photoCache.has(term)) { head.innerHTML = `<img src="${photoCache.get(term)}" alt="">`; return; }
   try {
