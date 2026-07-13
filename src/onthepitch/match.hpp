@@ -126,6 +126,8 @@ class Match {
     // chosen team as home). The applied state is deferred until the match is in
     // play so the kickoff can't reset it. Result pushed via gpfChallengeResult.
     void StartChallenge(int homeScore, int awayScore, int clockMin, int objective, int playerSide);
+    // show an instant replay of the last windowMs, close camera, then resume.
+    void StartReplay(unsigned long windowMs);
 #endif
     void RandomizeAdboards(boost::intrusive_ptr<Node> stadiumNode);
     void UpdateControllerSetup();
@@ -291,6 +293,12 @@ class Match {
     int chReqHome, chReqAway, chReqClockMin, chObjective, chPlayerSide;
     int chBaseline[2];
     unsigned long chEnd_ms;
+    // instant replay of a goal / foul (close camera). Drives the built-in
+    // replayState each frame while paused; ProcessReplayMessages applies it.
+    bool replaying;
+    bool goalReplayed;                // one replay per goal
+    unsigned long replayHead_ms, replayStart_ms, replayEnd_ms;
+    void ProcessReplay();
 #endif
 
     boost::intrusive_ptr<Node> stadiumNode;

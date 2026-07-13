@@ -116,6 +116,14 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_challenge(int homeScore, int away
   if (m) m->StartChallenge(homeScore, awayScore, clockMin, objective, playerSide);
 }
 
+// Trigger an instant replay of the last windowMs (also fired automatically on
+// goals/fouls). Exposed so a "replay" button / test can request one.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_replay(int windowMs) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (m) m->StartReplay(windowMs > 0 ? (unsigned long)windowMs : 3000);
+}
+
 // Training drills from the HTML menu: force the live match into a specific set
 // piece (1=KickOff,3=FreeKick,4=Corner,6=Penalty — e_SetPiece values) for team 0.
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {

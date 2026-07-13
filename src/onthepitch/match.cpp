@@ -58,6 +58,9 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   chObjective = chPlayerSide = 0;
   chBaseline[0] = chBaseline[1] = 0;
   chEnd_ms = 5400000UL;
+  replaying = false;
+  goalReplayed = false;
+  replayHead_ms = replayStart_ms = replayEnd_ms = 0;
 #endif
 
   replayState->dirty = false;
@@ -653,6 +656,35 @@ void Match::ProcessChallenge() {
   }
 }
 
+// Instant replay: freeze the sim and sweep the built-in replayState back over the
+// last windowMs, which ProcessReplayMessages turns into ApplyReplayFrame +
+// SetReplayCamera (cam 2 = close). Resumes when it reaches the moment.
+void Match::StartReplay(unsigned long windowMs) {
+  if (replaying || IsCeremonyActive()) return;
+  replaying = true;
+  pause = true;
+  replayEnd_ms = actualTime_ms;
+  replayStart_ms = (actualTime_ms > windowMs) ? actualTime_ms - windowMs : 0;
+  replayHead_ms = replayStart_ms;
+}
+
+void Match::ProcessReplay() {
+  if (!replaying) return;
+  const float dur = (float)(replayEnd_ms - replayStart_ms);
+  const float progress = dur > 1.0f ? (float)(replayHead_ms - replayStart_ms) / dur : 1.0f;
+  replayState.Lock();
+  replayState->viewTime_ms = replayHead_ms;
+  replayState->cam = 2;                              // close, rotateable
+  replayState->modifierValue = -0.28f + 0.56f * progress; // gentle sweep
+  replayState->dirty = true;
+  replayState.Unlock();
+  replayHead_ms += 9;                                // ~0.9x playback
+  if (replayHead_ms >= replayEnd_ms) {
+    replaying = false;
+    pause = false;                                   // resume -> kickoff / free kick proceeds
+  }
+}
+
 #endif
 
 void Match::SetRandomSunParams() {
@@ -894,6 +926,10 @@ void Match::SetCameraParams(float zoom, float height, float fov, float angleFact
 
 void Match::UpdateIngameCamera() {
   // camera
+#ifdef __EMSCRIPTEN__
+  // during an instant replay the camera is driven by SetReplayCamera; leave it.
+  if (replaying) return;
+#endif
 
   float fov;
   float zoom;
@@ -1059,6 +1095,14 @@ void Match::UpdateIngameCamera() {
     cameraNearCap = 1;
     cameraFarCap = 220;
 
+#ifdef __EMSCRIPTEN__
+    // after ~2s of celebration, show the goal replay up close, then resume
+    if (goalScoredTimer >= 2000 && !goalReplayed) {
+      goalReplayed = true;
+      StartReplay(4200);
+    }
+#endif
+
     if (goalScoredTimer == 6000) {
 #ifdef __EMSCRIPTEN__
       // The extended-replay menu page doesn't work in the wasm port, and pausing
@@ -1099,6 +1143,7 @@ void Match::Process() {
 #ifdef __EMSCRIPTEN__
   ProcessAnthemCeremony();
   ProcessChallenge();
+  ProcessReplay();
 #endif
 
   if (!pause) {
@@ -1203,7 +1248,11 @@ void Match::Process() {
 
     if (IsInPlay() && !IsInSetPiece()) matchTime_ms += 10 * (1.0f / matchDurationFactor);
     actualTime_ms += 10;
-    if (IsGoalScored()) goalScoredTimer += 10; else goalScoredTimer = 0;
+    if (IsGoalScored()) goalScoredTimer += 10; else { goalScoredTimer = 0;
+#ifdef __EMSCRIPTEN__
+      goalReplayed = false;
+#endif
+    }
 
     if (IsInPlay() && !IsInSetPiece()) GetMatchData()->AddPossessionTime_10ms(designatedPossessionPlayer->GetTeamID());
 
