@@ -8,6 +8,7 @@
  * squad via teamLineup().
  */
 import { startNativeMatch, show as showHome } from "./homemenu";
+import { POS } from "./positions";
 
 const prox = (u: string): string => `/img-proxy?u=${encodeURIComponent(u)}`;
 
@@ -39,7 +40,7 @@ export function teamLineup(teamName: string, squad: string[], hint: string, onPl
   const starters: P[] = squad.slice(0, 11).map((n, i) => ({
     name: niceLabel(n), raw: n, pos: SLOTS[i]!.pos, x: SLOTS[i]!.x, y: SLOTS[i]!.y, hint,
   }));
-  const subs: P[] = squad.slice(11).map((n, i) => ({ name: niceLabel(n), raw: n, pos: SUB_POS[i] ?? "REMP", hint }));
+  const subs: P[] = squad.slice(11).map((n, i) => ({ name: niceLabel(n), raw: n, pos: POS[n] ?? SUB_POS[i] ?? "REMP", hint }));
   showLineup({ teamName, starters, subs, onPlay });
 }
 
