@@ -8,8 +8,22 @@ import { isDrillSession } from "./homemenu";
 
 const KEY = {
   UP: 1073741906, DOWN: 1073741905, LEFT: 1073741904, RIGHT: 1073741903,
-  W: 119, S: 115, D: 100, E: 101,
+  W: 119, S: 115, D: 100, E: 101, A: 97, Q: 113,
 };
+interface BtnCfg { label: string; code: number }
+// 4 slots: [top-left, top-right, bottom-left, bottom-right]
+const ATTACK: BtnCfg[] = [
+  { label: "PASSER EN PROFONDEUR", code: KEY.W }, // through pass
+  { label: "TIRER", code: KEY.D },                // shot
+  { label: "PASSER", code: KEY.S },               // short pass
+  { label: "ACCÉLÉRER & GESTES", code: KEY.E },   // sprint
+];
+const DEFEND: BtnCfg[] = [
+  { label: "PRESSER", code: KEY.S },              // pressure
+  { label: "TACLE", code: KEY.A },                // sliding tackle
+  { label: "CHANGER DE JOUEUR", code: KEY.Q },    // switch player
+  { label: "ACCÉLÉRER", code: KEY.E },            // sprint
+];
 interface Mod { _gpf_game_key?: (keycode: number, down: number) => void }
 const gk = (code: number, down: boolean): void => {
   const m = (window as unknown as { Module?: Mod }).Module;
@@ -85,13 +99,28 @@ function initStick(base: HTMLElement): void {
   base.addEventListener("lostpointercapture", () => end());
 }
 
-function initBtn(el: HTMLElement, code: number): void {
-  const down = (e: Event): void => { el.classList.add("on"); gk(code, true); e.preventDefault(); };
-  const up = (e: Event): void => { el.classList.remove("on"); gk(code, false); e.preventDefault(); };
-  el.addEventListener("pointerdown", down);
+// the four action buttons, re-labelled/re-keyed by possession
+const slots: Array<{ el: HTMLElement; code: number; held: boolean }> = [];
+function initBtn(el: HTMLElement): void {
+  const st = { el, code: 0, held: false };
+  slots.push(st);
+  el.addEventListener("pointerdown", (e) => { el.classList.add("on"); st.held = true; gk(st.code, true); e.preventDefault(); });
+  const up = (e: Event): void => { if (st.held) { st.held = false; gk(st.code, false); } el.classList.remove("on"); e.preventDefault(); };
   el.addEventListener("pointerup", up);
   el.addEventListener("pointerleave", up);
   el.addEventListener("pointercancel", up);
+}
+let mode = "";
+function setMode(hasBall: boolean): void {
+  const m = hasBall ? "atk" : "def";
+  if (m === mode || slots.length < 4) return;
+  mode = m;
+  const cfg = hasBall ? ATTACK : DEFEND;
+  slots.forEach((st, i) => {
+    if (st.held) { st.held = false; gk(st.code, false); st.el.classList.remove("on"); } // release across the switch
+    st.code = cfg[i]!.code;
+    st.el.textContent = cfg[i]!.label;
+  });
 }
 
 export function initTouch(): void {
@@ -118,10 +147,11 @@ export function initTouch(): void {
   document.body.appendChild(root);
   knob = root.querySelector(".stick-knob");
   initStick(root.querySelector(".stick-base")!);
-  initBtn(root.querySelector(".b-through")!, KEY.W);
-  initBtn(root.querySelector(".b-shoot")!, KEY.D);
-  initBtn(root.querySelector(".b-pass")!, KEY.S);
-  initBtn(root.querySelector(".b-sprint")!, KEY.E);
+  initBtn(root.querySelector(".b-through")!);   // top-left
+  initBtn(root.querySelector(".b-shoot")!);     // top-right
+  initBtn(root.querySelector(".b-pass")!);      // bottom-left
+  initBtn(root.querySelector(".b-sprint")!);    // bottom-right
+  setMode(true); // default attacking labels
 
   // show during live open play; hide in menus / drills (those have their own UI)
   const anyOverlay = (): boolean =>
@@ -129,8 +159,10 @@ export function initTouch(): void {
     !document.querySelector("#gpf-home.hidden");
   window.setInterval(() => {
     if (!root) return;
-    const bridge = (window as unknown as { __gpfRadioBridge?: { ticks: number } }).__gpfRadioBridge;
+    const bridge = (window as unknown as { __gpfRadioBridge?: { ticks: number; teamId?: number; loose?: boolean } }).__gpfRadioBridge;
     const live = (bridge?.ticks ?? 0) > 0;
+    // attacking buttons when the human's team (0) has the ball, else defensive
+    if (live) setMode(!bridge!.loose && bridge!.teamId === 0);
     const show = live && !anyOverlay() && !isDrillSession();
     if (show === root.classList.contains("show")) return;
     root.classList.toggle("show", show);

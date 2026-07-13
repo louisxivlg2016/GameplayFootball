@@ -59,7 +59,7 @@ interface RadioWindow {
 const w = window as unknown as RadioWindow;
 
 // live diagnostics: inspect window.__gpfRadioBridge in the console
-const bridge = { events: [] as string[], ticks: 0, teams: ["", ""] as string[], lastCarrier: "" };
+const bridge = { events: [] as string[], ticks: 0, teams: ["", ""] as string[], lastCarrier: "", teamId: -1, loose: true };
 (window as unknown as { __gpfRadioBridge: typeof bridge }).__gpfRadioBridge = bridge;
 
 w.gpfRadioSetTeams = (home, away): void => {
@@ -107,6 +107,8 @@ w.gpfRadioTick = (snap): void => {
   snap.carrier = niceName(snap.carrier);
   snap.oppName = niceName(snap.oppName);
   bridge.lastCarrier = snap.carrier;
+  bridge.teamId = snap.teamId;   // carrier's team (0 = the human's home side)
+  bridge.loose = snap.loose;     // no clear possession
   snap.gen = matchGen;
   snap.ended = snap.ended || matchEnded;
   pushMatchState(snap);
