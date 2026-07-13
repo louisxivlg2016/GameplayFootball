@@ -12,7 +12,7 @@ import { startNativeMatch, setPendingChallenge, endChallengeSession, show as sho
 import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads } from "./squads";
 import { setAnthemOverride } from "./anthem";
-import { showLineup, squadXI } from "./lineup";
+import { teamLineup } from "./lineup";
 
 interface Team { name: string; iso: string; flag: string; color: string }
 // objective: 0 = SCORE a goal, 1 = WIN (be ahead at full time), 2 = HOLD (don't concede)
@@ -42,22 +42,22 @@ const T: Record<string, Team> = {
 // era-accurate XIs (GK first, UPPERCASE ASCII for the in-game font; the radio
 // Title-cases them). Each challenge fields the squad of its actual World Cup.
 const SQ = {
-  ARG2022: ["E.MARTINEZ", "MOLINA", "ROMERO", "OTAMENDI", "TAGLIAFICO", "DE.PAUL", "E.FERNANDEZ", "MAC.ALLISTER", "MESSI", "DI.MARIA", "J.ALVAREZ"],
-  FRA2022: ["LLORIS", "KOUNDE", "VARANE", "UPAMECANO", "T.HERNANDEZ", "TCHOUAMENI", "RABIOT", "GRIEZMANN", "DEMBELE", "MBAPPE", "GIROUD"],
-  ITA2006: ["BUFFON", "ZAMBROTTA", "CANNAVARO", "MATERAZZI", "GROSSO", "GATTUSO", "PIRLO", "PERROTTA", "TOTTI", "TONI", "CAMORANESI"],
-  FRA2006: ["BARTHEZ", "SAGNOL", "THURAM", "GALLAS", "ABIDAL", "VIEIRA", "MAKELELE", "RIBERY", "ZIDANE", "MALOUDA", "HENRY"],
-  GER2014: ["NEUER", "LAHM", "BOATENG", "HUMMELS", "HOWEDES", "SCHWEINSTEIGER", "KROOS", "KHEDIRA", "MULLER", "OZIL", "KLOSE"],
-  ARG2014: ["ROMERO", "ZABALETA", "GARAY", "DEMICHELIS", "ROJO", "MASCHERANO", "BIGLIA", "PEREZ", "MESSI", "HIGUAIN", "LAVEZZI"],
-  ESP2010: ["CASILLAS", "RAMOS", "PIQUE", "PUYOL", "CAPDEVILA", "BUSQUETS", "XAVI", "ALONSO", "INIESTA", "PEDRO", "VILLA"],
-  NED2010: ["STEKELENBURG", "VD.WIEL", "HEITINGA", "MATHIJSEN", "BRONCKHORST", "VAN.BOMMEL", "DE.JONG", "SNEIJDER", "KUYT", "ROBBEN", "V.PERSIE"],
-  FRA1998: ["BARTHEZ", "THURAM", "DESAILLY", "LEBOEUF", "LIZARAZU", "KAREMBEU", "DESCHAMPS", "PETIT", "ZIDANE", "DJORKAEFF", "GUIVARCH"],
-  BRA1998: ["TAFFAREL", "CAFU", "ALDAIR", "JUNIOR.BAIANO", "R.CARLOS", "DUNGA", "C.SAMPAIO", "RIVALDO", "LEONARDO", "RONALDO", "BEBETO"],
-  MAR2022: ["BOUNOU", "HAKIMI", "AGUERD", "SAISS", "MAZRAOUI", "AMRABAT", "OUNAHI", "AMALLAH", "ZIYECH", "EN.NESYRI", "BOUFAL"],
-  POR2022: ["D.COSTA", "DALOT", "PEPE", "R.DIAS", "GUERREIRO", "R.NEVES", "W.CARVALHO", "B.SILVA", "B.FERNANDES", "J.FELIX", "G.RAMOS"],
-  CRO2018: ["SUBASIC", "VRSALJKO", "LOVREN", "VIDA", "STRINIC", "BROZOVIC", "RAKITIC", "MODRIC", "REBIC", "MANDZUKIC", "PERISIC"],
-  FRA2018: ["LLORIS", "PAVARD", "VARANE", "UMTITI", "L.HERNANDEZ", "KANTE", "POGBA", "MATUIDI", "MBAPPE", "GRIEZMANN", "GIROUD"],
-  ENG1986: ["SHILTON", "STEVENS", "BUTCHER", "FENWICK", "SANSOM", "HODDLE", "REID", "S.STEVEN", "HODGE", "BEARDSLEY", "LINEKER"],
-  ARG1986: ["PUMPIDO", "CUCIUFFO", "RUGGERI", "BROWN", "OLARTICOECHEA", "GIUSTI", "BATISTA", "BURRUCHAGA", "MARADONA", "VALDANO", "ENRIQUE"],
+  ARG2022: ["E.MARTINEZ", "MOLINA", "ROMERO", "OTAMENDI", "TAGLIAFICO", "DE.PAUL", "E.FERNANDEZ", "MAC.ALLISTER", "MESSI", "DI.MARIA", "J.ALVAREZ", "ARMANI", "MONTIEL", "PEZZELLA", "LIS.MARTINEZ", "PAREDES", "DYBALA", "LAUTARO"],
+  FRA2022: ["LLORIS", "KOUNDE", "VARANE", "UPAMECANO", "T.HERNANDEZ", "TCHOUAMENI", "RABIOT", "GRIEZMANN", "DEMBELE", "MBAPPE", "GIROUD", "MANDANDA", "PAVARD", "KONATE", "CAMAVINGA", "GUENDOUZI", "COMAN", "M.THURAM"],
+  ITA2006: ["BUFFON", "ZAMBROTTA", "CANNAVARO", "MATERAZZI", "GROSSO", "GATTUSO", "PIRLO", "PERROTTA", "TOTTI", "TONI", "CAMORANESI", "PERUZZI", "ODDO", "BARZAGLI", "DE.ROSSI", "IAQUINTA", "DEL.PIERO", "GILARDINO"],
+  FRA2006: ["BARTHEZ", "SAGNOL", "THURAM", "GALLAS", "ABIDAL", "VIEIRA", "MAKELELE", "RIBERY", "ZIDANE", "MALOUDA", "HENRY", "COUPET", "BOUMSONG", "CHIMBONDA", "DHORASOO", "WILTORD", "SAHA", "TREZEGUET"],
+  GER2014: ["NEUER", "LAHM", "BOATENG", "HUMMELS", "HOWEDES", "SCHWEINSTEIGER", "KROOS", "KHEDIRA", "MULLER", "OZIL", "KLOSE", "WEIDENFELLER", "GROSSKREUTZ", "MERTESACKER", "DURM", "KRAMER", "GOTZE", "SCHURRLE"],
+  ARG2014: ["ROMERO", "ZABALETA", "GARAY", "DEMICHELIS", "ROJO", "MASCHERANO", "BIGLIA", "PEREZ", "MESSI", "HIGUAIN", "LAVEZZI", "ANDUJAR", "BASANTA", "F.FERNANDEZ", "GAGO", "MAXI.RODRIGUEZ", "AGUERO", "PALACIO"],
+  ESP2010: ["CASILLAS", "RAMOS", "PIQUE", "PUYOL", "CAPDEVILA", "BUSQUETS", "XAVI", "ALONSO", "INIESTA", "PEDRO", "VILLA", "VALDES", "ARBELOA", "MARCHENA", "FABREGAS", "NAVAS", "LLORENTE", "F.TORRES"],
+  NED2010: ["STEKELENBURG", "VD.WIEL", "HEITINGA", "MATHIJSEN", "BRONCKHORST", "VAN.BOMMEL", "DE.JONG", "SNEIJDER", "KUYT", "ROBBEN", "V.PERSIE", "BOSCHKER", "BOULAHROUZ", "OOIJER", "VD.VAART", "ELIA", "AFELLAY", "HUNTELAAR"],
+  FRA1998: ["BARTHEZ", "THURAM", "DESAILLY", "LEBOEUF", "LIZARAZU", "KAREMBEU", "DESCHAMPS", "PETIT", "ZIDANE", "DJORKAEFF", "GUIVARCH", "LAMA", "CANDELA", "VIEIRA", "BOGHOSSIAN", "PIRES", "DUGARRY", "TREZEGUET"],
+  BRA1998: ["TAFFAREL", "CAFU", "ALDAIR", "JUNIOR.BAIANO", "R.CARLOS", "DUNGA", "C.SAMPAIO", "RIVALDO", "LEONARDO", "RONALDO", "BEBETO", "DIDA", "GONCALVES", "ZE.ROBERTO", "EMERSON", "DENILSON", "EDMUNDO", "DORINHO"],
+  MAR2022: ["BOUNOU", "HAKIMI", "AGUERD", "SAISS", "MAZRAOUI", "AMRABAT", "OUNAHI", "AMALLAH", "ZIYECH", "EN.NESYRI", "BOUFAL", "MUNIR", "DARI", "EL.YAMIQ", "ATTIAT.ALLAH", "JABRANE", "SABIRI", "CHEDDIRA"],
+  POR2022: ["D.COSTA", "DALOT", "PEPE", "R.DIAS", "GUERREIRO", "R.NEVES", "W.CARVALHO", "B.SILVA", "B.FERNANDES", "J.FELIX", "G.RAMOS", "R.PATRICIO", "N.SEMEDO", "DANILO", "VITINHA", "RONALDO", "A.HORTA", "A.SILVA"],
+  CRO2018: ["SUBASIC", "VRSALJKO", "LOVREN", "VIDA", "STRINIC", "BROZOVIC", "RAKITIC", "MODRIC", "REBIC", "MANDZUKIC", "PERISIC", "KALINIC", "CORLUKA", "JEDVAJ", "BADELJ", "KOVACIC", "PJACA", "KRAMARIC"],
+  FRA2018: ["LLORIS", "PAVARD", "VARANE", "UMTITI", "L.HERNANDEZ", "KANTE", "POGBA", "MATUIDI", "MBAPPE", "GRIEZMANN", "GIROUD", "MANDANDA", "SIDIBE", "KIMPEMBE", "NZONZI", "TOLISSO", "FEKIR", "DEMBELE"],
+  ENG1986: ["SHILTON", "STEVENS", "BUTCHER", "FENWICK", "SANSOM", "HODDLE", "REID", "S.STEVEN", "HODGE", "BEARDSLEY", "LINEKER", "WOODS", "ANDERSON", "A.MARTIN", "WATSON", "WADDLE", "R.WILKINS", "K.DIXON"],
+  ARG1986: ["PUMPIDO", "CUCIUFFO", "RUGGERI", "BROWN", "OLARTICOECHEA", "GIUSTI", "BATISTA", "BURRUCHAGA", "MARADONA", "VALDANO", "ENRIQUE", "ISLAS", "GARRE", "BOCHINI", "TAPIA", "PASCULLI", "ZELADA", "BORGHI"],
 };
 
 const OBJ_TXT = ["⚽ Marque un but pour l'emporter !", "🏆 Sois devant au coup de sifflet final !", "🛡️ Défends le résultat, ne concède rien !"];
@@ -160,9 +160,9 @@ function launch(c: Challenge, side: "a" | "b"): void {
   const awayScore = side === "a" ? c.bScore : c.aScore;
   const homeSquad = side === "a" ? c.sqa : c.sqb;
   const awaySquad = side === "a" ? c.sqb : c.sqa;
-  const play = (): void => {
-    // era-accurate XIs + kit colours for this exact World Cup match
-    applyMatchSquads({ color: home.color, names: homeSquad }, { color: away.color, names: awaySquad });
+  const play = (homeNames: string[]): void => {
+    // chosen XI (home) + era-accurate opponent XI, with kit colours
+    applyMatchSquads({ color: home.color, names: homeNames }, { color: away.color, names: awaySquad });
     setAnthemOverride(home.name, away.name); // radio says the country + the right anthem
     setScoreFlags(
       { img: flagImg(home.iso), emoji: home.flag, code: isoCode(home.iso) },
@@ -178,7 +178,7 @@ function launch(c: Challenge, side: "a" | "b"): void {
   };
   // pick your XI first (your chosen side is home), then play
   hideDefi();
-  showLineup({ teamName: `${home.flag} ${home.name}`, starters: squadXI(homeSquad), onPlay: play });
+  teamLineup(`${home.flag} ${home.name}`, homeSquad, home.name, play);
 }
 
 // called by homemenu.onMatchStarted once the match is rolling

@@ -6,8 +6,8 @@
 import { startNativeMatch } from "./homemenu";
 import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
-import { applyNationOverrides, SQUADS } from "./squads";
-import { showLineup, squadXI } from "./lineup";
+import { applyMatchSquads, SQUADS, kitColor } from "./squads";
+import { teamLineup } from "./lineup";
 
 interface Nation { name: string; flag: string; color: string; iso: string }
 interface Confed { id: string; label: string; icon: string; teams: Nation[] }
@@ -137,7 +137,7 @@ const isoCode = (iso: string): string =>
   (iso.includes("-") ? iso.split("-")[1]! : iso).toUpperCase();
 
 function launch(home: Nation, away: Nation): void {
-  const play = (): void => {
+  const play = (homeNames: string[]): void => {
     setAnthemOverride(home.name, away.name);
     // real flag images on the score-bar badges (emoji fallback if they fail),
     // plus the country code over the baked-in team name
@@ -145,16 +145,19 @@ function launch(home: Nation, away: Nation): void {
       { img: flagImg(home.iso), emoji: home.flag, code: isoCode(home.iso) },
       { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },
     );
-    // real kit colours + real squad names, pushed to the engine before it builds
-    applyNationOverrides({ name: home.name, color: home.color }, { name: away.name, color: away.color });
+    // apply the CHOSEN XI for the home side + the away squad, with kit colours
+    applyMatchSquads(
+      { color: kitColor(home.name, home.color), names: homeNames },
+      { color: kitColor(away.name, away.color), names: SQUADS[away.name] || [] },
+    );
     hideNational();
     startNativeMatch();
   };
   // pick your XI first (your team is home), then play
-  const names = SQUADS[home.name];
+  const squad = SQUADS[home.name];
   hideNational();
-  if (names && names.length) showLineup({ teamName: `${home.flag} ${home.name}`, starters: squadXI(names), onPlay: play });
-  else play();
+  if (squad && squad.length) teamLineup(`${home.flag} ${home.name}`, squad, home.name, play);
+  else play(squad || []);
 }
 
 function renderGrid(grid: HTMLElement, conf: Confed): void {

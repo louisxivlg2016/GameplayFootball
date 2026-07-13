@@ -9,7 +9,7 @@ import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads } from "./squads";
 import { CLUB_SQUADS } from "./clubsquads";
-import { showLineup, squadXI } from "./lineup";
+import { teamLineup } from "./lineup";
 
 interface Club { name: string; code: string; city: string; color: string; wiki: string }
 interface League { id: string; country: string; flag: string; clubs: Club[] }
@@ -135,11 +135,11 @@ function updateClubStatus(): void {
   const s = root?.querySelector<HTMLElement>(".club-status");
   if (s) s.innerHTML = homePick ? `Ton club : <b>${homePick.name}</b> — choisis l'adversaire (VS)` : `Choisis <b>ton club</b> (JOUER)`;
 }
-async function doPlayClubs(home: Club, away: Club): Promise<void> {
+async function doPlayClubs(home: Club, away: Club, homeNames: string[]): Promise<void> {
   setAnthemOverride(home.name, away.name); // club name -> anthem + radio team name
-  // real club XI + kit colour per side
+  // the CHOSEN home XI + the away club squad, with kit colours
   applyMatchSquads(
-    { color: home.color, names: CLUB_SQUADS[home.code] || [] },
+    { color: home.color, names: homeNames },
     { color: away.color, names: CLUB_SQUADS[away.code] || [] },
   );
   hideClubs();
@@ -152,11 +152,11 @@ async function doPlayClubs(home: Club, away: Club): Promise<void> {
 }
 function launchClubs(home: Club, away: Club): void {
   // pick your XI first (your club is home), then play
-  const names = CLUB_SQUADS[home.code];
+  const squad = CLUB_SQUADS[home.code];
   hideClubs();
-  const play = (): void => { void doPlayClubs(home, away); };
-  if (names && names.length) showLineup({ teamName: home.name, starters: squadXI(names), onPlay: play });
-  else play();
+  const play = (names: string[]): void => { void doPlayClubs(home, away, names); };
+  if (squad && squad.length) teamLineup(home.name, squad, home.name, play);
+  else play(squad || []);
 }
 
 function renderGrid(grid: HTMLElement, league: League): void {
