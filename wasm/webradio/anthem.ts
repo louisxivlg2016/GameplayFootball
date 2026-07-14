@@ -185,8 +185,16 @@ function resolveAnthemUrl(teamName: string): string | null {
 
 let audio: HTMLAudioElement | null = null;
 let fadeTimer: number | null = null;
+let holdTimer: number | null = null;
 let banner: HTMLElement | null = null;
 let bannerLabel: HTMLElement | null = null;
+
+// How long each team's anthem plays before the ceremony auto-advances to the
+// next team / kickoff. We DON'T trust the <audio> "ended" event: the recordings
+// stream through /img-proxy and often stall without ever firing "ended", which
+// used to hang the whole ceremony (teams lined up forever, match never kicked
+// off). A short wall-clock cap guarantees the match always starts promptly.
+const ANTHEM_HOLD_MS = 8000;
 
 // When the player picks teams in the NATIONAL/CLUB menu, those choices override
 // the (limited) DB team names for the ceremony, so e.g. choosing France plays
@@ -210,6 +218,7 @@ export function getTeamOverride(): [string | null, string | null] {
 
 function stopAudio(): void {
   if (fadeTimer !== null) { clearInterval(fadeTimer); fadeTimer = null; }
+  if (holdTimer !== null) { clearTimeout(holdTimer); holdTimer = null; }
   if (audio) { try { audio.pause(); } catch { /* already */ } audio = null; }
 }
 
@@ -291,11 +300,17 @@ export function initAnthem(): void {
     const a = new Audio("/img-proxy?u=" + encodeURIComponent(url));
     a.volume = 1.0;
     audio = a;
-    a.addEventListener("ended", () => advance(a)); // full anthem played -> next
-    a.play().then(() => console.log(`[gpf-anthem] playing ${name} (full)`))
+    a.addEventListener("ended", () => advance(a)); // anthem played out -> next
+    // ALWAYS advance after a short wall-clock hold, whether or not the audio
+    // ever fires "ended" (it frequently doesn't when streamed via the proxy).
+    // This is what keeps the match from getting stuck on the anthem.
+    if (holdTimer !== null) clearTimeout(holdTimer);
+    holdTimer = window.setTimeout(() => { if (audio === a) fadeOutAndStop(a, 900); advance(a); }, ANTHEM_HOLD_MS);
+    a.play().then(() => console.log(`[gpf-anthem] playing ${name} (~${ANTHEM_HOLD_MS / 1000}s)`))
       .catch((e) => {
         console.warn("[gpf-anthem] play blocked:", e?.message || e);
-        window.setTimeout(() => advance(a), 2500); // couldn't play — don't hang
+        if (holdTimer !== null) clearTimeout(holdTimer);
+        holdTimer = window.setTimeout(() => advance(a), 2000); // couldn't play — don't hang
       });
   };
 
