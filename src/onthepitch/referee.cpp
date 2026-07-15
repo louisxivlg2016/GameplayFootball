@@ -572,9 +572,8 @@ bool Referee::CheckFoul() {
     }
     buffer.teamID = foul.foulVictim->GetTeam()->GetID();
     buffer.active = true;
-#ifdef __EMSCRIPTEN__
-    match->StartReplay(2800); // instant replay of the foul, up close
-#endif
+    // (the foul instant replay is handled in the browser now — see the note in
+    //  Match::UpdateIngameCamera / webradio/replay.ts — no native replay here.)
     std::string spamMessage = "foul!";
     if (foul.foulType == 2) {
       spamMessage.append(" yellow card");

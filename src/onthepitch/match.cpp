@@ -1096,11 +1096,12 @@ void Match::UpdateIngameCamera() {
     cameraFarCap = 220;
 
 #ifdef __EMSCRIPTEN__
-    // after ~2s of celebration, show the goal replay up close, then resume
-    if (goalScoredTimer >= 2000 && !goalReplayed) {
-      goalReplayed = true;
-      StartReplay(4200);
-    }
+    // NOTE: the engine's built-in replay (StartReplay/replayState) doesn't render
+    // correctly under the wasm port — it just froze the view. The instant replay
+    // is now done entirely in the browser (webradio/replay.ts records the canvas
+    // and plays back a zoomed slow-mo overlay on goals/fouls), so we no longer
+    // trigger the native replay here and let the goal celebration run normally.
+    (void)goalReplayed;
 #endif
 
     if (goalScoredTimer == 6000) {

@@ -19,6 +19,7 @@ import { initScoreFlags } from "./scoreflags";
 import { initSettings, applySavedKeys } from "./settings";
 import { initDefi } from "./defi";
 import { initTouch } from "./touch";
+import { initReplay } from "./replay";
 import {
   type RadioEvent,
   audioPeak,
@@ -133,6 +134,7 @@ initScoreFlags();
 initSettings();
 initDefi();
 initTouch();
+initReplay();
 
 // Re-apply the graphics quality picked in the native SETTINGS > GRAPHICS menu
 // (persisted in localStorage; 4 = ultra is the engine default, nothing to do).
