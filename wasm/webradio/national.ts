@@ -122,7 +122,7 @@ function updateStatus(): void {
   if (!statusEl) return;
   statusEl.innerHTML = homePick
     ? `Ton équipe : <b>${homePick.flag} ${homePick.name}</b> — choisis l'adversaire (VS)`
-    : `Choisis <b>ton équipe</b> (JOUER)`;
+    : `<b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire`;
 }
 
 export function showNational(): void {
@@ -135,6 +135,12 @@ export function hideNational(): void { root?.classList.remove("show"); document.
 // FR, DE, ENG… — the country code shown over the C++ team name ("ARS")
 const isoCode = (iso: string): string =>
   (iso.includes("-") ? iso.split("-")[1]! : iso).toUpperCase();
+
+// a random nation different from the given one (for "JOUER" = play now)
+function randomOpponent(home: Nation): Nation {
+  const all = CONFEDS.flatMap((c) => c.teams).filter((n) => n.name !== home.name);
+  return all[Math.floor(Math.random() * all.length)] ?? home;
+}
 
 function launch(home: Nation, away: Nation): void {
   const play = (homeNames: string[]): void => {
@@ -171,8 +177,9 @@ function renderGrid(grid: HTMLElement, conf: Confed): void {
       `<span class="nat-actions"><button class="nat-play" title="Jouer avec cette équipe">JOUER</button>` +
       `<button class="nat-vs" title="Affronter cette équipe">VS</button></span>`;
     card.querySelector(".nat-play")!.addEventListener("click", () => {
-      homePick = nat;                 // pick your team, then choose an opponent
-      updateStatus();
+      // JOUER = play now: kick off straight away against an auto-picked opponent.
+      // (Use VS on two teams to choose the opponent yourself.)
+      launch(nat, randomOpponent(nat));
     });
     card.querySelector(".nat-vs")!.addEventListener("click", () => {
       if (!homePick) { homePick = nat; updateStatus(); return; } // no home yet -> treat as your team
@@ -194,7 +201,7 @@ export function initNational(): void {
       <div class="menu-panel-head">
         <button class="nat-back">← Menu</button>
         <span>Équipes nationales</span>
-        <b class="nat-status">Choisis <b>ton équipe</b> (JOUER)</b>
+        <b class="nat-status"><b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire</b>
       </div>
       <div class="conf-tabs"></div>
       <div class="nat-grid"></div>

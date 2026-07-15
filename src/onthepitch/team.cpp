@@ -594,14 +594,21 @@ void Team::UpdateSwitch() {
 
   // autoswitch on proximity
 
-/* recently disabled
+#ifdef __EMSCRIPTEN__
+  // Defending auto-switch: when we DON'T have the ball, keep the human on our
+  // player quickest to it (the natural presser) instead of stranding them on
+  // someone far from the action. Only switches when the currently controlled
+  // player isn't already the closest, so it isn't twitchy, and never onto the
+  // goalie. (Attacking selection is handled below when we regain the ball.)
   if (match->IsInPlay() && humanGamers.size() > 0) {
-    if (!IsHumanControlled(designatedTeamPossessionPlayer->GetID()) &&
-        designatedTeamPossessionPlayer->GetTimeNeededToGetToBall_ms() < 2000 && // proximity
-        designatedTeamPossessionPlayer->GetTimeNeededToGetToBall_ms() <= this->GetTimeNeededToGetToBall_ms() && // sometimes, the designated team possession player is not the player quickest to ball. don't autoswitch then
-        GetTeamPossessionAmount() > 1.3f) SelectPlayer(designatedTeamPossessionPlayer);
+    if (match->GetBestPossessionTeamID() != GetID() &&
+        !IsHumanControlled(designatedTeamPossessionPlayer->GetID()) &&
+        designatedTeamPossessionPlayer != GetGoalie() &&
+        !designatedTeamPossessionPlayer->HasUniquePossession()) {
+      SelectPlayer(designatedTeamPossessionPlayer);
+    }
   }
-*/
+#endif
 
   //if (GetID() == 0) printf("teamposs %f\n", GetTeamPossessionAmount());
 

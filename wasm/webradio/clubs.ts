@@ -133,7 +133,7 @@ export function hideClubs(): void {
 let homePick: Club | null = null;
 function updateClubStatus(): void {
   const s = root?.querySelector<HTMLElement>(".club-status");
-  if (s) s.innerHTML = homePick ? `Ton club : <b>${homePick.name}</b> — choisis l'adversaire (VS)` : `Choisis <b>ton club</b> (JOUER)`;
+  if (s) s.innerHTML = homePick ? `Ton club : <b>${homePick.name}</b> — choisis l'adversaire (VS)` : `<b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire`;
 }
 async function doPlayClubs(home: Club, away: Club, homeNames: string[]): Promise<void> {
   setAnthemOverride(home.name, away.name); // club name -> anthem + radio team name
@@ -150,6 +150,12 @@ async function doPlayClubs(home: Club, away: Club, homeNames: string[]): Promise
     la ? { img: la, code: away.code } : { emoji: "🛡️", code: away.code },
   );
 }
+// a random club different from the given one (for "JOUER" = play now)
+function randomClubOpponent(home: Club): Club {
+  const all = LEAGUES.flatMap((l) => l.clubs).filter((c) => c.code !== home.code);
+  return all[Math.floor(Math.random() * all.length)] ?? home;
+}
+
 function launchClubs(home: Club, away: Club): void {
   // pick your XI first (your club is home), then play
   const squad = CLUB_SQUADS[home.code];
@@ -170,7 +176,9 @@ function renderGrid(grid: HTMLElement, league: League): void {
       `<b>${club.name}</b><small>${club.city}</small>` +
       `<span class="club-actions"><button class="club-play" title="Jouer avec ce club">JOUER</button>` +
       `<button class="club-vs" title="Affronter ce club">VS</button></span>`;
-    card.querySelector(".club-play")!.addEventListener("click", () => { homePick = club; updateClubStatus(); });
+    // JOUER = play now: kick off straight away against an auto-picked club.
+    // (Use VS on two clubs to choose the opponent yourself.)
+    card.querySelector(".club-play")!.addEventListener("click", () => { void launchClubs(club, randomClubOpponent(club)); });
     card.querySelector(".club-vs")!.addEventListener("click", () => {
       if (!homePick) { homePick = club; updateClubStatus(); return; }
       void launchClubs(homePick, club);
@@ -197,7 +205,7 @@ export function initClubs(): void {
       <div class="menu-panel-head">
         <button class="club-back">← Menu</button>
         <span>Clubs · effectifs réels</span>
-        <b class="club-status">Choisis <b>ton club</b> (JOUER)</b>
+        <b class="club-status"><b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire</b>
       </div>
       <div class="club-league-tabs"></div>
       <div class="club-grid"></div>
@@ -221,7 +229,12 @@ export function initClubs(): void {
   }
   const play = document.createElement("button");
   play.className = "club-play-now"; play.textContent = "JOUER ⚽";
-  play.addEventListener("click", () => { hideClubs(); startNativeMatch(); });
+  play.addEventListener("click", () => {
+    // your picked club (or a random one) vs an auto-picked opponent — with real
+    // squads/kits, not the bare default teams.
+    const home = homePick ?? randomClubOpponent({ code: "" } as Club);
+    void launchClubs(home, randomClubOpponent(home));
+  });
   tabs.appendChild(play);
 
   root.querySelector(".club-back")!.addEventListener("click", hideClubs);
