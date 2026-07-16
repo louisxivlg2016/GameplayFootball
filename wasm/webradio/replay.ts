@@ -111,15 +111,18 @@ const CSS = `
   color:#ffe94a; font:800 14px inherit; }
 `;
 
+let overlayShownAt = 0;
 function showOverlay(label: string): void {
   if (!root) return;
   const tag = root.querySelector<HTMLElement>(".rp-label");
   if (tag) tag.textContent = label;
   root.classList.add("show");
+  overlayShownAt = performance.now();
 }
 function hideOverlay(): void {
   if (root) root.classList.remove("show");
   if (video) { try { video.pause(); } catch { /* */ } video.removeAttribute("src"); video.load(); }
+  overlayShownAt = 0;
 }
 
 // resolver for the segment currently playing — lets the cap timer / "Passer"
@@ -132,6 +135,17 @@ function stopPlayback(): void {
   skipped = true;
   if (video) { try { video.pause(); } catch { /* */ } }
   if (endCurrent) { const r = endCurrent; endCurrent = null; r(); }
+}
+
+// Hard teardown, independent of the playback loop: guarantees the overlay closes
+// and input is released even if the main thread was too busy for the loop to run
+// (this is what the "Passer" button and the watchdog use, so it can NEVER stick).
+function forceEnd(): void {
+  skipped = true;
+  if (endCurrent) { const r = endCurrent; endCurrent = null; try { r(); } catch { /* */ } }
+  hideOverlay();
+  replaying = false;
+  lastReplayEnd = performance.now();
 }
 
 function playOne(blob: Blob): Promise<void> {
@@ -224,7 +238,12 @@ export function initReplay(): void {
     <button class="rp-skip">Passer ▶</button>`;
   document.body.appendChild(root);
   video = root.querySelector("video");
-  root.querySelector(".rp-skip")!.addEventListener("click", stopPlayback);
+  // "Passer" force-closes the overlay outright — don't depend on the async loop.
+  const skipBtn = root.querySelector(".rp-skip")!;
+  skipBtn.addEventListener("click", forceEnd);
+  skipBtn.addEventListener("pointerdown", forceEnd);
+  // tapping anywhere on the overlay also dismisses it (belt and braces)
+  root.addEventListener("pointerdown", forceEnd);
 
   // hook the radio events (wrap whatever radioMain already installed)
   const w = window as unknown as { gpfRadioEvent?: (e: string, p: string, t: number, s0: number, s1: number) => void };
@@ -236,8 +255,11 @@ export function initReplay(): void {
     }
   };
 
-  // start/stop the canvas recorder as matches come and go
+  // start/stop the canvas recorder as matches come and go + WATCHDOG: if the
+  // overlay has been up too long (loop starved by a busy main thread), force it
+  // closed so the game is never left un-clickable.
   window.setInterval(() => {
+    if (overlayShownAt && performance.now() - overlayShownAt > MAX_REPLAY_MS + 2500) forceEnd();
     if (!supported) return;
     const live = isLive();
     if (live && !recording) startRecording();
