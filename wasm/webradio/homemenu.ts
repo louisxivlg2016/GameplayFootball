@@ -161,10 +161,15 @@ let drillSession = false;
 export function isDrillSession(): boolean { return drillSession; }
 export function setPendingDrill(setPiece: number): void { pendingDrill = setPiece; pendingKeeper = false; drillSession = true; }
 export function setPendingKeeper(): void { pendingKeeper = true; pendingDrill = 0; drillSession = true; }
-// DEFI: skip the anthem (reuse drillSession) and fire the challenge once live.
+// DEFI: a real match (keep the touch controls + instant replay) that just skips
+// the anthem and fires the challenge once live. It must NOT reuse drillSession,
+// or it would hide the touch buttons/replay — and a stale drillSession would then
+// poison every later match too.
+let challengeSession = false;
+export function isChallengeSession(): boolean { return challengeSession; }
 let pendingChallenge = false;
-export function setPendingChallenge(): void { pendingChallenge = true; drillSession = true; }
-export function endChallengeSession(): void { drillSession = false; pendingChallenge = false; }
+export function setPendingChallenge(): void { pendingChallenge = true; challengeSession = true; }
+export function endChallengeSession(): void { challengeSession = false; pendingChallenge = false; }
 function fireDrill(sp: number): void {
   const M = (window as unknown as { Module?: { _gpf_start_drill?: (n: number) => void } }).Module;
   M?._gpf_start_drill?.(sp);

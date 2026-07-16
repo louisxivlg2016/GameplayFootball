@@ -8,7 +8,7 @@
  * banner and a "Passer" button (Module._gpf_skip_anthem). Training drills opt
  * out via gpfCeremonyWanted.
  */
-import { isDrillSession } from "./homemenu";
+import { isDrillSession, isChallengeSession } from "./homemenu";
 import { radio, setRadioSuppressed } from "./radioEngine";
 
 interface AnthemModule { _gpf_skip_anthem?: () => void }
@@ -281,7 +281,7 @@ export function initAnthem(): void {
     gpfCeremonyWanted?: () => boolean;
   };
 
-  w.gpfCeremonyWanted = (): boolean => !isDrillSession();
+  w.gpfCeremonyWanted = (): boolean => !isDrillSession() && !isChallengeSession();
 
   // the anthem is played IN FULL; when it ends we advance the ceremony to the
   // next team (or kickoff) via the C++ skip hook — so it's not cut short.
