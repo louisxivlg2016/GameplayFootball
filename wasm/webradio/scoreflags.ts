@@ -14,6 +14,7 @@ let slot0: HTMLElement | null = null;
 let slot1: HTMLElement | null = null;
 let lab0: HTMLElement | null = null;
 let lab1: HTMLElement | null = null;
+let youTag: HTMLElement | null = null; // "TOI" marker over the human's (left) badge
 
 // positions as a fraction of the canvas (tuned to the C++ scoreboard)
 const BADGE_Y = 0.026;
@@ -47,13 +48,36 @@ function fillLabel(lab: HTMLElement, f: ScoreFlag | null): void {
   lab.textContent = code;
 }
 
+// the human is always team 0 = the LEFT badge; show a "TOI" marker there during a
+// live match so you always know which side (and score) is yours.
+function matchLive(): boolean {
+  const bridge = (window as unknown as { __gpfRadioBridge?: { ticks: number } }).__gpfRadioBridge;
+  if ((bridge?.ticks ?? 0) <= 0) return false;
+  if (!document.querySelector("#gpf-home.hidden")) return false;
+  return !/gpf-(home|national|clubs|defi|lineup|settings|training)-open/.test(document.body.className);
+}
+
 function place(): void {
   const canvas = document.getElementById("canvas");
-  if (!canvas || !root || !slot0 || !slot1 || !lab0 || !lab1) return;
-  if (!home && !away) { root.style.display = "none"; return; }
+  if (!canvas || !root || !slot0 || !slot1 || !lab0 || !lab1 || !youTag) return;
+  const showYou = matchLive();
+  if (!home && !away && !showYou) { root.style.display = "none"; return; }
   const r = canvas.getBoundingClientRect();
   if (r.width < 10) { root.style.display = "none"; return; }
   root.style.display = "block";
+
+  // "TOI" chip centred under the left (home) badge
+  if (showYou) {
+    const h2 = Math.max(14, r.height * BADGE_H);
+    const y2 = r.top + r.height * BADGE_Y;
+    youTag.style.display = "flex";
+    youTag.style.left = `${r.left + r.width * NAME_X0 - h2 * 1.1}px`;
+    youTag.style.top = `${y2 + h2 * 1.02}px`;
+    youTag.style.height = `${h2 * 0.62}px`;
+    youTag.style.fontSize = `${h2 * 0.42}px`;
+  } else {
+    youTag.style.display = "none";
+  }
   const h = Math.max(14, r.height * BADGE_H);
   const y = r.top + r.height * BADGE_Y;
   const bw = h * BADGE_W;
@@ -115,11 +139,19 @@ export function initScoreFlags(): void {
     return s;
   };
   lab0 = mkLab(); lab1 = mkLab();
-  root.append(slot0, slot1, lab0, lab1);
+  youTag = document.createElement("div");
+  youTag.textContent = "▲ TOI";
+  Object.assign(youTag.style, {
+    position: "fixed", display: "none", alignItems: "center", justifyContent: "center",
+    padding: "0 6px", color: "#12240f", fontWeight: "900", fontFamily: "Arial, Helvetica, sans-serif",
+    letterSpacing: "0.04em", lineHeight: "1", whiteSpace: "nowrap", borderRadius: "3px",
+    background: "linear-gradient(#ffe94a,#f5c518)", boxShadow: "0 2px 6px rgba(0,0,0,.45)",
+  } as CSSStyleDeclaration);
+  root.append(slot0, slot1, lab0, lab1, youTag);
   document.body.appendChild(root);
 
   window.addEventListener("resize", place);
   // the canvas can be CSS-resized without a resize event (fullscreen, layout);
-  // re-track a few times a second while flags are shown.
-  window.setInterval(() => { if (home || away) place(); }, 500);
+  // re-track a few times a second (also drives the live "TOI" marker).
+  window.setInterval(place, 500);
 }
