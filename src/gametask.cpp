@@ -166,6 +166,30 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp
   ref->NotifyDrillShotTaken();
 }
 
+// In-match offside free kick: the human traced a line toward a team-mate. Pass the
+// ball in that direction (screen-right -> world lateral, screen-up -> loft, chord
+// length -> pace), then end the set piece so play resumes.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_freekick_pass(float aimRight, float aimUp, float power) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !m->GetReferee() || !m->GetBall()) return;
+  Referee *ref = m->GetReferee();
+  if (!ref->IsHumanOffsideKick()) return;
+
+  signed int fwdSide = m->GetTeam(1 - ref->GetOffsideKickTeam())->GetSide(); // downfield (toward opponent goal)
+  float p = clamp(power, 0.0f, 1.0f);
+  float r = clamp(aimRight, -1.0f, 1.0f);
+  float u = clamp(aimUp, 0.0f, 1.0f);
+
+  float speed = 13.0f + 16.0f * p;      // pass pace (m/s)
+  float vx = fwdSide * speed;           // forward, toward the attacked goal
+  float vy = -fwdSide * r * 12.0f;      // lateral: screen-right -> correct world side
+  float vz = 2.0f + u * 7.0f;           // loft (2..9 m/s) for a lofted pass/cross
+
+  m->GetBall()->Touch(Vector3(vx, vy, vz));
+  ref->EndOffsideKick();
+}
+
 // ---- Goalkeeper drill -----------------------------------------------------
 // The AI (team 1) takes penalties; the human is team 0's keeper. When the user
 // taps a left/right arrow we bind this external controller to the keeper: it

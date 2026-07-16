@@ -39,6 +39,7 @@ Referee::Referee(Match *match) : match(match) {
   drillKeeper = false;
   drillShotFireTime = 0;
   humanKeeperTeam = -1;
+  humanOffsideKickTeam = -1;
 
 
   // whistle
@@ -300,6 +301,9 @@ void Referee::Process() {
             humanKeeperTeam = keeperTeam;
             EM_ASM({ try { if (window.gpfKeeperReady) window.gpfKeeperReady(); } catch (e) {} });
           }
+        } else if (humanOffsideKickTeam >= 0 && buffer.desiredSetPiece == e_SetPiece_FreeKick) {
+          // In-match offside free kick the human takes: arm the trace-to-pass overlay.
+          EM_ASM({ try { if (window.gpfFreekickReady) window.gpfFreekickReady(); } catch (e) {} });
         }
 #endif
       }
@@ -322,6 +326,11 @@ void Referee::Process() {
       if (humanKeeperTeam >= 0) {
         humanKeeperTeam = -1;
         EM_ASM({ try { if (window.gpfKeeperDone) window.gpfKeeperDone(); } catch (e) {} });
+      }
+      // offside free kick taken the normal way (no trace) -> drop the trace overlay
+      if (humanOffsideKickTeam >= 0) {
+        humanOffsideKickTeam = -1;
+        EM_ASM({ try { if (window.gpfFreekickDone) window.gpfFreekickDone(); } catch (e) {} });
       }
 #endif
 
@@ -425,6 +434,25 @@ void Referee::NotifyDrillShotTaken() {
   drillWaitUntil = match->GetActualTime_ms() + 3500;
 }
 
+// The human struck the offside free kick via the trace overlay (gpf_freekick_pass
+// already gave the ball its velocity). End the set-piece phase so everyone resumes
+// live play, mirroring the normal "taker touched the ball" transition.
+void Referee::EndOffsideKick() {
+  humanOffsideKickTeam = -1;
+  if (match->IsInSetPiece()) {
+    buffer.active = false;
+    match->StopSetPiece();
+    match->GetTeam(0)->GetController()->PrepareSetPiece(e_SetPiece_None);
+    match->GetTeam(1)->GetController()->PrepareSetPiece(e_SetPiece_None);
+    afterSetPieceRelaxTime_ms = 400;
+    foul.foulPlayer = 0;
+    foul.foulType = 0;
+  }
+#ifdef __EMSCRIPTEN__
+  EM_ASM({ try { if (window.gpfFreekickDone) window.gpfFreekickDone(); } catch (e) {} });
+#endif
+}
+
 void Referee::AlterSetPiecePrepareTime(unsigned long newTime_ms) {
   if (buffer.active) {
     buffer.prepareTime = newTime_ms;
@@ -455,6 +483,11 @@ void Referee::BallTouched() {
           buffer.active = true;
           match->SpamMessage("offside!");
           gpfRadioEvent("offside");
+#ifdef __EMSCRIPTEN__
+          // human's team takes this free kick -> close camera + trace-to-pass
+          if (match->GetTeam(buffer.teamID)->GetHumanGamerCount() > 0)
+            humanOffsideKickTeam = buffer.teamID;
+#endif
           break;
         } else break;
       }

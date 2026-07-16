@@ -996,6 +996,19 @@ void Match::UpdateIngameCamera() {
     cameraNearCap = 0.5;
     cameraFarCap = 200;
 
+  } else if (GetReferee()->IsHumanOffsideKick()) {
+
+    // in-match offside free kick the human takes: same close, behind-the-taker
+    // camera as a penalty / free-kick drill, so you can see where you aim the pass.
+    Vector3 fkBall = ball->Predict(0).Get2D();
+    signed int oppSide = GetTeam(1 - GetReferee()->GetOffsideKickTeam())->GetSide(); // downfield
+    cameraOrientation.SetAngleAxis(0.43f * pi, Vector3(1, 0, 0));               // tilt down
+    cameraNodeOrientation.SetAngleAxis(-oppSide * 0.5f * pi, Vector3(0, 0, 1)); // face downfield
+    cameraNodePosition = fkBall + Vector3(-15.0f * oppSide, 0, 0) + Vector3(0, 0, 7.5f);
+    cameraFOV = 30.0f;
+    cameraNearCap = 1;
+    cameraFarCap = 250;
+
   } else
 #endif
   if (GetReferee()->IsDrillActive()) {

@@ -9,6 +9,7 @@
 
 interface DrillModule {
   _gpf_drill_shoot?: (aimRight: number, aimUp: number, power: number, curl: number) => void;
+  _gpf_freekick_pass?: (aimRight: number, aimUp: number, power: number) => void;
 }
 
 interface Pt { x: number; y: number; }
@@ -19,6 +20,9 @@ let hint: HTMLElement | null = null;
 let armed = false;
 let dragging = false;
 let pts: Pt[] = [];
+// "shoot" = training drill (curl toward goal); "pass" = in-match offside free kick
+// (trace toward a team-mate to pass). Same trace, different release.
+let mode: "shoot" | "pass" = "shoot";
 
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
@@ -100,9 +104,10 @@ function end(cx: number, cy: number): void {
   const curl = clamp(perp / (chordLen * 0.4), -1, 1);
 
   const M = (window as unknown as { Module?: DrillModule }).Module;
-  M?._gpf_drill_shoot?.(aimRight, aimUp, power, curl);
+  if (mode === "pass") M?._gpf_freekick_pass?.(aimRight, aimUp, power); // pass toward where you drew
+  else M?._gpf_drill_shoot?.(aimRight, aimUp, power, curl);             // curling shot at goal
 
-  disarm(); // one shot per attempt; re-armed by the next gpfDrillReady
+  disarm(); // one attempt; re-armed by the next gpfDrillReady / gpfFreekickReady
 }
 
 function touchXY(e: TouchEvent): Touch | undefined {
@@ -117,12 +122,26 @@ function setPillsHidden(hidden: boolean): void {
 }
 
 function arm(): void {
+  mode = "shoot";
   armed = true;
   dragging = false;
   pts = [];
   setPillsHidden(true);
+  document.body.classList.add("gpf-aim-active");
   if (canvas) { canvas.style.display = "block"; canvas.style.pointerEvents = "auto"; }
-  if (hint) hint.style.opacity = "1";
+  if (hint) { hint.textContent = "Trace la trajectoire du tir au doigt"; hint.style.opacity = "1"; }
+}
+
+// in-match offside free kick: same trace, but it PASSES toward where you draw
+function armPass(): void {
+  mode = "pass";
+  armed = true;
+  dragging = false;
+  pts = [];
+  setPillsHidden(true);
+  document.body.classList.add("gpf-aim-active");
+  if (canvas) { canvas.style.display = "block"; canvas.style.pointerEvents = "auto"; }
+  if (hint) { hint.textContent = "Trace un trait vers un coéquipier pour passer"; hint.style.opacity = "1"; }
 }
 
 function disarm(): void {
@@ -132,6 +151,7 @@ function disarm(): void {
   clear();
   if (canvas) canvas.style.pointerEvents = "none";
   if (hint) hint.style.opacity = "0";
+  document.body.classList.remove("gpf-aim-active");
 }
 
 export function initDrillAim(): void {
@@ -181,8 +201,14 @@ export function initDrillAim(): void {
   window.addEventListener("mousemove", (e: MouseEvent) => move(e.clientX, e.clientY));
   window.addEventListener("mouseup", (e: MouseEvent) => end(e.clientX, e.clientY));
 
-  const w = window as unknown as { gpfDrillReady?: () => void; gpfDrillDone?: () => void };
+  const w = window as unknown as {
+    gpfDrillReady?: () => void; gpfDrillDone?: () => void;
+    gpfFreekickReady?: () => void; gpfFreekickDone?: () => void;
+  };
   w.gpfDrillReady = arm;
   const prevDone = w.gpfDrillDone;
   w.gpfDrillDone = (): void => { disarm(); setPillsHidden(false); try { prevDone?.(); } catch { /* ignore */ } };
+  // in-match offside free kick the human takes: arm the trace in "pass" mode
+  w.gpfFreekickReady = armPass;
+  w.gpfFreekickDone = (): void => { disarm(); setPillsHidden(false); };
 }

@@ -156,6 +156,7 @@ export function initTouch(): void {
   // show during live open play; hide in menus / drills (those have their own UI)
   const anyOverlay = (): boolean =>
     /gpf-(home|national|clubs|defi|lineup|settings|training)-open/.test(document.body.className) ||
+    document.body.classList.contains("gpf-aim-active") || // free-kick trace has the screen
     !document.querySelector("#gpf-home.hidden");
   window.setInterval(() => {
     if (!root) return;
