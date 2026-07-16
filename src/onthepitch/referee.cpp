@@ -38,6 +38,7 @@ Referee::Referee(Match *match) : match(match) {
   drillWaitUntil = 0;
   drillKeeper = false;
   drillShotFireTime = 0;
+  humanKeeperTeam = -1;
 
 
   // whistle
@@ -289,6 +290,16 @@ void Referee::Process() {
             EM_ASM({ try { if (window.gpfKeeperReady) window.gpfKeeperReady(); } catch (e) {} });
           else
             EM_ASM({ try { if (window.gpfDrillReady) window.gpfDrillReady(); } catch (e) {} });
+        } else if (buffer.desiredSetPiece == e_SetPiece_Penalty) {
+          // In-match penalty: if the OPPONENT is taking it and the human's team is
+          // defending, let the player keep — same dive-arrow UI as the keeper drill.
+          int shooterTeam = buffer.teamID;
+          int keeperTeam = 1 - shooterTeam;
+          if (match->GetTeam(keeperTeam)->GetHumanGamerCount() > 0 &&
+              match->GetTeam(shooterTeam)->GetHumanGamerCount() == 0) {
+            humanKeeperTeam = keeperTeam;
+            EM_ASM({ try { if (window.gpfKeeperReady) window.gpfKeeperReady(); } catch (e) {} });
+          }
         }
 #endif
       }
@@ -305,6 +316,14 @@ void Referee::Process() {
       afterSetPieceRelaxTime_ms = 400;
       foul.foulPlayer = 0;
       foul.foulType = 0;
+#ifdef __EMSCRIPTEN__
+      // the penalty has been struck — put the dive arrows away and hand the
+      // keeper back to the AI (the dive, if the human committed, is already under way)
+      if (humanKeeperTeam >= 0) {
+        humanKeeperTeam = -1;
+        EM_ASM({ try { if (window.gpfKeeperDone) window.gpfKeeperDone(); } catch (e) {} });
+      }
+#endif
 
       if (match->GetMatchPhase() == e_MatchPhase_PreMatch) {
         match->SetMatchPhase(e_MatchPhase_1stHalf);

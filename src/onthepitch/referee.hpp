@@ -75,6 +75,10 @@ class Referee {
     // keeper drill: bot shoots, human keeps -> don't suppress the taker, and use
     // the behind-the-keeper camera.
     bool IsKeeperDrill() { return drillKeeper; }
+    // In-match penalty the HUMAN keeps (opponent shoots): the team whose goalie
+    // the player dives with, or -1 when no such penalty is live. Lets the same
+    // dive-arrow UI as the keeper drill drive a real match penalty.
+    int GetHumanKeeperTeam() { return humanKeeperTeam; }
     // The user drew an aim line and the ball was launched directly (gpf_drill_shoot):
     // end the set-piece phase so the keeper reacts, then schedule the next attempt.
     void NotifyDrillShotTaken();
@@ -104,6 +108,8 @@ class Referee {
     unsigned long drillWaitUntil; // re-force the drill at this match time (0 = idle)
     bool drillKeeper;             // true = keeper drill (bot shoots, human keeps)
     unsigned long drillShotFireTime; // keeper drill: auto-fire the bot's shot at this time (0 = idle)
+
+    int humanKeeperTeam; // in-match penalty the human keeps (opponent shoots); -1 = none
 
 };
 

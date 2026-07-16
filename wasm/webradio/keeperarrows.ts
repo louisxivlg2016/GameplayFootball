@@ -82,11 +82,14 @@ export function initKeeperArrows(): void {
 
   document.body.append(root, hint);
 
-  const w = window as unknown as { gpfKeeperReady?: () => void; gpfDrillDone?: () => void };
+  const w = window as unknown as { gpfKeeperReady?: () => void; gpfDrillDone?: () => void; gpfKeeperDone?: () => void };
   w.gpfKeeperReady = arm;
   const prevDone = w.gpfDrillDone;
   w.gpfDrillDone = (): void => {
     armed = false; hideUI(); dive(0); setPillsHidden(false);
     try { prevDone?.(); } catch { /* ignore */ }
   };
+  // in-match penalty struck (not a drill session): just put the arrows away and
+  // restore the pills; don't touch any drill state.
+  w.gpfKeeperDone = (): void => { armed = false; hideUI(); setPillsHidden(false); };
 }

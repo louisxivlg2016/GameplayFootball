@@ -221,7 +221,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_keeper_dive(int dir) {
   if (g_keeperDive) { delete g_keeperDive; g_keeperDive = 0; }
   if (dir == 0) return; // restore AI keeper
 
-  int keeperTeam = 1 - ref->GetDrillTeam();
+  // keeper drill -> keeper is the non-shooting drill team; in-match penalty ->
+  // the team the referee flagged as the human's (opponent is taking the penalty).
+  int keeperTeam = ref->IsKeeperDrill() ? (1 - ref->GetDrillTeam()) : ref->GetHumanKeeperTeam();
+  if (keeperTeam < 0) return;
   Player *gk = m->GetTeam(keeperTeam)->GetGoalie();
   if (!gk) return;
   // map screen dir to a world-Y side via the keeper's team side (see camera)
