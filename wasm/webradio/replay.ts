@@ -122,16 +122,41 @@ function hideOverlay(): void {
   if (video) { try { video.pause(); } catch { /* */ } video.removeAttribute("src"); video.load(); }
 }
 
+// resolver for the segment currently playing — lets the cap timer / "Passer"
+// button END the playback promise. Without this, pausing the <video> never fires
+// "ended", so the await here would hang forever and the overlay would cover the
+// screen and eat all input ("plus rien ne marche" after a foul replay).
+let endCurrent: (() => void) | null = null;
+
+function stopPlayback(): void {
+  skipped = true;
+  if (video) { try { video.pause(); } catch { /* */ } }
+  if (endCurrent) { const r = endCurrent; endCurrent = null; r(); }
+}
+
 function playOne(blob: Blob): Promise<void> {
   return new Promise<void>((resolve) => {
     if (!video || !blob || blob.size < 1000) { resolve(); return; }
     const url = URL.createObjectURL(blob);
-    const done = (): void => { URL.revokeObjectURL(url); resolve(); };
-    video.onended = done;
-    video.onerror = done;
+    let done = false;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      if (endCurrent === finish) endCurrent = null;
+      try { URL.revokeObjectURL(url); } catch { /* */ }
+      resolve();
+    };
+    endCurrent = finish;          // cap/skip can force us to finish
+    video.onended = finish;
+    video.onerror = finish;
     video.src = url;
     video.playbackRate = SLOWMO;
-    video.play().catch(done);
+    // hard safety net: never let a single segment hold the overlay open
+    const guard = window.setTimeout(finish, MAX_REPLAY_MS + 1500);
+    const clearGuard = (): void => window.clearTimeout(guard);
+    void Promise.resolve().then(() => { const p = video!.play(); if (p) p.catch(finish); });
+    video.addEventListener("ended", clearGuard, { once: true });
+    video.addEventListener("error", clearGuard, { once: true });
   });
 }
 
@@ -146,8 +171,10 @@ async function playReplay(label: string): Promise<void> {
   skipped = false;
   replaying = true;
   showOverlay(label);
-  const cap = window.setTimeout(() => { skipped = true; if (video) try { video.pause(); } catch { /* */ } }, MAX_REPLAY_MS);
-  for (const s of segs) { if (skipped) break; await playOne(s); }
+  const cap = window.setTimeout(stopPlayback, MAX_REPLAY_MS);
+  try {
+    for (const s of segs) { if (skipped) break; await playOne(s); }
+  } catch { /* never let a playback error strand the overlay */ }
   window.clearTimeout(cap);
   hideOverlay();
   replaying = false;
@@ -197,9 +224,7 @@ export function initReplay(): void {
     <button class="rp-skip">Passer ▶</button>`;
   document.body.appendChild(root);
   video = root.querySelector("video");
-  root.querySelector(".rp-skip")!.addEventListener("click", () => {
-    skipped = true; if (video) try { video.pause(); } catch { /* */ }
-  });
+  root.querySelector(".rp-skip")!.addEventListener("click", stopPlayback);
 
   // hook the radio events (wrap whatever radioMain already installed)
   const w = window as unknown as { gpfRadioEvent?: (e: string, p: string, t: number, s0: number, s1: number) => void };
