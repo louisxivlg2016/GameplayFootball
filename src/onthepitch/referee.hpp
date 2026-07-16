@@ -84,6 +84,10 @@ class Referee {
     bool IsHumanOffsideKick() { return humanOffsideKickTeam >= 0; }
     int GetOffsideKickTeam() { return humanOffsideKickTeam; }
     void EndOffsideKick(); // called when the trace pass is struck: end the set piece
+    // A penalty set piece is live in a real match (for the close training-style
+    // camera). GetSetPieceTeam() is the team taking it.
+    bool IsPenaltySetPiece() { return buffer.active && buffer.desiredSetPiece == e_SetPiece_Penalty; }
+    int GetSetPieceTeam() { return buffer.teamID; }
     // The user drew an aim line and the ball was launched directly (gpf_drill_shoot):
     // end the set-piece phase so the keeper reacts, then schedule the next attempt.
     void NotifyDrillShotTaken();

@@ -1009,6 +1009,20 @@ void Match::UpdateIngameCamera() {
     cameraNearCap = 1;
     cameraFarCap = 250;
 
+  } else if (GetReferee()->IsPenaltySetPiece()) {
+
+    // in-match penalty: same close, behind-the-taker camera as the penalty drill
+    // (works whether you take it or you're keeping — the shooter is in front, goal
+    // ahead), instead of the wide side view.
+    Vector3 pBall = ball->Predict(0).Get2D();
+    signed int oppSide = GetTeam(1 - GetReferee()->GetSetPieceTeam())->GetSide(); // goal attacked
+    cameraOrientation.SetAngleAxis(0.40f * pi, Vector3(1, 0, 0));                 // tilt down
+    cameraNodeOrientation.SetAngleAxis(-oppSide * 0.5f * pi, Vector3(0, 0, 1));   // face the goal
+    cameraNodePosition = pBall + Vector3(-13.0f * oppSide, 0, 0) + Vector3(0, 0, 4.5f);
+    cameraFOV = 30.0f;
+    cameraNearCap = 1;
+    cameraFarCap = 250;
+
   } else
 #endif
   if (GetReferee()->IsDrillActive()) {
