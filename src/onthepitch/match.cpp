@@ -1009,9 +1009,10 @@ void Match::UpdateIngameCamera() {
     cameraNearCap = 1;
     cameraFarCap = 250;
 
-  } else if (GetReferee()->IsPenaltySetPiece()) {
+  } else if (GetReferee()->IsPenaltySetPiece() && !GetReferee()->IsDrillActive()) {
 
-    // in-match penalty: same close, behind-the-taker camera as the penalty drill
+    // in-match penalty (NOT a drill — the drill has its own camera below): same
+    // close, behind-the-taker camera as the penalty drill
     // (works whether you take it or you're keeping — the shooter is in front, goal
     // ahead), instead of the wide side view.
     Vector3 pBall = ball->Predict(0).Get2D();

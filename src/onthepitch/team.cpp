@@ -600,7 +600,11 @@ void Team::UpdateSwitch() {
   // someone far from the action. Only switches when the currently controlled
   // player isn't already the closest, so it isn't twitchy, and never onto the
   // goalie. (Attacking selection is handled below when we regain the ball.)
-  if (match->IsInPlay() && humanGamers.size() > 0) {
+  // NOT during set pieces / training drills: there the player is doing something
+  // specific (keeping a penalty, taking a free kick) and auto-switching to an
+  // outfielder there is both wrong and, in the keeper drill, was crashing.
+  if (match->IsInPlay() && !match->IsInSetPiece() && humanGamers.size() > 0 &&
+      !match->GetReferee()->IsDrillActive() && designatedTeamPossessionPlayer) {
     if (match->GetBestPossessionTeamID() != GetID() &&
         !IsHumanControlled(designatedTeamPossessionPlayer->GetID()) &&
         designatedTeamPossessionPlayer != GetGoalie() &&
