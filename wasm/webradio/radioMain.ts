@@ -7,7 +7,7 @@
  */
 import { commentaryTick, pushMatchState, type MatchSnapshot } from "./commentary";
 import { initMenu } from "./menu";
-import { initHomeMenu, onMatchStarted } from "./homemenu";
+import { initHomeMenu, onMatchStarted, isDrillSession } from "./homemenu";
 import { initClubs } from "./clubs";
 import { initLineup } from "./lineup";
 import { initNational } from "./national";
@@ -28,6 +28,7 @@ import {
   radioReset,
   resumeRadio,
   setRadioLanguage,
+  setRadioStoppage,
   setRadioTeams,
   toggleRadio,
   warmupRadioVoice,
@@ -112,6 +113,10 @@ w.gpfRadioTick = (snap): void => {
   bridge.loose = snap.loose;     // no clear possession
   snap.gen = matchGen;
   snap.ended = snap.ended || matchEnded;
+  // the commentator stays silent while the ball is out of play (penalty, free
+  // kick, corner, foul stoppage) and during any training drill (incl. the keeper
+  // exercise) — the ref's whistle still sounds; the radio just doesn't talk.
+  setRadioStoppage(snap.inPlay === false || isDrillSession());
   pushMatchState(snap);
 };
 

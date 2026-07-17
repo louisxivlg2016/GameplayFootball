@@ -43,16 +43,17 @@ inline void gpfChallengeResult(int win) {
 // One play-by-play snapshot (pushed ~once per game-second from Match::Process).
 inline void gpfRadioTick(int loose, const char *carrier, int teamId, int keeper,
                          double depth, double speed, const char *oppName, double oppDist,
-                         int score0, int score1, double clock, int gen, int ceremony) {
+                         int score0, int score1, double clock, int gen, int ceremony,
+                         int inPlay) {
   // clang-format off
   EM_ASM({
     try { if (window.gpfRadioTick) window.gpfRadioTick({
       loose: !!$0, carrier: UTF8ToString($1), teamId: $2, keeper: !!$3,
       depth: $4, speed: $5, oppName: UTF8ToString($6), oppDist: $7,
-      score: [$8, $9], clock: $10, gen: $11, ceremony: !!$12,
+      score: [$8, $9], clock: $10, gen: $11, ceremony: !!$12, inPlay: !!$13,
     }); } catch (e) {}
   }, loose, carrier ? carrier : "", teamId, keeper, depth, speed,
-     oppName ? oppName : "", oppDist, score0, score1, clock, gen, ceremony);
+     oppName ? oppName : "", oppDist, score0, score1, clock, gen, ceremony, inPlay);
   // clang-format on
 }
 
@@ -63,7 +64,7 @@ inline void gpfRadioSetTeams(const char *, const char *) {}
 inline void gpfRadioReset() {}
 inline void gpfChallengeResult(int) {}
 inline void gpfRadioTick(int, const char *, int, int, double, double, const char *, double,
-                         int, int, double, int, int) {}
+                         int, int, double, int, int, int) {}
 
 #endif
 

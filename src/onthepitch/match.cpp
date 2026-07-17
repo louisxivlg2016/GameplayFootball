@@ -1322,7 +1322,8 @@ void Match::Process() {
       }
       gpfRadioTick(loose, carrierName.c_str(), teamId, keeper, depth, speed,
                    oppName.c_str(), oppDist, GetScore(0), GetScore(1),
-                   matchTime_ms / 1000.0, 0, IsGoalScored() ? 1 : 0);
+                   matchTime_ms / 1000.0, 0, IsGoalScored() ? 1 : 0,
+                   (IsInPlay() && !IsInSetPiece()) ? 1 : 0);
     }
 #endif
 

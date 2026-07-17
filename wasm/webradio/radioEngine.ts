@@ -75,20 +75,33 @@ let enabled = true;
 // The commentator is silenced while the pre-match national anthem plays (kept
 // separate from `enabled`, the user's R toggle, so it restores exactly).
 let ceremonySuppressed = false;
+// Silenced while the ball is out of play (penalty, free kick, corner, foul
+// stoppage) and during training drills — kept separate again so each restores
+// independently.
+let stoppageSuppressed = false;
 export const RADIO_STATE_EVENT = "gpf-radio-statechange";
 
 /** Silence the commentary during the anthem ceremony (and stop any line already
  *  playing). The play-by-play loop and events are no-ops while suppressed. */
 export function setRadioSuppressed(s: boolean): void {
   ceremonySuppressed = s;
-  if (s) {
-    stopCurrent();
-    playerGen++;
-    playerBusy = false;
-    queuedFlow = null;
-    pendingText = null;
-    try { window.speechSynthesis?.cancel(); } catch { /* no synth */ }
-  }
+  if (s) hardStopSpeech();
+}
+
+/** Silence the commentary while the ball is out of play / during a drill. */
+export function setRadioStoppage(s: boolean): void {
+  if (stoppageSuppressed === s) return;
+  stoppageSuppressed = s;
+  if (s) hardStopSpeech();
+}
+
+function hardStopSpeech(): void {
+  stopCurrent();
+  playerGen++;
+  playerBusy = false;
+  queuedFlow = null;
+  pendingText = null;
+  try { window.speechSynthesis?.cancel(); } catch { /* no synth */ }
 }
 
 function dispatchRadioState(): void {
@@ -855,7 +868,7 @@ export function radioIdle(): boolean {
 /** Continuous play-by-play line. If the mic is busy, the line is synthesized
  *  right away (the worker is free while audio plays) and chained next. */
 export function radioFlow(text: string): void {
-  if (!enabled || ceremonySuppressed) return;
+  if (!enabled || ceremonySuppressed || stoppageSuppressed) return;
   const language = ensureVoiceForCurrentLanguage();
   const usingPiper = !!getPiperVoiceId(language);
   if (!piperReadyForLanguage(language)) {
@@ -964,7 +977,7 @@ export function radio(
     target?: string;
   } = {},
 ): void {
-  if (ceremonySuppressed) return; // no commentary during the anthem
+  if (ceremonySuppressed || stoppageSuppressed) return; // no commentary during anthem / stoppages
   const language = ensureVoiceForCurrentLanguage();
   const copy = getRadioPack(language);
   const team = info.team !== undefined ? teamName(info.team, language) : "";

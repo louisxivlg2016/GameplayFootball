@@ -28,6 +28,7 @@ export interface MatchSnapshot {
   clock: number; // seconds elapsed
   gen: number; // match generation (bumped each new match)
   ceremony?: boolean; // goal celebration / whistle ceremony in progress
+  inPlay?: boolean; // ball is live (not a set piece / stoppage)
   ended?: boolean; // full time
 }
 
