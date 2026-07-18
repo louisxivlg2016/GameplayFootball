@@ -88,6 +88,11 @@ class Referee {
     // camera). GetSetPieceTeam() is the team taking it.
     bool IsPenaltySetPiece() { return buffer.active && buffer.desiredSetPiece == e_SetPiece_Penalty; }
     int GetSetPieceTeam() { return buffer.teamID; }
+    // In-match penalty the HUMAN takes: the human traces the shot (like the penalty
+    // drill). GetPenaltyTeam() is the taking (human) team, or -1 = none.
+    bool IsHumanPenalty() { return humanPenaltyTeam >= 0; }
+    int GetPenaltyTeam() { return humanPenaltyTeam; }
+    void EndPenalty(); // called when the traced shot is struck: end the set piece
     // The user drew an aim line and the ball was launched directly (gpf_drill_shoot):
     // end the set-piece phase so the keeper reacts, then schedule the next attempt.
     void NotifyDrillShotTaken();
@@ -120,6 +125,7 @@ class Referee {
 
     int humanKeeperTeam; // in-match penalty the human keeps (opponent shoots); -1 = none
     int humanOffsideKickTeam; // in-match offside free kick the human takes; -1 = none
+    int humanPenaltyTeam;     // in-match penalty the human takes (trace-to-shoot); -1 = none
 
 };
 

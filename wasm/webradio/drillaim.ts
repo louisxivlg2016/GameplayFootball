@@ -10,6 +10,7 @@
 interface DrillModule {
   _gpf_drill_shoot?: (aimRight: number, aimUp: number, power: number, curl: number) => void;
   _gpf_freekick_pass?: (aimRight: number, aimUp: number, power: number) => void;
+  _gpf_penalty_shoot?: (aimRight: number, aimUp: number, power: number, curl: number) => void;
 }
 
 interface Pt { x: number; y: number; }
@@ -21,8 +22,8 @@ let armed = false;
 let dragging = false;
 let pts: Pt[] = [];
 // "shoot" = training drill (curl toward goal); "pass" = in-match offside free kick
-// (trace toward a team-mate to pass). Same trace, different release.
-let mode: "shoot" | "pass" = "shoot";
+// (trace toward a team-mate); "penalty" = in-match penalty the human takes.
+let mode: "shoot" | "pass" | "penalty" = "shoot";
 
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
@@ -104,8 +105,9 @@ function end(cx: number, cy: number): void {
   const curl = clamp(perp / (chordLen * 0.4), -1, 1);
 
   const M = (window as unknown as { Module?: DrillModule }).Module;
-  if (mode === "pass") M?._gpf_freekick_pass?.(aimRight, aimUp, power); // pass toward where you drew
-  else M?._gpf_drill_shoot?.(aimRight, aimUp, power, curl);             // curling shot at goal
+  if (mode === "pass") M?._gpf_freekick_pass?.(aimRight, aimUp, power);          // pass toward where you drew
+  else if (mode === "penalty") M?._gpf_penalty_shoot?.(aimRight, aimUp, power, curl); // penalty shot
+  else M?._gpf_drill_shoot?.(aimRight, aimUp, power, curl);                      // curling shot at goal
 
   disarm(); // one attempt; re-armed by the next gpfDrillReady / gpfFreekickReady
 }
@@ -142,6 +144,18 @@ function armPass(): void {
   document.body.classList.add("gpf-aim-active");
   if (canvas) { canvas.style.display = "block"; canvas.style.pointerEvents = "auto"; }
   if (hint) { hint.textContent = "Trace un trait vers un coéquipier pour passer"; hint.style.opacity = "1"; }
+}
+
+// in-match penalty the human takes: trace the shot toward the goal
+function armPenalty(): void {
+  mode = "penalty";
+  armed = true;
+  dragging = false;
+  pts = [];
+  setPillsHidden(true);
+  document.body.classList.add("gpf-aim-active");
+  if (canvas) { canvas.style.display = "block"; canvas.style.pointerEvents = "auto"; }
+  if (hint) { hint.textContent = "Trace ton penalty : direction + effet"; hint.style.opacity = "1"; }
 }
 
 function disarm(): void {
@@ -204,6 +218,7 @@ export function initDrillAim(): void {
   const w = window as unknown as {
     gpfDrillReady?: () => void; gpfDrillDone?: () => void;
     gpfFreekickReady?: () => void; gpfFreekickDone?: () => void;
+    gpfPenaltyReady?: () => void; gpfPenaltyDone?: () => void;
   };
   w.gpfDrillReady = arm;
   const prevDone = w.gpfDrillDone;
@@ -211,4 +226,7 @@ export function initDrillAim(): void {
   // in-match offside free kick the human takes: arm the trace in "pass" mode
   w.gpfFreekickReady = armPass;
   w.gpfFreekickDone = (): void => { disarm(); setPillsHidden(false); };
+  // in-match penalty the human takes: arm the trace in "penalty" mode
+  w.gpfPenaltyReady = armPenalty;
+  w.gpfPenaltyDone = (): void => { disarm(); setPillsHidden(false); };
 }

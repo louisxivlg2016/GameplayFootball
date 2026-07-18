@@ -40,6 +40,7 @@ Referee::Referee(Match *match) : match(match) {
   drillShotFireTime = 0;
   humanKeeperTeam = -1;
   humanOffsideKickTeam = -1;
+  humanPenaltyTeam = -1;
 
 
   // whistle
@@ -300,6 +301,11 @@ void Referee::Process() {
               match->GetTeam(shooterTeam)->GetHumanGamerCount() == 0) {
             humanKeeperTeam = keeperTeam;
             EM_ASM({ try { if (window.gpfKeeperReady) window.gpfKeeperReady(); } catch (e) {} });
+          } else if (match->GetTeam(shooterTeam)->GetHumanGamerCount() > 0) {
+            // the human TAKES the penalty: arm the trace-to-shoot overlay (like the
+            // penalty drill) — otherwise the taker just waits and it's stuck.
+            humanPenaltyTeam = shooterTeam;
+            EM_ASM({ try { if (window.gpfPenaltyReady) window.gpfPenaltyReady(); } catch (e) {} });
           }
         } else if (humanOffsideKickTeam >= 0 && buffer.desiredSetPiece == e_SetPiece_FreeKick) {
           // In-match offside free kick the human takes: arm the trace-to-pass overlay.
@@ -331,6 +337,11 @@ void Referee::Process() {
       if (humanOffsideKickTeam >= 0) {
         humanOffsideKickTeam = -1;
         EM_ASM({ try { if (window.gpfFreekickDone) window.gpfFreekickDone(); } catch (e) {} });
+      }
+      // penalty taken (the taker touched the ball) -> drop the shot-trace overlay
+      if (humanPenaltyTeam >= 0) {
+        humanPenaltyTeam = -1;
+        EM_ASM({ try { if (window.gpfPenaltyDone) window.gpfPenaltyDone(); } catch (e) {} });
       }
 #endif
 
@@ -450,6 +461,24 @@ void Referee::EndOffsideKick() {
   }
 #ifdef __EMSCRIPTEN__
   EM_ASM({ try { if (window.gpfFreekickDone) window.gpfFreekickDone(); } catch (e) {} });
+#endif
+}
+
+// The human struck the penalty via the trace overlay (gpf_penalty_shoot already
+// gave the ball its velocity). End the set-piece phase so play resumes.
+void Referee::EndPenalty() {
+  humanPenaltyTeam = -1;
+  if (match->IsInSetPiece()) {
+    buffer.active = false;
+    match->StopSetPiece();
+    match->GetTeam(0)->GetController()->PrepareSetPiece(e_SetPiece_None);
+    match->GetTeam(1)->GetController()->PrepareSetPiece(e_SetPiece_None);
+    afterSetPieceRelaxTime_ms = 400;
+    foul.foulPlayer = 0;
+    foul.foulType = 0;
+  }
+#ifdef __EMSCRIPTEN__
+  EM_ASM({ try { if (window.gpfPenaltyDone) window.gpfPenaltyDone(); } catch (e) {} });
 #endif
 }
 

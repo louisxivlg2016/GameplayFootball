@@ -190,6 +190,31 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_freekick_pass(float aimRight, float aim
   ref->EndOffsideKick();
 }
 
+// In-match penalty the human takes: the traced curve becomes the shot (aim +
+// power + swerve, toward the attacked goal), then the set piece ends.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_penalty_shoot(float aimRight, float aimUp, float power, float curl) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !m->GetReferee() || !m->GetBall()) return;
+  Referee *ref = m->GetReferee();
+  if (!ref->IsHumanPenalty()) return;
+
+  signed int oppSide = m->GetTeam(1 - ref->GetPenaltyTeam())->GetSide(); // goal attacked
+  float p = clamp(power, 0.0f, 1.0f);
+  float r = clamp(aimRight, -1.0f, 1.0f);
+  float u = clamp(aimUp, 0.0f, 1.0f);
+  float c = clamp(curl, -1.0f, 1.0f);
+
+  float speed = 22.0f + 14.0f * p;      // penalty pace
+  float vx = oppSide * speed;           // toward the attacked goal
+  float vy = -oppSide * r * 8.0f;       // lateral: screen-right -> correct world side
+  float vz = 1.5f + u * 6.0f;           // keep it low-ish (2..7.5 m/s)
+
+  m->GetBall()->Touch(Vector3(vx, vy, vz));
+  m->GetBall()->SetRotation(0.0f, 0.0f, -c * 300.0f, 1.0f);
+  ref->EndPenalty();
+}
+
 // ---- Goalkeeper drill -----------------------------------------------------
 // The AI (team 1) takes penalties; the human is team 0's keeper. When the user
 // taps a left/right arrow we bind this external controller to the keeper: it
