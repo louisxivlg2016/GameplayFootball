@@ -27,6 +27,15 @@ const MAX_REPLAY_MS = 8000;   // hard cap so a replay can never drag on
 const COOLDOWN_MS = 2500;     // ignore new triggers right after a replay
 const MIME = pickMime();
 
+// Recording the canvas continuously (MediaRecorder) is heavy on weak hardware, so
+// scale it by the chosen graphics quality (localStorage gpf-quality, 0=potato ..
+// 4=ultra) and turn the replay OFF in potato so the game stays smooth there.
+function gpfQuality(): number {
+  try { const q = parseInt(localStorage.getItem("gpf-quality") ?? "4", 10); return Number.isFinite(q) ? q : 4; }
+  catch { return 4; }
+}
+function captureFps(): number { const q = gpfQuality(); return q <= 1 ? 15 : q === 2 ? 20 : 24; }
+
 function pickMime(): string {
   const cands = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
   const MR = (window as unknown as { MediaRecorder?: { isTypeSupported?: (t: string) => boolean } }).MediaRecorder;
@@ -69,10 +78,11 @@ function rotate(): void {
 
 function startRecording(): void {
   if (recording || !supported) return;
+  if (gpfQuality() <= 0) return; // potato: no instant replay — keep the game smooth
   const c = document.getElementById(CANVAS_ID) as HTMLCanvasElement | null;
   if (!c || typeof c.captureStream !== "function") { supported = false; return; }
   canvas = c;
-  try { stream = c.captureStream(30); } catch { supported = false; return; }
+  try { stream = c.captureStream(captureFps()); } catch { supported = false; return; }
   prevBlob = null;
   recording = true;
   beginSegment();
