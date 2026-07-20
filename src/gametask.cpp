@@ -30,7 +30,9 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_quality(int level) {
   if (level < 0) level = 0;
   if (level > 4) level = 4;
   gpf_quality_level = level;
-  static const float scales[5] = {0.5f, 0.62f, 0.75f, 0.87f, 1.0f};
+  // potato/low render even fewer pixels than before (0.4^2 = 16% of the screen)
+  // so weak hardware keeps up — the biggest low-end win is fill-rate.
+  static const float scales[5] = {0.4f, 0.55f, 0.72f, 0.86f, 1.0f};
   blunted::Renderer3D *renderer = GetGraphicsSystem() ? GetGraphicsSystem()->GetRenderer3D() : 0;
   if (renderer) renderer->SetRenderScale(scales[level]);
   boost::shared_ptr<GameTask> gt = GetGameTask();
