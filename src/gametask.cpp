@@ -35,13 +35,13 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_quality(int level) {
   gpf_quality_level = level;
   // potato/low render even fewer pixels than before (0.4^2 = 16% of the screen)
   // so weak hardware keeps up — the biggest low-end win is fill-rate.
-  static const float scales[5] = {0.4f, 0.55f, 0.72f, 0.86f, 1.0f};
+  static const float scales[5] = {0.35f, 0.5f, 0.68f, 0.84f, 1.0f};
   blunted::Renderer3D *renderer = GetGraphicsSystem() ? GetGraphicsSystem()->GetRenderer3D() : 0;
   if (renderer) renderer->SetRenderScale(scales[level]);
   // Render-rate cap (ms/frame): the lower the quality, the less often we render,
   // so the scheduler runs more catch-up sim steps and the game keeps real-time
   // speed instead of running in slow motion on weak hardware.
-  static const int gfxFrame[5] = {40, 33, 25, 20, 16}; // 25 / 30 / 40 / 50 / 60 fps
+  static const int gfxFrame[5] = {55, 44, 30, 22, 16}; // ~18 / 23 / 33 / 45 / 60 fps
   gpf_apply_render_frametime(gfxFrame[level]);
   boost::shared_ptr<GameTask> gt = GetGameTask();
   Match *m = gt ? gt->GetMatch() : 0;

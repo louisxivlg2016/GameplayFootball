@@ -113,10 +113,10 @@ w.gpfRadioTick = (snap): void => {
   bridge.loose = snap.loose;     // no clear possession
   snap.gen = matchGen;
   snap.ended = snap.ended || matchEnded;
-  // the commentator stays silent while the ball is out of play (penalty, free
-  // kick, corner, foul stoppage) and during any training drill (incl. the keeper
-  // exercise) — the ref's whistle still sounds; the radio just doesn't talk.
-  setRadioStoppage(snap.inPlay === false || isDrillSession());
+  // the commentator hushes for major set pieces (free kick / corner / penalty)
+  // and during any training drill (incl. the keeper exercise) — but keeps talking
+  // through throw-ins, goal kicks and open play. The ref's whistle still sounds.
+  setRadioStoppage(snap.radioQuiet === true || isDrillSession());
   pushMatchState(snap);
 };
 

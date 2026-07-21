@@ -88,6 +88,13 @@ class Referee {
     // camera). GetSetPieceTeam() is the team taking it.
     bool IsPenaltySetPiece() { return buffer.active && buffer.desiredSetPiece == e_SetPiece_Penalty; }
     int GetSetPieceTeam() { return buffer.teamID; }
+    // A "major" stoppage the commentator should go quiet for (free kick / corner /
+    // penalty) — NOT throw-ins, goal kicks or kickoffs, which keep the radio going.
+    bool IsMajorSetPiece() {
+      return buffer.active && (buffer.desiredSetPiece == e_SetPiece_FreeKick ||
+                               buffer.desiredSetPiece == e_SetPiece_Corner ||
+                               buffer.desiredSetPiece == e_SetPiece_Penalty);
+    }
     // In-match penalty the HUMAN takes: the human traces the shot (like the penalty
     // drill). GetPenaltyTeam() is the taking (human) team, or -1 = none.
     bool IsHumanPenalty() { return humanPenaltyTeam >= 0; }

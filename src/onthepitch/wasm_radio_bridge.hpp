@@ -50,7 +50,7 @@ inline void gpfRadioTick(int loose, const char *carrier, int teamId, int keeper,
     try { if (window.gpfRadioTick) window.gpfRadioTick({
       loose: !!$0, carrier: UTF8ToString($1), teamId: $2, keeper: !!$3,
       depth: $4, speed: $5, oppName: UTF8ToString($6), oppDist: $7,
-      score: [$8, $9], clock: $10, gen: $11, ceremony: !!$12, inPlay: !!$13,
+      score: [$8, $9], clock: $10, gen: $11, ceremony: !!$12, radioQuiet: !!$13,
     }); } catch (e) {}
   }, loose, carrier ? carrier : "", teamId, keeper, depth, speed,
      oppName ? oppName : "", oppDist, score0, score1, clock, gen, ceremony, inPlay);
