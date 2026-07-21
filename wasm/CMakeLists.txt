@@ -51,10 +51,13 @@ set(GPF_EM_COMMON
 # quiet the mountain of legacy warnings; keep errors visible
 set(GPF_EM_WARN "-Wno-deprecated-declarations -Wno-writable-strings \
      -Wno-c++11-narrowing -Wno-register -Wno-invalid-offsetof")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GPF_EM_COMMON} ${GPF_EM_WARN} -O3")
+# -DNDEBUG strips the ~224 C++ assert() sites (several in hot sim/render paths):
+# this cache has an empty CMAKE_BUILD_TYPE so -O3 was applied but the release
+# NDEBUG was not — set it explicitly so asserts don't run every frame.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GPF_EM_COMMON} ${GPF_EM_WARN} -O3 -DNDEBUG")
 # C sources (e.g. src/misc/hungarian.c — the AI role solver, run ~every 200ms)
 # must be optimized too; CMAKE_CXX_FLAGS does not cover C.
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${GPF_EM_COMMON} -O3")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${GPF_EM_COMMON} -O3 -DNDEBUG")
 
 # force-include the wasm compatibility header — C++ ONLY (it defines std-backed
 # boost namespaces; force-including it into C files like src/misc/hungarian.c

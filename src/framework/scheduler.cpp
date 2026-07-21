@@ -233,7 +233,16 @@ namespace blunted {
         boost::shared_ptr<TaskSequenceProgram> p = sequences.data.at(i);
         if (p->taskSequence->GetSkippable() || p->paused || p->dueQuit) continue;
         if (p->programCounter != 0) { gpfSimDebt_ms = 0x7fffffff; break; } // already running the sim
-        long debt = (long)time_ms - (long)(p->startTime + p->taskSequence->GetSequenceTime() * p->timesRan);
+        long debt = (long)time_ms - (long)(p->startTime + (long)p->taskSequence->GetSequenceTime() * p->timesRan);
+        // Cap catch-up: a long stall or a hidden/backgrounded tab must NOT bank
+        // thousands of overdue fixed steps and then fast-forward through them on
+        // resume (nor spiral). Treat the excess as a pause by rebasing startTime
+        // (timesRan preserved, so render-snapshot timestamps don't jump).
+        const long kMaxCatchup_ms = 250;
+        if (debt > kMaxCatchup_ms) {
+          p->startTime += (unsigned long)(debt - kMaxCatchup_ms);
+          debt = kMaxCatchup_ms;
+        }
         if (debt > gpfSimDebt_ms) gpfSimDebt_ms = debt;
       }
       const long kSimDebtThreshold_ms = 20;

@@ -45,10 +45,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_quality(int level) {
   // ~12fps to hand nearly all the CPU to the physics.
   static const int gfxFrame[5] = {80, 55, 33, 22, 16}; // ~12 / 18 / 30 / 45 / 60 fps
   gpf_apply_render_frametime(gfxFrame[level]);
-  // Visible-progress floor while the sim catches up (~3 frame periods): the render
-  // may be deferred to let the sim run, but never longer than this, so the canvas
-  // never freezes on a saturated machine.
-  static const int gfxDefer[5] = {240, 165, 99, 66, 48}; // ~4 / 6 / 10 / 15 / 20 fps min
+  // Max time a render START may be DEFERRED while the sim catches up (~3 frame
+  // periods). This bounds admission latency, not final present time (the render +
+  // swap add more), but it guarantees the canvas can't be starved indefinitely on
+  // a saturated machine.
+  static const int gfxDefer[5] = {240, 165, 99, 66, 48};
   gpf_apply_render_defer(gfxDefer[level]);
   boost::shared_ptr<GameTask> gt = GetGameTask();
   Match *m = gt ? gt->GetMatch() : 0;
