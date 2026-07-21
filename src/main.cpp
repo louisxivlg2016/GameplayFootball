@@ -54,6 +54,15 @@ boost::shared_ptr<Scene3D> scene3D;
 boost::shared_ptr<TaskSequence> graphicsSequence;
 boost::shared_ptr<TaskSequence> gameSequence;
 
+#ifdef __EMSCRIPTEN__
+// Retune the render rate at runtime (called from gpf_set_quality): lower quality
+// renders less often, freeing more scheduler time for the 10ms sim to keep
+// real-time speed on weak hardware.
+void gpf_apply_render_frametime(int ms) {
+  if (graphicsSequence) graphicsSequence->SetSequenceTime(ms);
+}
+#endif
+
 boost::shared_ptr<GameTask> gameTask;
 boost::shared_ptr<MenuTask> menuTask;
 
@@ -449,7 +458,17 @@ int main(int argc, const char** argv) {
 
 
 
-  graphicsSequence = boost::shared_ptr<TaskSequence>(new TaskSequence("graphics", config->GetInt("graphics3d_frametime_ms", 0), true));
+  // Render rate. Native default 0 = render every scheduler iteration (uncapped).
+  // Under Emscripten on weak hardware that lets the (slow) render hog every loop
+  // so the 10ms sim can't catch up -> slow motion. Cap the render to ~33fps so the
+  // scheduler runs several catch-up sim steps between frames and the game keeps
+  // real-time speed. (gpf_set_quality retunes this per graphics quality.)
+#ifdef __EMSCRIPTEN__
+  int gfxFrameTime = config->GetInt("graphics3d_frametime_ms", 30);
+#else
+  int gfxFrameTime = config->GetInt("graphics3d_frametime_ms", 0);
+#endif
+  graphicsSequence = boost::shared_ptr<TaskSequence>(new TaskSequence("graphics", gfxFrameTime, true));
 
   graphicsSequence->AddUserTaskEntry(gameTask, e_TaskPhase_Put);
 
