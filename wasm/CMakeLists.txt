@@ -51,7 +51,7 @@ set(GPF_EM_COMMON
 # quiet the mountain of legacy warnings; keep errors visible
 set(GPF_EM_WARN "-Wno-deprecated-declarations -Wno-writable-strings \
      -Wno-c++11-narrowing -Wno-register -Wno-invalid-offsetof")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GPF_EM_COMMON} ${GPF_EM_WARN} -O2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GPF_EM_COMMON} ${GPF_EM_WARN} -O3")
 
 # force-include the wasm compatibility header — C++ ONLY (it defines std-backed
 # boost namespaces; force-including it into C files like src/misc/hungarian.c
@@ -93,7 +93,7 @@ target_link_libraries(gameplayfootball
 
 # preload the whole data/ at /data; game chdir("/data") under __EMSCRIPTEN__.
 set(GPF_EM_LINK
-    "${GPF_EM_COMMON} \
+    "${GPF_EM_COMMON} -O3 \
      -sSDL2_IMAGE_FORMATS=[png,jpg] \
      -lopenal \
      -sINITIAL_MEMORY=1073741824 \

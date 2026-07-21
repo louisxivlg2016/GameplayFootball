@@ -109,8 +109,19 @@ struct GLfunctions {
   OpenGLRenderer3D::~OpenGLRenderer3D() {
   };
 
+#ifdef __EMSCRIPTEN__
+  // Set when a full frame has just been submitted, so the single-threaded browser
+  // scheduler knows the RIGHT moment to hand control to the browser paint (yield
+  // right after a swap = present a COMPLETE frame, no flicker), instead of a stale
+  // pre-pump timeout or an arbitrary iteration-count fallback. See scheduler.cpp.
+  bool gpf_frameSwapped = false;
+#endif
+
   void OpenGLRenderer3D::SwapBuffers() {
     SDL_GL_SwapWindow(window);
+#ifdef __EMSCRIPTEN__
+    gpf_frameSwapped = true;
+#endif
   }
 
   void OpenGLRenderer3D::SetMatrix(const std::string &shaderUniformName, const Matrix4 &matrix) {

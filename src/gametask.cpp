@@ -413,17 +413,10 @@ void GameTask::ProcessPhase() {
   }
 
   if (match) {
+    // Exactly ONE sim step per scheduled game tick — quality must change render
+    // cost only, never the fixed-step count (an extra Process() here stole CPU on
+    // weak machines and desynced actualTime_ms from the scheduler's timesRan).
     match->Process();
-#ifdef __EMSCRIPTEN__
-    // Weak-hardware "un peu plus vite": in potato, run the WHOLE sim one extra
-    // 10ms step every 4th tick (~+25%). Everything advances together (ball,
-    // players, animations) so there's no frame-skip desync/glitch — it just
-    // offsets the slow motion so play feels closer to real time.
-    {
-      static unsigned int s_speedTick = 0;
-      if (gpf_quality_level <= 0 && (s_speedTick++ & 3u) == 0u) match->Process();
-    }
-#endif
 
     matchPutBufferMutex.lock();
     match->PreparePutBuffers();
