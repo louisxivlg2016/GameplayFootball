@@ -414,6 +414,16 @@ void GameTask::ProcessPhase() {
 
   if (match) {
     match->Process();
+#ifdef __EMSCRIPTEN__
+    // Weak-hardware "un peu plus vite": in potato, run the WHOLE sim one extra
+    // 10ms step every 4th tick (~+25%). Everything advances together (ball,
+    // players, animations) so there's no frame-skip desync/glitch — it just
+    // offsets the slow motion so play feels closer to real time.
+    {
+      static unsigned int s_speedTick = 0;
+      if (gpf_quality_level <= 0 && (s_speedTick++ & 3u) == 0u) match->Process();
+    }
+#endif
 
     matchPutBufferMutex.lock();
     match->PreparePutBuffers();
