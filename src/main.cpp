@@ -61,6 +61,11 @@ boost::shared_ptr<TaskSequence> gameSequence;
 void gpf_apply_render_frametime(int ms) {
   if (graphicsSequence) graphicsSequence->SetSequenceTime(ms);
 }
+// Max time a render may be deferred while the sim is catching up (per quality):
+// the floor that keeps visuals from freezing on a saturated machine.
+void gpf_apply_render_defer(int ms) {
+  if (graphicsSequence) graphicsSequence->SetMaxDeferTime(ms);
+}
 #endif
 
 boost::shared_ptr<GameTask> gameTask;
@@ -469,6 +474,11 @@ int main(int argc, const char** argv) {
   int gfxFrameTime = config->GetInt("graphics3d_frametime_ms", 0);
 #endif
   graphicsSequence = boost::shared_ptr<TaskSequence>(new TaskSequence("graphics", gfxFrameTime, true));
+#ifdef __EMSCRIPTEN__
+  // sim-first: a render may be deferred while the fixed-step sim is behind, but at
+  // most this long (a visible-progress floor). Retuned per quality by gpf_set_quality.
+  graphicsSequence->SetMaxDeferTime(99);
+#endif
 
   graphicsSequence->AddUserTaskEntry(gameTask, e_TaskPhase_Put);
 

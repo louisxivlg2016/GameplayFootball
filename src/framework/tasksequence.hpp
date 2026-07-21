@@ -143,6 +143,11 @@ namespace blunted {
       boost::shared_ptr<ITaskSequenceEntry> GetEntry(int num);
       int GetSequenceTime() const;
       void SetSequenceTime(int value);
+      // >0 (only set on the render sequence, per quality): while a non-skippable
+      // sequence (the fixed-step sim) is behind, defer STARTING this one — but never
+      // longer than this many ms, so visuals can't freeze on a saturated machine.
+      int GetMaxDeferTime() const;
+      void SetMaxDeferTime(int value);
       const std::string GetName() const;
       bool GetSkippable() const { return skipOnTooLate; }
 
@@ -154,6 +159,9 @@ namespace blunted {
       // time assigned for 1 run of this sequence
       // if 0, run continuously
       int sequenceTime_ms;
+
+      // render-debt policy (see accessors): 0 = never defer.
+      int maxDeferTime_ms;
 
       // if at due start time the previous run is not ready yet,
       // if true: just forget about the lost time

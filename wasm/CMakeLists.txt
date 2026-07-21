@@ -52,6 +52,9 @@ set(GPF_EM_COMMON
 set(GPF_EM_WARN "-Wno-deprecated-declarations -Wno-writable-strings \
      -Wno-c++11-narrowing -Wno-register -Wno-invalid-offsetof")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GPF_EM_COMMON} ${GPF_EM_WARN} -O3")
+# C sources (e.g. src/misc/hungarian.c — the AI role solver, run ~every 200ms)
+# must be optimized too; CMAKE_CXX_FLAGS does not cover C.
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${GPF_EM_COMMON} -O3")
 
 # force-include the wasm compatibility header — C++ ONLY (it defines std-backed
 # boost namespaces; force-including it into C files like src/misc/hungarian.c

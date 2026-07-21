@@ -222,6 +222,23 @@ namespace blunted {
 
       sequences.Lock();
 
+#ifdef __EMSCRIPTEN__
+      // How far behind is the fixed-step simulation (max debt over non-skippable,
+      // not-in-progress sequences)? Used below to defer STARTING a render while the
+      // sim needs to catch up — the single biggest lever against slow motion on a
+      // CPU-saturated browser (the sim is the priority; a render can wait, bounded
+      // by the sequence's maxDeferTime so visuals never freeze).
+      long gpfSimDebt_ms = 0;
+      for (unsigned int i = 0; i < sequences.data.size(); i++) {
+        boost::shared_ptr<TaskSequenceProgram> p = sequences.data.at(i);
+        if (p->taskSequence->GetSkippable() || p->paused || p->dueQuit) continue;
+        if (p->programCounter != 0) { gpfSimDebt_ms = 0x7fffffff; break; } // already running the sim
+        long debt = (long)time_ms - (long)(p->startTime + p->taskSequence->GetSequenceTime() * p->timesRan);
+        if (debt > gpfSimDebt_ms) gpfSimDebt_ms = debt;
+      }
+      const long kSimDebtThreshold_ms = 20;
+#endif
+
       bool someSequenceNeedsDeleting = false;
 
       for (unsigned int i = 0; i < sequences.data.size(); i++) {
@@ -255,6 +272,7 @@ namespace blunted {
         if (previousEntryIsReady) {
 
           long timeUntilDueEntry_ms = 0; // if programCounter != 0, we just want to start the next entry ASAP
+          bool gpfDeferStart = false;    // (emscripten) hold off STARTING this render so the sim can catch up
 
           if (program->programCounter == 0) { // else, (re)starting sequence; find out when it's due
 
@@ -273,6 +291,17 @@ namespace blunted {
                 // use relative time: don't mind if last frame lasted too long
                 timeUntilDueEntry_ms = (program->sequenceStartTime + program->taskSequence->GetSequenceTime()) - time_ms;
                 //printf("wiieee: %i .. %li .. %li\n", program->taskSequence->GetFrameTime(), time_ms, startTimeRel_ms);
+#ifdef __EMSCRIPTEN__
+                // Sim-first admission: if the fixed-step sim is behind, don't START a
+                // new (expensive) render yet — let the sim catch up. But never defer a
+                // render longer than maxDeferTime since it last started, so a machine
+                // that can't keep up still shows progress (floor against a frozen canvas).
+                const int maxDefer = program->taskSequence->GetMaxDeferTime();
+                if (maxDefer > 0 && gpfSimDebt_ms >= kSimDebtThreshold_ms &&
+                    (long)(time_ms - program->sequenceStartTime) < (long)maxDefer) {
+                  gpfDeferStart = true;
+                }
+#endif
               } else {
                 // use absolute time: if not enough iterations have been done to get to frametime * timesran, start immediately
                 timeUntilDueEntry_ms = (program->startTime + program->taskSequence->GetSequenceTime() * program->timesRan) - time_ms;
@@ -283,7 +312,7 @@ namespace blunted {
 
           }
 
-          if (!program->readyToQuit && !program->paused && (timeUntilDueEntry_ms < dueEntry.timeUntilDueEntry_ms || dueEntry.program == boost::shared_ptr<TaskSequenceProgram>())) {
+          if (!program->readyToQuit && !program->paused && !gpfDeferStart && (timeUntilDueEntry_ms < dueEntry.timeUntilDueEntry_ms || dueEntry.program == boost::shared_ptr<TaskSequenceProgram>())) {
             dueEntry.program = program;
             dueEntry.timeUntilDueEntry_ms = timeUntilDueEntry_ms;
           }

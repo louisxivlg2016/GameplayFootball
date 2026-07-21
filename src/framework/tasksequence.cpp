@@ -147,7 +147,7 @@ namespace blunted {
 
   // TaskSequence
 
-  TaskSequence::TaskSequence(const std::string &name, int sequenceTime_ms, bool skipOnTooLate) : name(name), sequenceTime_ms(sequenceTime_ms), skipOnTooLate(skipOnTooLate) {
+  TaskSequence::TaskSequence(const std::string &name, int sequenceTime_ms, bool skipOnTooLate) : name(name), sequenceTime_ms(sequenceTime_ms), skipOnTooLate(skipOnTooLate), maxDeferTime_ms(0) {
   }
 
   TaskSequence::~TaskSequence() {
@@ -236,6 +236,14 @@ namespace blunted {
 
   int TaskSequence::GetSequenceTime() const {
     return sequenceTime_ms;
+  }
+
+  int TaskSequence::GetMaxDeferTime() const {
+    return maxDeferTime_ms;
+  }
+
+  void TaskSequence::SetMaxDeferTime(int value) {
+    maxDeferTime_ms = value;
   }
 
   void TaskSequence::SetSequenceTime(int value) {

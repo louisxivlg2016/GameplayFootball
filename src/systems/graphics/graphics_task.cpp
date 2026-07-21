@@ -161,6 +161,14 @@ namespace blunted {
     // render the Overlay2D queue
     boost::intrusive_ptr<Renderer3DMessage_RenderOverlay2D> renderOverlay2D(new Renderer3DMessage_RenderOverlay2D(graphicsSystem->GetOverlay2DQueue()));
     renderer3D->messageQueue.PushMessage(renderOverlay2D, true);
+#ifdef __EMSCRIPTEN__
+    // Single-thread browser: make sure the HUD/menu overlay has actually been
+    // drawn before returning to the scheduler. Otherwise the scheduler's watchdog
+    // yield could hand the browser a paint with the 3D view but no overlay (a
+    // one-frame flicker on slow hardware — the 3D view Wait()s above, the overlay
+    // did not).
+    renderOverlay2D->Wait();
+#endif
 
   }
 

@@ -399,6 +399,13 @@ struct GLfunctions {
 // #endif
 
 //#ifdef WIN32
+#ifdef __EMSCRIPTEN__
+    // SDL2's Emscripten GL backend does an Asyncify emscripten_sleep(0) inside every
+    // SDL_GL_SwapWindow. Our scheduler already owns the one rAF yield per frame
+    // (see scheduler.cpp / gpf_frameSwapped), so SDL's implicit yield is a second,
+    // redundant Asyncify unwind+rewind per rendered frame. Turn it off.
+    SDL_SetHint(SDL_HINT_EMSCRIPTEN_ASYNCIFY, "0");
+#endif
     // SDL subsystems must be initialized before setting attributes
     SDL_Init(SDL_INIT_VIDEO);
 
