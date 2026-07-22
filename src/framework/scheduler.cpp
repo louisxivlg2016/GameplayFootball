@@ -369,25 +369,20 @@ namespace blunted {
         // single-threaded browser: no worker will signal us, and we must NOT
         // block the main thread. Pump the cooperative threads (renderer, etc.).
         (void)lock;
-        gpf_frameSwapped = false;
-        CoopPumpAll();  // may run a full render (sets gpf_frameSwapped) + expensive work
-        // Hand control to the browser paint at the RIGHT moment. The old code used
-        // `timeout_ms` (computed BEFORE the pump, so stale after a long render) and
-        // an arbitrary 400-pass fallback — which, once the fixed-step sim fell behind,
-        // starved presentation to once per dozens of ticks (the harsh "fast then very
-        // slow" drop) AND wasted a whole paint of CPU on a stale idle guess. Instead:
-        //  - yield right after a real frame SWAP (present a COMPLETE frame, no flicker);
-        //  - during long catch-up/loading with no swap, yield at least every
-        //    kBrowserBudgetMs so the tab never freezes;
-        //  - otherwise keep running passes so overdue fixed sim steps catch up
-        //    (recovering the capacity the stale-timeout yield used to throw away).
-        static unsigned long lastYield_ms = 0;
-        const unsigned long kBrowserBudgetMs = 100;
-        unsigned long nowYield_ms = EnvironmentManager::GetInstance().GetTime_ms();
-        if (gpf_frameSwapped || (nowYield_ms - lastYield_ms) >= kBrowserBudgetMs) {
-          gpf_frameSwapped = false;
-          lastYield_ms = nowYield_ms;
-          gpf_raf_yield();  // present at the next browser paint
+        CoopPumpAll();
+        // Only yield to the browser (which composites the canvas) when the
+        // frame's work is DONE — i.e. the scheduler is idle-waiting for the next
+        // due time (timeout_ms > 0), which happens after the frame's SwapBuffers.
+        // Yielding on every iteration composited half-drawn frames -> flicker.
+        // A fallback yield every so often keeps long loads from freezing the tab.
+        // (NOTE: a swap-flag/wall-budget yield was tried but changed the Asyncify
+        //  suspension timing enough that the menu-driving _gpf_menu_key calls became
+        //  reentrant-during-suspend and stopped advancing the native menu, i.e. the
+        //  play buttons stopped starting matches. Keep this original policy.)
+        static int sinceYield = 0;
+        if (timeout_ms > 0 || ++sinceYield > 400) {
+          sinceYield = 0;
+          gpf_raf_yield();  // present the complete frame at the next browser paint
         }
         bool isMessage = true;
 #else

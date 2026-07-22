@@ -39,30 +39,49 @@
 // into SDL's event queue so the native menu navigation treats it as a keypress.
 // Synthetic DOM KeyboardEvents don't reach emscripten/SDL, so the menu can only
 // be driven this way from the page. down=1 -> keydown, down=0 -> keyup.
-extern "C" EMSCRIPTEN_KEEPALIVE void gpf_menu_key(int down) {
-  SDL_Event ev;
-  SDL_zero(ev);
-  ev.type = down ? SDL_KEYDOWN : SDL_KEYUP;
-  ev.key.state = down ? SDL_PRESSED : SDL_RELEASED;
-  ev.key.repeat = 0;
-  ev.key.keysym.sym = SDLK_RETURN;
-  ev.key.keysym.scancode = SDL_SCANCODE_RETURN;
-  ev.key.keysym.mod = 0;
-  SDL_PushEvent(&ev);
+// Key events injected from JS (menu-drive Enter, touch controls) may arrive while
+// the wasm is Asyncify-SUSPENDED in a scheduler yield — i.e. reentrantly, between
+// the wasm's own turns. Doing SDL_PushEvent there touches SDL's event queue from a
+// re-entered context and does not reliably deliver (it silently broke the menu
+// drive => "play buttons don't work"). So the exported functions only ENQUEUE
+// (a plain linear-memory write, safe even reentrant); the real SDL_PushEvent is
+// done by gpf_drain_input_keys() from CoopIterate, on the wasm's own turn.
+static const int GPF_KEYQ = 256;
+static int g_gpfKeyQ[GPF_KEYQ][2];   // [keycode, down]
+static unsigned g_gpfKeyHead = 0, g_gpfKeyTail = 0;
+static void gpf_enqueue_key(int keycode, int down) {
+  unsigned h = g_gpfKeyHead;
+  if (h - g_gpfKeyTail >= (unsigned)GPF_KEYQ) return; // full: drop (never happens in practice)
+  g_gpfKeyQ[h % GPF_KEYQ][0] = keycode;
+  g_gpfKeyQ[h % GPF_KEYQ][1] = down;
+  g_gpfKeyHead = h + 1;
+}
+// Drain queued key events into SDL — MUST be called on the wasm's own thread/turn.
+void gpf_drain_input_keys() {
+  while (g_gpfKeyTail != g_gpfKeyHead) {
+    int keycode = g_gpfKeyQ[g_gpfKeyTail % GPF_KEYQ][0];
+    int down    = g_gpfKeyQ[g_gpfKeyTail % GPF_KEYQ][1];
+    g_gpfKeyTail++;
+    SDL_Event ev;
+    SDL_zero(ev);
+    ev.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+    ev.key.state = down ? SDL_PRESSED : SDL_RELEASED;
+    ev.key.repeat = 0;
+    ev.key.keysym.sym = (SDL_Keycode)keycode;
+    ev.key.keysym.scancode = SDL_GetScancodeFromKey((SDL_Keycode)keycode);
+    ev.key.keysym.mod = 0;
+    SDL_PushEvent(&ev);
+  }
 }
 
-// On-screen touch controls: push an arbitrary key into SDL so the in-game
-// HIDKeyboard reads it (joystick -> arrow keys, action buttons -> W/S/D/E…).
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_menu_key(int down) {
+  gpf_enqueue_key(SDLK_RETURN, down);
+}
+
+// On-screen touch controls: enqueue an arbitrary key so the in-game HIDKeyboard
+// reads it (joystick -> arrow keys, action buttons -> W/S/D/E…).
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_game_key(int keycode, int down) {
-  SDL_Event ev;
-  SDL_zero(ev);
-  ev.type = down ? SDL_KEYDOWN : SDL_KEYUP;
-  ev.key.state = down ? SDL_PRESSED : SDL_RELEASED;
-  ev.key.repeat = 0;
-  ev.key.keysym.sym = (SDL_Keycode)keycode;
-  ev.key.keysym.scancode = SDL_GetScancodeFromKey((SDL_Keycode)keycode);
-  ev.key.keysym.mod = 0;
-  SDL_PushEvent(&ev);
+  gpf_enqueue_key(keycode, down);
 }
 #endif
 
@@ -399,13 +418,12 @@ struct GLfunctions {
 // #endif
 
 //#ifdef WIN32
-#ifdef __EMSCRIPTEN__
-    // SDL2's Emscripten GL backend does an Asyncify emscripten_sleep(0) inside every
-    // SDL_GL_SwapWindow. Our scheduler already owns the one rAF yield per frame
-    // (see scheduler.cpp / gpf_frameSwapped), so SDL's implicit yield is a second,
-    // redundant Asyncify unwind+rewind per rendered frame. Turn it off.
-    SDL_SetHint(SDL_HINT_EMSCRIPTEN_ASYNCIFY, "0");
-#endif
+    // NOTE: do NOT set SDL_HINT_EMSCRIPTEN_ASYNCIFY=0 here. SDL2's per-swap
+    // emscripten_sleep(0) is what first unwinds main() via Asyncify during init,
+    // which is when emscripten marks the runtime "ready" (calledRun). Disabling it
+    // left the runtime un-"ready", so calling exported functions like _gpf_menu_key
+    // aborted with "called before runtime initialization" — breaking match start.
+    // The redundant-yield micro-optimisation isn't worth that.
     // SDL subsystems must be initialized before setting attributes
     SDL_Init(SDL_INIT_VIDEO);
 
@@ -2639,6 +2657,10 @@ struct GLfunctions {
       }
       Log(e_Notice, "OpenGLRenderer3D", "CoopIterate", "Render scale set to " + real_to_str(renderScale));
     }
+
+    // push any keys queued from JS (menu-drive / touch) NOW, on our own turn, then
+    // poll them out — so they never SDL_PushEvent from an Asyncify-suspended reentry.
+    ::gpf_drain_input_keys();
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
