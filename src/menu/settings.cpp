@@ -29,12 +29,22 @@ SettingsPage::SettingsPage(Gui2WindowManager *windowManager, const Gui2PageData 
   buttonGraphics->sig_OnClick.connect(boost::bind(&SettingsPage::GoGraphics, this));
   buttonAudio->sig_OnClick.connect(boost::bind(&SettingsPage::GoAudio, this));
 
+  // Match settings (moved here from the old pre-match "Match options" screen):
+  // difficulty of the CPU and match duration. Saved to config on Exit and read
+  // by the match at kickoff, so no intermediate screen is needed anymore.
+  slider_Difficulty = new Gui2Slider(windowManager, "settings_slider_difficulty", 0, 0, 30, 6, "difficulty (when HUMAN vs CPU)");
+  slider_Difficulty->SetValue(GetConfiguration()->GetReal("match_difficulty", _default_Difficulty));
+  slider_MatchDuration = new Gui2Slider(windowManager, "settings_slider_matchduration", 0, 0, 30, 6, "match duration (5 minutes .. 25 min.)");
+  slider_MatchDuration->SetValue(GetConfiguration()->GetReal("match_duration", _default_MatchDuration));
+
   Gui2Grid *grid = new Gui2Grid(windowManager, "settingsgrid", 20, 25, 60, 55);
 
   grid->AddView(buttonGameplay, 0, 0);
   grid->AddView(buttonController, 1, 0);
   grid->AddView(buttonGraphics, 2, 0);
   grid->AddView(buttonAudio, 3, 0);
+  grid->AddView(slider_Difficulty, 4, 0);
+  grid->AddView(slider_MatchDuration, 5, 0);
 
   grid->UpdateLayout(0.5);
 
@@ -47,6 +57,14 @@ SettingsPage::SettingsPage(Gui2WindowManager *windowManager, const Gui2PageData 
 }
 
 SettingsPage::~SettingsPage() {
+}
+
+void SettingsPage::Exit() {
+  GetConfiguration()->Set("match_difficulty", slider_Difficulty->GetValue());
+  GetConfiguration()->Set("match_duration", slider_MatchDuration->GetValue());
+  GetConfiguration()->SaveFile(GetConfigFilename());
+
+  Gui2Page::Exit();
 }
 
 void SettingsPage::GoGameplay() {

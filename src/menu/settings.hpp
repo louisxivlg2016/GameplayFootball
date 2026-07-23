@@ -32,7 +32,11 @@ class SettingsPage : public Gui2Page {
     void GoGraphics();
     void GoAudio();
 
+    virtual void Exit();
+
   protected:
+    Gui2Slider *slider_Difficulty;
+    Gui2Slider *slider_MatchDuration;
 
 };
 

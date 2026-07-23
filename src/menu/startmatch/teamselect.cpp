@@ -185,8 +185,10 @@ void TeamSelectPage::GoOptionsMenu() {
 
   this->Exit();
 
+  // MatchOptions screen removed: difficulty + match duration are now set in the
+  // Settings page (read from config by the match). Go straight to loading.
   Properties properties;
-  windowManager->GetPageFactory()->CreatePage((int)e_PageID_MatchOptions, properties, 0);
+  windowManager->GetPageFactory()->CreatePage((int)e_PageID_LoadingMatch, properties, 0);
 
   delete this;
 }

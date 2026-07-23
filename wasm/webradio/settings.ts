@@ -24,6 +24,14 @@ const setF = (key: string, val: number): void => {
   try { m?.ccall?.("gpf_set_config_float", null, ["string", "number"], [key, val]); } catch { /* not up */ }
 };
 
+// match settings (label, config key, factory default) — 0..1. Read by the match
+// at kickoff (match.cpp: match_difficulty, match_duration). These used to live on
+// the old pre-match "Match options" screen, now removed — set them here instead.
+const MATCH: Array<[string, string, number]> = [
+  ["Difficulté du CPU (Humain vs CPU)", "match_difficulty", 0.6],
+  ["Durée du match (5 min .. 25 min)", "match_duration", 0.4],
+];
+
 // gameplay assist sliders (label, config key, factory default) — 0..1
 const GAMEPLAY: Array<[string, string, number]> = [
   ["Passe courte — assistance direction", "gameplay_shortpass_autodirection", 0.4],
@@ -252,12 +260,20 @@ function renderGraphics(): void {
 function renderGameplay(): void {
   if (!body) return;
   body.innerHTML = "";
+  const matchHdr = document.createElement("div");
+  matchHdr.className = "set-section"; matchHdr.textContent = "Match";
+  body.appendChild(matchHdr);
+  for (const [label, key, def] of MATCH) body.appendChild(sliderRow(label, key, def));
+  const assistHdr = document.createElement("div");
+  assistHdr.className = "set-section"; assistHdr.textContent = "Assistances";
+  body.appendChild(assistHdr);
   for (const [label, key, def] of GAMEPLAY) body.appendChild(sliderRow(label, key, def));
   const resetRow = document.createElement("div");
   resetRow.className = "set-btns set-reset";
   const reset = document.createElement("button");
   reset.textContent = "↺ Valeurs d'usine";
   reset.addEventListener("click", () => {
+    for (const [, key, def] of MATCH) setF(key, def);
     for (const [, key, def] of GAMEPLAY) setF(key, def);
     renderGameplay();
   });
