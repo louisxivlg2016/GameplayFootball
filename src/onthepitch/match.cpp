@@ -30,6 +30,17 @@
 const unsigned int replaySize_ms = 10000;
 const unsigned int camPosSize = 150;//180; //130
 
+// The match is built synchronously on the single browser thread, which freezes
+// the page ("unresponsive") + starves the loading-screen timers. GPF_LOAD_YIELD()
+// hands control back to the browser (paint / timers) between the heavy build
+// phases. Safe: the match isn't published to the global `match` yet, and JS key
+// input is enqueued (never reentrant) — see gpf_menu_key.
+#ifdef __EMSCRIPTEN__
+#define GPF_LOAD_YIELD() emscripten_sleep(0)
+#else
+#define GPF_LOAD_YIELD()
+#endif
+
 Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) : matchData(matchData), controllers(controllers) {
 
   Log(e_Notice, "Match", "Match", "Starting Match");
@@ -103,6 +114,9 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
 
   anims = boost::shared_ptr<AnimCollection>(new AnimCollection(GetScene3D()));
   anims->Load("media/animations");
+#ifdef __EMSCRIPTEN__
+  emscripten_sleep(0); // let the browser breathe after the heavy anim build
+#endif
 
 
   // cache animation positions
@@ -111,6 +125,9 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
 
   const std::vector < Animation* > &animationsTmp = anims->GetAnimations();
   for (unsigned int i = 0; i < animationsTmp.size(); i++) {
+#ifdef __EMSCRIPTEN__
+    if ((i % 48) == 0) emscripten_sleep(0); // keep the page responsive during caching
+#endif
     std::vector<Vector3> positions;
     Animation *someAnim = animationsTmp.at(i);
     Quaternion dud;
@@ -152,7 +169,13 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   teams[0] = new Team(0, this, matchData->GetTeamData(0));
   teams[1] = new Team(1, this, matchData->GetTeamData(1));
   teams[0]->InitPlayers(fullbodyNode, colorCoords);
+#ifdef __EMSCRIPTEN__
+  emscripten_sleep(0);
+#endif
   teams[1]->InitPlayers(fullbodyNode, colorCoords);
+#ifdef __EMSCRIPTEN__
+  emscripten_sleep(0);
+#endif
 
   std::vector<Player*> activePlayers;
   teams[0]->GetActivePlayers(activePlayers);
@@ -163,6 +186,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   // officials
 
   Log(e_Notice, "Match", "Match", "Creating referee/linesmen models");
+  GPF_LOAD_YIELD();
 
   std::string kitFilename = "media/objects/players/textures/referee_kit.png";
   boost::intrusive_ptr < Resource<Surface> > kit = ResourceManagerPool::GetInstance().GetManager<Surface>(e_ResourceType_Surface)->Fetch(kitFilename);
@@ -197,6 +221,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   // stadium
 
   Log(e_Notice, "Match", "Match", "Loading stadium");
+  GPF_LOAD_YIELD();
 
   boost::intrusive_ptr<Node> tmpStadiumNode;
   if (!SuperDebug()) {
@@ -230,6 +255,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   // goal netting
 
   Log(e_Notice, "Match", "Match", "Preparing goal netting");
+  GPF_LOAD_YIELD();
 
   goalsNode = loader.LoadObject(GetScene3D(), "media/objects/stadiums/goals.object");
   goalsNode->SetLocalMode(e_LocalMode_Absolute);
@@ -240,6 +266,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   // pitch
 
   Log(e_Notice, "Match", "Match", "Generating pitch");
+  GPF_LOAD_YIELD();
 
   if (IsReleaseVersion()) {
     GeneratePitch(2048, 1024, 1024, 512, 2048, 1024);
@@ -251,6 +278,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   // sun
 
   Log(e_Notice, "Match", "Match", "Loading sun object");
+  GPF_LOAD_YIELD();
 
   sunNode = loader.LoadObject(GetScene3D(), "media/objects/lighting/generic.object");
   GetDynamicNode()->AddNode(sunNode);
@@ -267,6 +295,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   // human gamers
 
   Log(e_Notice, "Match", "Match", "Human gamer controller init");
+  GPF_LOAD_YIELD();
 
   UpdateControllerSetup();
 
@@ -274,6 +303,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   // 12th man sound
 
   Log(e_Notice, "Match", "Match", "Loading crowd sounds");
+  GPF_LOAD_YIELD();
 
   boost::intrusive_ptr < Resource<SoundBuffer> > soundBufferRes = ResourceManagerPool::GetInstance().GetManager<SoundBuffer>(e_ResourceType_SoundBuffer)->Fetch("media/sounds/crowd01.wav", true, true);
   crowd01 = boost::static_pointer_cast<Sound>(ObjectFactory::GetInstance().CreateObject("crowd01sound", e_ObjectType_Sound));
@@ -283,6 +313,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   crowd01->SetLoop(true);
   crowd01->Poke(e_SystemType_Audio);
   GetScene3D()->AddObject(crowd01);
+  GPF_LOAD_YIELD(); // between the two (sync-decoded) crowd WAVs
 
   soundBufferRes = ResourceManagerPool::GetInstance().GetManager<SoundBuffer>(e_ResourceType_SoundBuffer)->Fetch("media/sounds/crowd02.wav", true, true);
   crowd02 = boost::static_pointer_cast<Sound>(ObjectFactory::GetInstance().CreateObject("crowd02sound", e_ObjectType_Sound));
@@ -322,6 +353,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   // everybody hates him, this poor bloke
 
   Log(e_Notice, "Match", "Match", "Creating referee functionality");
+  GPF_LOAD_YIELD();
 
   referee = new Referee(this);
 
@@ -377,6 +409,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   // replays
 
   Log(e_Notice, "Match", "Match", "Initialising replay data array");
+  GPF_LOAD_YIELD();
 
   std::list < boost::intrusive_ptr<Spatial> > spatials;
   GetReplaySpatials(spatials);

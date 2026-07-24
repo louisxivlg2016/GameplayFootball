@@ -4,6 +4,10 @@
 
 #include "animcollection.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h> // emscripten_sleep — yield during the heavy anim build
+#endif
+
 #include "utils/directoryparser.hpp"
 
 #include "utils/animationextensions/footballanimationextension.hpp"
@@ -165,6 +169,14 @@ void GenerateAutoAnims(const std::vector<Animation*> &templates, std::vector<Ani
   const float margin = 0.01f;
 
   for (unsigned int t1 = 0; t1 < templates.size(); t1++) {
+#ifdef __EMSCRIPTEN__
+    // This O(n^2) transition-generation runs on the single browser thread at match
+    // load and freezes the page ("unresponsive") + starves the loading-screen
+    // timers. Yield every few outer iterations so the browser can paint, rotate
+    // the loading photo, and stay responsive. Safe: the match isn't published to
+    // the global `match` yet, and JS key input is enqueued (never reentrant here).
+    if ((t1 % 2) == 0) emscripten_sleep(0);
+#endif
     for (unsigned int t2 = 0; t2 < templates.size(); t2++) {
 
       Animation *anim1 = templates.at(t1);
