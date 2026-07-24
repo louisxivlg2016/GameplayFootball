@@ -9,14 +9,14 @@ import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads, SQUADS, kitColor } from "./squads";
 import { teamLineup } from "./lineup";
 
-interface Nation { name: string; flag: string; color: string; iso: string }
-interface Confed { id: string; label: string; icon: string; teams: Nation[] }
+export interface Nation { name: string; flag: string; color: string; iso: string }
+export interface Confed { id: string; label: string; icon: string; teams: Nation[] }
 
 // real flag image (renders everywhere, unlike flag emoji on Linux/Windows)
-const flagImg = (iso: string): string =>
+export const flagImg = (iso: string): string =>
   "/img-proxy?u=" + encodeURIComponent(`https://flagcdn.com/w160/${iso}.png`);
 
-const CONFEDS: Confed[] = [
+export const CONFEDS: Confed[] = [
   { id: "eu", label: "Europe", icon: "🇪🇺", teams: [
     { name: "France", flag: "🇫🇷", color: "#1a2a6c", iso: "fr" },
     { name: "Espagne", flag: "🇪🇸", color: "#c60b1e", iso: "es" },
@@ -133,7 +133,7 @@ export function hideNational(): void { root?.classList.remove("show"); document.
 
 // home vs away picked -> the ceremony plays each country's anthem, then kickoff.
 // FR, DE, ENG… — the country code shown over the C++ team name ("ARS")
-const isoCode = (iso: string): string =>
+export const isoCode = (iso: string): string =>
   (iso.includes("-") ? iso.split("-")[1]! : iso).toUpperCase();
 
 // a random nation different from the given one (for "JOUER" = play now)

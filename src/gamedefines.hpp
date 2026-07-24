@@ -36,7 +36,7 @@ const float _default_CameraFOV = 0.4f;
 const float _default_CameraAngleFactor = 0.0f;
 
 const float _default_Difficulty = 0.6f;
-const float _default_MatchDuration = 0.4f;
+const float _default_MatchDuration = 0.1f; // 0.1 -> ~3 min in-play (see match.cpp)
 
 const float _default_QuantizedDirectionBias = 0.0f;
 

@@ -17,6 +17,7 @@
  *    just play each blob to its "ended" event, with a hard wall-clock cap.
  */
 import { isDrillSession } from "./homemenu";
+import { saveMatch } from "./matches";
 
 const CANVAS_ID = "canvas";
 const SEG_MS = 4000;          // rotate the recording every 4s (bounds segment length)
@@ -56,6 +57,21 @@ let replaying = false;
 let lastReplayEnd = 0;
 let supported = true;
 
+// ---- full-match recording (watch the whole game after full time) -----------
+// We already film the canvas continuously for instant replays; here we simply
+// KEEP every completed segment (instead of discarding all but the last) so the
+// player can watch the whole match back at the end. Bounded by MAX_SEGMENTS to
+// keep memory sane on weak hardware; the oldest segments are dropped past that.
+const MAX_SEGMENTS = 300;      // ~20 min at SEG_MS (4s) per segment
+let fullMatch: Blob[] = [];    // every completed segment, in play order
+let fullTruncated = false;     // true once we start dropping the oldest segments
+let matchOver = false;         // full time reached -> the watch button is offered
+function keepSegment(b: Blob | null): void {
+  if (!b || b.size < 600) return; // skip empty/degenerate blobs
+  fullMatch.push(b);
+  if (fullMatch.length > MAX_SEGMENTS) { fullMatch.shift(); fullTruncated = true; }
+}
+
 function beginSegment(): void {
   if (!stream) return;
   chunks = [];
@@ -72,7 +88,7 @@ function beginSegment(): void {
 // stop the current segment -> keep it as prevBlob, start a fresh one
 function rotate(): void {
   if (!rec || rec.state === "inactive") return;
-  rec.onstop = (): void => { prevBlob = new Blob(chunks, { type: MIME }); beginSegment(); };
+  rec.onstop = (): void => { prevBlob = new Blob(chunks, { type: MIME }); keepSegment(prevBlob); beginSegment(); };
   try { rec.stop(); } catch { /* already */ }
 }
 
@@ -84,6 +100,8 @@ function startRecording(): void {
   canvas = c;
   try { stream = c.captureStream(captureFps()); } catch { supported = false; return; }
   prevBlob = null;
+  // fresh match -> start a new full-match film and retract any old watch button
+  fullMatch = []; fullTruncated = false; matchOver = false;
   recording = true;
   beginSegment();
 }
@@ -211,9 +229,24 @@ function flushCurrent(): Promise<Blob> {
   return new Promise<Blob>((resolve) => {
     if (!rec || rec.state === "inactive") { resolve(new Blob(chunks, { type: MIME })); beginSegment(); return; }
     if (rotateTimer !== null) { clearTimeout(rotateTimer); rotateTimer = null; }
-    rec.onstop = (): void => { const b = new Blob(chunks, { type: MIME }); beginSegment(); resolve(b); };
+    rec.onstop = (): void => { const b = new Blob(chunks, { type: MIME }); keepSegment(b); beginSegment(); resolve(b); };
     try { rec.stop(); } catch { resolve(new Blob(chunks, { type: MIME })); beginSegment(); }
   });
+}
+
+// ---- save the finished match (persisted to IndexedDB by matches.ts) --------
+// On the final whistle we hand the accumulated segments + metadata to the match
+// gallery, which stores them so they can be re-watched later from the menu.
+async function onFullTime(score: [number, number] | null): Promise<void> {
+  matchOver = true;
+  if (!supported) return;
+  // flush the in-progress segment so the film runs right up to the final whistle
+  if (recording && rec && rec.state !== "inactive") { try { await flushCurrent(); } catch { /* */ } }
+  if (fullMatch.length < 1) return;
+  const b = (window as unknown as { __gpfRadioBridge?: { teams?: string[] } }).__gpfRadioBridge;
+  const home = (b?.teams?.[0]) || "Domicile";
+  const away = (b?.teams?.[1]) || "Extérieur";
+  try { await saveMatch({ home, away, score }, fullMatch.slice(), fullTruncated, MIME); } catch { /* storage full/blocked */ }
 }
 
 // ---- triggers --------------------------------------------------------------
@@ -262,6 +295,7 @@ export function initReplay(): void {
     try { prev?.(event, player, team, s0, s1); } finally {
       if (event === "goal") trigger("goal");
       else if (event === "foul" || event === "penalty") trigger("foul");
+      else if (event === "fulltime") void onFullTime(s0 >= 0 ? [s0, s1] : null);
     }
   };
 

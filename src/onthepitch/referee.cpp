@@ -212,8 +212,15 @@ void Referee::Process() {
         // browser radio (kickoff-after-goal is covered by the "goal" event)
         if (buffer.desiredSetPiece == e_SetPiece_Corner)
           gpfRadioEvent("corner", "", buffer.teamID);
-        else if (buffer.desiredSetPiece == e_SetPiece_GoalKick)
+        else if (buffer.desiredSetPiece == e_SetPiece_GoalKick) {
           gpfRadioEvent("goalkick");
+#ifdef __EMSCRIPTEN__
+          // human's team takes the goal kick -> close (penalty-style) camera +
+          // trace-to-pass toward a team-mate (reuses the offside-kick machinery).
+          if (match->GetTeam(buffer.teamID)->GetHumanGamerCount() > 0)
+            humanOffsideKickTeam = buffer.teamID;
+#endif
+        }
       }
     }
 
@@ -307,8 +314,10 @@ void Referee::Process() {
             humanPenaltyTeam = shooterTeam;
             EM_ASM({ try { if (window.gpfPenaltyReady) window.gpfPenaltyReady(); } catch (e) {} });
           }
-        } else if (humanOffsideKickTeam >= 0 && buffer.desiredSetPiece == e_SetPiece_FreeKick) {
-          // In-match offside free kick the human takes: arm the trace-to-pass overlay.
+        } else if (humanOffsideKickTeam >= 0 &&
+                   (buffer.desiredSetPiece == e_SetPiece_FreeKick || buffer.desiredSetPiece == e_SetPiece_GoalKick)) {
+          // In-match free kick (CPU foul / offside) or goal kick the human takes:
+          // arm the trace-to-pass overlay (close camera set in Match::UpdateIngameCamera).
           EM_ASM({ try { if (window.gpfFreekickReady) window.gpfFreekickReady(); } catch (e) {} });
         }
 #endif
@@ -653,6 +662,13 @@ bool Referee::CheckFoul() {
     }
     buffer.teamID = foul.foulVictim->GetTeam()->GetID();
     buffer.active = true;
+#ifdef __EMSCRIPTEN__
+    // the CPU fouled the human's team -> they take this free kick with the close
+    // (penalty-style) camera + trace-to-pass. (A foul in the box is a penalty,
+    // handled by its own branch when the ball goes live — so only free kicks here.)
+    if (!penalty && match->GetTeam(buffer.teamID)->GetHumanGamerCount() > 0)
+      humanOffsideKickTeam = buffer.teamID;
+#endif
     // (the foul instant replay is handled in the browser now — see the note in
     //  Match::UpdateIngameCamera / webradio/replay.ts — no native replay here.)
     std::string spamMessage = "foul!";

@@ -384,6 +384,11 @@ void GameTask::Action(e_GameTaskMessage message) {
       GetScheduler()->ResetTaskSequenceTime("game");
       menuSceneLifetimeMutex.unlock();
       GetGraphicsSystem()->getPhaseMutex.unlock();
+#ifdef __EMSCRIPTEN__
+      // back on the main menu -> let the web layer re-show its HTML home overlay
+      // (else the bare C++ menu shows through after a match).
+      EM_ASM({ if (typeof window !== "undefined" && window.gpfReturnedToMenu) window.gpfReturnedToMenu(); });
+#endif
       break;
 
     case e_GameTaskMessage_StopMenuScene:

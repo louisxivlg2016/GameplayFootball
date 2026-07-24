@@ -8,10 +8,13 @@
  * CSS + DOM extracted verbatim from web/index.html + Hud.tsx (see MENU_SPEC.md).
  */
 import { hideClubs, showClubs } from "./clubs";
-import { hideLineup, showLineup } from "./lineup";
+import { hideLineup } from "./lineup";
+import { showFriendly } from "./friendly";
+import { showLoading, hideLoading } from "./loading";
 import { hideNational, showNational } from "./national";
 import { hideTraining, showTraining } from "./training";
 import { showSettings } from "./settings";
+import { showMatches } from "./matches";
 import { showDefi, hideDefi } from "./defi";
 import { setAnthemOverride } from "./anthem";
 import { resumeMenuMusic } from "./menu";
@@ -136,6 +139,7 @@ function pressEnter(): void {
 export function startNativeMatch(): void {
   hide();
   hideLineup();
+  if (!isDrillSession()) showLoading(); // cover the asset-load wait (not for training drills)
 
   // We select teams from the HTML menus (Club / National / Lineup), so drive the
   // native menu straight through its competition/team-select pages into the
@@ -181,9 +185,16 @@ function fireKeeper(): void {
 // the C++ referee calls this when a drill session's reps are all done -> menu
 (window as unknown as { gpfDrillDone?: () => void }).gpfDrillDone = (): void => { drillSession = false; show(); };
 
+// the C++ StartMenuScene (after a match / at boot) calls this so the HTML home
+// overlay is re-shown — otherwise the bare native menu shows through.
+(window as unknown as { gpfReturnedToMenu?: () => void }).gpfReturnedToMenu = (): void => {
+  if (!drillSession) show();
+};
+
 /** Called (via the wrapped gpfRadioReset) when a match actually starts. */
 export function onMatchStarted(): void {
   if (driveTimer !== null) { clearInterval(driveTimer); driveTimer = null; }
+  hideLoading(); // the match is live -> drop the loading screen
   hide();
   hideLineup();
   hideTraining();
@@ -277,12 +288,13 @@ export function initHomeMenu(): void {
   sidebar.append(
     iconBtn("⌂", "Main", true), iconBtn("◎", "Club", false, showClubs),
     iconBtn("◔", "National", false, showNational), iconBtn("◌", "Defi", false, showDefi),
+    iconBtn("🎬", "Matchs", false, showMatches),
     imgBtn("/menu-assets/settings-button.png", "Settings", showSettings),
   );
 
   const actions = root.querySelector(".menu-main-actions")!;
   actions.append(
-    card("/menu-assets/play-button.png", "Match amical", () => showLineup()),
+    card("/menu-assets/play-button.png", "Match amical", showFriendly),
     card("/menu-assets/training-button.png", "Entraînement", showTraining),
     card("/menu-assets/worldcup-button.png", "Coupe du monde", startNativeMatch),
   );

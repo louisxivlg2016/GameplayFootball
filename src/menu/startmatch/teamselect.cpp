@@ -126,8 +126,34 @@ TeamSelectPage::TeamSelectPage(Gui2WindowManager *windowManager, const Gui2PageD
   grid2->Hide();
   bg2->Hide();
 
+#ifdef __EMSCRIPTEN__
+  // Web build: teams are chosen in the HTML menus (Club / National), which then
+  // override the loaded teams' names/colors/squads. The native picker is never
+  // shown — leave the page hidden and auto-confirm the defaults on first Process.
+#else
   this->Show();
+#endif
 }
+
+#ifdef __EMSCRIPTEN__
+void TeamSelectPage::Process() {
+  if (!autoStarted_) {
+    autoStarted_ = true;
+    // confirm the default team selection and go straight to the match. Deferred
+    // page deletion (MarkForDeletion) is used instead of GoOptionsMenu's direct
+    // "delete this", because Process() runs inside root's child-iteration loop
+    // where deleting a sibling would corrupt it; pendingDelete drains safely at
+    // the start of the next frame.
+    GetMenuTask()->SetTeamIDs(teamSelect1->GetSelectedEntryID(), teamSelect2->GetSelectedEntryID());
+    this->Hide();
+    Properties properties;
+    windowManager->GetPageFactory()->CreatePage((int)e_PageID_LoadingMatch, properties, 0);
+    windowManager->MarkForDeletion(this);
+    return;
+  }
+  Gui2View::Process();
+}
+#endif
 
 TeamSelectPage::~TeamSelectPage() {
   GetMenuTask()->SetActiveJoystickID(0);

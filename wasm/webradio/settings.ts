@@ -24,13 +24,31 @@ const setF = (key: string, val: number): void => {
   try { m?.ccall?.("gpf_set_config_float", null, ["string", "number"], [key, val]); } catch { /* not up */ }
 };
 
-// match settings (label, config key, factory default) — 0..1. Read by the match
-// at kickoff (match.cpp: match_difficulty, match_duration). These used to live on
-// the old pre-match "Match options" screen, now removed — set them here instead.
-const MATCH: Array<[string, string, number]> = [
-  ["Difficulté du CPU (Humain vs CPU)", "match_difficulty", 0.6],
-  ["Durée du match (5 min .. 25 min)", "match_duration", 0.4],
-];
+// match settings (difficulty + duration). Read by the match at kickoff
+// (match.cpp: match_difficulty, match_duration). The engine config is ephemeral
+// on the web (MEMFS, no IDBFS), so we PERSIST these in localStorage and re-apply
+// them on boot — exactly like the graphics quality level. They used to live on
+// the old pre-match "Match options" screen (now removed); set them here instead.
+const MATCH_DIFF_LS = "gpf-difficulty";
+const MATCH_DUR_LS = "gpf-duration";
+const DEF_DIFFICULTY = 0.6;
+const DEF_DURATION = 0.1;   // match.cpp maps 0.1 -> ~3 min in-play (the default)
+function lsGet(key: string, def: number): number {
+  try { const v = localStorage.getItem(key); if (v !== null) { const n = parseFloat(v); if (Number.isFinite(n)) return n; } } catch { /* private */ }
+  return def;
+}
+function lsSet(key: string, val: number): void { try { localStorage.setItem(key, String(val)); } catch { /* private */ } }
+// match_duration (0..1) -> whole in-play minutes (match.cpp: 1 + v*20)
+function durationToMin(v: number): number { return Math.round(1 + v * 20); }
+
+// re-apply the saved match settings to the engine on boot (config is ephemeral),
+// so a fresh page loads at 3-minute matches by default and remembers any change.
+export function applySavedMatchSettings(): void {
+  const m = M();
+  if (!m?.ccall) { window.setTimeout(applySavedMatchSettings, 2000); return; }
+  setF("match_difficulty", lsGet(MATCH_DIFF_LS, DEF_DIFFICULTY));
+  setF("match_duration", lsGet(MATCH_DUR_LS, DEF_DURATION));
+}
 
 // gameplay assist sliders (label, config key, factory default) — 0..1
 const GAMEPLAY: Array<[string, string, number]> = [
@@ -208,6 +226,27 @@ function sliderRow(label: string, key: string, def: number): HTMLElement {
   return row;
 }
 
+// a slider persisted to localStorage (for match settings), with a custom value
+// formatter (e.g. minutes) and a callback to push the value into the engine.
+function persistedRow(label: string, ls: string, def: number,
+                      fmt: (v: number) => string, apply: (v: number) => void): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "set-row";
+  const cur = lsGet(ls, def);
+  row.innerHTML =
+    `<div class="set-label"><span>${label}</span><span class="set-val">${fmt(cur)}</span></div>` +
+    `<input type="range" min="0" max="100" value="${Math.round(cur * 100)}">`;
+  const input = row.querySelector("input")!;
+  const val = row.querySelector(".set-val")!;
+  input.addEventListener("input", () => {
+    const v = Number(input.value) / 100;
+    val.textContent = fmt(v);
+    lsSet(ls, v);
+    apply(v);
+  });
+  return row;
+}
+
 function renderGraphics(): void {
   if (!body) return;
   body.innerHTML = "";
@@ -263,7 +302,10 @@ function renderGameplay(): void {
   const matchHdr = document.createElement("div");
   matchHdr.className = "set-section"; matchHdr.textContent = "Match";
   body.appendChild(matchHdr);
-  for (const [label, key, def] of MATCH) body.appendChild(sliderRow(label, key, def));
+  body.appendChild(persistedRow("Difficulté du CPU (Humain vs CPU)", MATCH_DIFF_LS, DEF_DIFFICULTY,
+    (v) => `${Math.round(v * 100)}%`, (v) => setF("match_difficulty", v)));
+  body.appendChild(persistedRow("Durée du match", MATCH_DUR_LS, DEF_DURATION,
+    (v) => `≈ ${durationToMin(v)} min`, (v) => setF("match_duration", v)));
   const assistHdr = document.createElement("div");
   assistHdr.className = "set-section"; assistHdr.textContent = "Assistances";
   body.appendChild(assistHdr);
@@ -273,7 +315,8 @@ function renderGameplay(): void {
   const reset = document.createElement("button");
   reset.textContent = "↺ Valeurs d'usine";
   reset.addEventListener("click", () => {
-    for (const [, key, def] of MATCH) setF(key, def);
+    lsSet(MATCH_DIFF_LS, DEF_DIFFICULTY); setF("match_difficulty", DEF_DIFFICULTY);
+    lsSet(MATCH_DUR_LS, DEF_DURATION); setF("match_duration", DEF_DURATION);
     for (const [, key, def] of GAMEPLAY) setF(key, def);
     renderGameplay();
   });

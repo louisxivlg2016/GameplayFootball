@@ -65,6 +65,13 @@ ControllerSelectPage::ControllerSelectPage(Gui2WindowManager *windowManager, con
 
   SetImagePositions();
 
+#ifdef __EMSCRIPTEN__
+  // Web build: for a new match the controller layout is the auto-selected default
+  // (single keyboard = player 1), and teams are picked in the HTML menus — so the
+  // native controller-select screen is never shown, it auto-confirms on Process.
+  // In-game reassignment (inGame) still uses the real UI.
+  if (!inGame) { /* stay hidden; Process() will auto-advance */ } else
+#endif
   this->Show();
 }
 
@@ -79,6 +86,20 @@ void ControllerSelectPage::SetImagePositions() {
 }
 
 void ControllerSelectPage::Process() {
+#ifdef __EMSCRIPTEN__
+  if (!inGame && !autoStarted_) {
+    autoStarted_ = true;
+    // auto-confirm the default controller layout and advance to team select
+    // (which itself auto-advances into the match). Deferred deletion, since
+    // Process() runs inside root's child-iteration loop — see TeamSelectPage.
+    GetMenuTask()->SetControllerSetup(sides);
+    this->Hide();
+    Properties properties;
+    windowManager->GetPageFactory()->CreatePage((int)e_PageID_TeamSelect, properties, 0);
+    windowManager->MarkForDeletion(this);
+    return;
+  }
+#endif
   Gui2View::Process();
 }
 

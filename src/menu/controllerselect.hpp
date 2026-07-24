@@ -34,6 +34,9 @@ class ControllerSelectPage : public Gui2Page {
     std::vector<SideSelection> sides;
     std::vector<unsigned long> delay;
     bool inGame;
+#ifdef __EMSCRIPTEN__
+    bool autoStarted_ = false;
+#endif
 
 };
 

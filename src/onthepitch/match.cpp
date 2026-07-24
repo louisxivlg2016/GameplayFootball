@@ -68,7 +68,10 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   resetNetting = false;
   nettingHasChanged = false;
 
-  matchDurationFactor = GetConfiguration()->GetReal("match_duration", 1.0) * 0.2f + 0.05f;
+  // match_duration slider (0..1) -> in-play length 1..21 min (0.1 == 3 min default).
+  // matchTime advances by 10*(1/factor) per real 10ms tick and full time is at
+  // 90:00 (chEnd_ms 5,400,000), so real in-play minutes = 90*factor.
+  matchDurationFactor = (1.0f + GetConfiguration()->GetReal("match_duration", 0.1) * 20.0f) / 90.0f;
   matchDifficulty = GetConfiguration()->GetReal("match_difficulty", 0.8f);
 
   Log(e_Notice, "Match", "Match", "Creating dynamicNode");
@@ -998,8 +1001,8 @@ void Match::UpdateIngameCamera() {
 
   } else if (GetReferee()->IsHumanOffsideKick()) {
 
-    // in-match offside free kick the human takes: same close, behind-the-taker
-    // camera as a penalty / free-kick drill, so you can see where you aim the pass.
+    // in-match free kick (CPU foul / offside) or goal kick the human takes: same
+    // close, behind-the-taker camera as a penalty, so you can see where you aim the pass.
     Vector3 fkBall = ball->Predict(0).Get2D();
     signed int oppSide = GetTeam(1 - GetReferee()->GetOffsideKickTeam())->GetSide(); // downfield
     cameraOrientation.SetAngleAxis(0.43f * pi, Vector3(1, 0, 0));               // tilt down

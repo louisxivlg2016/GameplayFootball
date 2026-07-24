@@ -79,8 +79,9 @@ class Referee {
     // the player dives with, or -1 when no such penalty is live. Lets the same
     // dive-arrow UI as the keeper drill drive a real match penalty.
     int GetHumanKeeperTeam() { return humanKeeperTeam; }
-    // In-match free kick from an OFFSIDE that the human takes: close (penalty-style)
-    // camera + trace-to-pass. GetOffsideKickTeam() is the taking team, or -1 = none.
+    // In-match set piece the human takes with the close (penalty-style) camera +
+    // trace-to-pass: an offside free kick, a free kick from a CPU foul, or a goal
+    // kick. GetOffsideKickTeam() is the taking team, or -1 = none.
     bool IsHumanOffsideKick() { return humanOffsideKickTeam >= 0; }
     int GetOffsideKickTeam() { return humanOffsideKickTeam; }
     void EndOffsideKick(); // called when the trace pass is struck: end the set piece

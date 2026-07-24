@@ -35,6 +35,9 @@ class TeamSelectPage : public Gui2Page {
     void GoOptionsMenu();
 
     virtual void ProcessWindowingEvent(WindowingEvent *event);
+#ifdef __EMSCRIPTEN__
+    virtual void Process(); // auto-confirm default teams (web picks teams in HTML)
+#endif
 
     Gui2Button *buttonStart1;
     Gui2Button *buttonStart2;
@@ -47,6 +50,9 @@ class TeamSelectPage : public Gui2Page {
     Gui2IconSelector *teamSelect2;
     Gui2IconSelector *competitionSelect1;
     Gui2IconSelector *competitionSelect2;
+#ifdef __EMSCRIPTEN__
+    bool autoStarted_ = false;
+#endif
 
 };
 

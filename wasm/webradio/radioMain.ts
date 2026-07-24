@@ -16,10 +16,13 @@ import { initDrillAim } from "./drillaim";
 import { initKeeperArrows } from "./keeperarrows";
 import { initAnthem, getTeamOverride } from "./anthem";
 import { initScoreFlags } from "./scoreflags";
-import { initSettings, applySavedKeys } from "./settings";
+import { initSettings, applySavedKeys, applySavedMatchSettings } from "./settings";
 import { initDefi } from "./defi";
 import { initTouch } from "./touch";
 import { initReplay } from "./replay";
+import { initMatches } from "./matches";
+import { initFriendly } from "./friendly";
+import { initLoading } from "./loading";
 import {
   type RadioEvent,
   audioPeak,
@@ -139,6 +142,9 @@ initScoreFlags();
 initSettings();
 initDefi();
 initTouch();
+initMatches();
+initFriendly();
+initLoading();
 initReplay();
 
 // Re-apply the graphics quality picked in the native SETTINGS > GRAPHICS menu
@@ -154,6 +160,7 @@ const applySavedQuality = (): void => {
 };
 applySavedQuality();
 applySavedKeys(); // re-apply any custom key bindings from a previous session
+applySavedMatchSettings(); // default 3-min matches + any saved difficulty/duration
 
 // R toggles the commentary (matches the web version); ignore when typing.
 window.addEventListener("keydown", (e) => {

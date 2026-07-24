@@ -21,6 +21,7 @@ const PIPER_DIR = join(WEB, "node_modules/@diffusionstudio/piper-wasm/build");
 const GOAL_CLIP = join(WEB, "src/assets/audio/goal-but-but.mp3");
 const AUDIO_DIR = join(WEB, "src/assets/audio"); // localized menu-theme-*.mp4 live here
 const ASSETS_DIR = join(WEB, "src/assets"); // menu card PNGs (play/training/worldcup)
+const CAPTAINS_DIR = join(import.meta.dir, "captains"); // full-body captain figures (wasm-side asset)
 
 // bundle the radio module + TTS worker once at startup (the HTML shell can't
 // bundle `new Worker(new URL(...))` or a bare module entry itself)
@@ -47,6 +48,8 @@ const MIME: Record<string, string> = {
   ".data": "application/octet-stream",
   ".css": "text/css; charset=utf-8",
   ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
   ".mp3": "audio/mpeg",
   ".json": "application/json",
 };
@@ -115,6 +118,18 @@ Bun.serve({
         return new Response("bad", { status: 400 });
       }
       return serveAbs(join(ASSETS_DIR, name));
+    }
+    // full-body captain figures (e.g. /captains/argentine.png), served from wasm/captains
+    if (path.startsWith("/captains/")) {
+      const name = path.slice("/captains/".length);
+      if (!/^[\w.-]+$/.test(name) || name.includes("..")) return new Response("bad", { status: 400 });
+      return serveAbs(join(CAPTAINS_DIR, name));
+    }
+    // misc UI images (e.g. /uiassets/loading.png), served from wasm/uiassets
+    if (path.startsWith("/uiassets/")) {
+      const name = path.slice("/uiassets/".length);
+      if (!/^[\w.-]+$/.test(name) || name.includes("..")) return new Response("bad", { status: 400 });
+      return serveAbs(join(import.meta.dir, "uiassets", name));
     }
     // image proxy: COEP require-corp blocks cross-origin images without CORP, so
     // fetch the remote menu images (Unsplash pitch, Wikimedia player photos)

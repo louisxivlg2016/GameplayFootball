@@ -10,6 +10,7 @@
  */
 import { isDrillSession, isChallengeSession } from "./homemenu";
 import { radio, setRadioSuppressed } from "./radioEngine";
+import { hideLoading } from "./loading";
 
 interface AnthemModule { _gpf_skip_anthem?: () => void }
 
@@ -189,12 +190,12 @@ let holdTimer: number | null = null;
 let banner: HTMLElement | null = null;
 let bannerLabel: HTMLElement | null = null;
 
-// How long each team's anthem plays before the ceremony auto-advances to the
-// next team / kickoff. We DON'T trust the <audio> "ended" event: the recordings
-// stream through /img-proxy and often stall without ever firing "ended", which
-// used to hang the whole ceremony (teams lined up forever, match never kicked
-// off). A short wall-clock cap guarantees the match always starts promptly.
-const ANTHEM_HOLD_MS = 8000;
+// The anthem plays IN FULL: the ceremony advances on the audio's "ended" event,
+// or — once we know the clip's real length from its metadata — a timer set to
+// that exact duration (the "ended" event is unreliable when streaming through
+// /img-proxy). ANTHEM_MAX_MS is only an absolute safety cap so a totally stalled
+// stream can't hang the ceremony forever; the "Passer" button skips any time.
+const ANTHEM_MAX_MS = 130000; // ~2 min hard cap (longest anthems ~90s)
 
 // When the player picks teams in the NATIONAL/CLUB menu, those choices override
 // the (limited) DB team names for the ceremony, so e.g. choosing France plays
@@ -292,6 +293,7 @@ export function initAnthem(): void {
 
   w.gpfAnthem = (idx: number, teamName: string): void => {
     setRadioSuppressed(true); // the commentator stays silent during the anthems
+    hideLoading();            // ceremony is on screen now -> drop the loading cover
     stopAudio();
     const name = (idx === 0 ? overrideHome : overrideAway) || teamName;
     showBanner(name);
@@ -301,16 +303,21 @@ export function initAnthem(): void {
     a.volume = 1.0;
     audio = a;
     a.addEventListener("ended", () => advance(a)); // anthem played out -> next
-    // ALWAYS advance after a short wall-clock hold, whether or not the audio
-    // ever fires "ended" (it frequently doesn't when streamed via the proxy).
-    // This is what keeps the match from getting stuck on the anthem.
-    if (holdTimer !== null) clearTimeout(holdTimer);
-    holdTimer = window.setTimeout(() => { if (audio === a) fadeOutAndStop(a, 900); advance(a); }, ANTHEM_HOLD_MS);
-    a.play().then(() => console.log(`[gpf-anthem] playing ${name} (~${ANTHEM_HOLD_MS / 1000}s)`))
+    // Play the FULL anthem: once metadata gives us the real length, advance right
+    // when it finishes; until then (and if metadata never arrives) fall back to the
+    // hard safety cap so a stalled stream can't hang the ceremony.
+    const setHold = (ms: number): void => {
+      if (holdTimer !== null) clearTimeout(holdTimer);
+      holdTimer = window.setTimeout(() => { if (audio === a) { fadeOutAndStop(a, 900); advance(a); } }, ms);
+    };
+    setHold(ANTHEM_MAX_MS);
+    a.addEventListener("loadedmetadata", () => {
+      if (audio === a && isFinite(a.duration) && a.duration > 1) setHold(a.duration * 1000 + 1500);
+    });
+    a.play().then(() => console.log(`[gpf-anthem] playing ${name} in full`))
       .catch((e) => {
         console.warn("[gpf-anthem] play blocked:", e?.message || e);
-        if (holdTimer !== null) clearTimeout(holdTimer);
-        holdTimer = window.setTimeout(() => advance(a), 2000); // couldn't play — don't hang
+        setHold(2000); // couldn't play — don't hang
       });
   };
 
