@@ -8,6 +8,7 @@
  */
 let root: HTMLElement | null = null;
 let safety: number | null = null;
+let watch: number | null = null;
 let rotTimer: number | null = null;
 let imgIdx = 0;
 const ROTATE_MS = 5000; // switch to another photo every 5s while loading
@@ -83,6 +84,13 @@ export function showLoading(): void {
   // rotate to the next photo every 5s while the match loads
   if (rotTimer !== null) window.clearInterval(rotTimer);
   rotTimer = window.setInterval(() => setImage(imgIdx + 1), ROTATE_MS);
+  // SAFETY NET: hide as soon as the match is actually running (ticks climbing),
+  // in case the onMatchStarted / anthem hooks don't fire. Baseline the current
+  // tick count so we react to NEW ticks after this launch.
+  const bridge = () => (window as unknown as { __gpfRadioBridge?: { ticks: number } }).__gpfRadioBridge;
+  const base = bridge()?.ticks ?? 0;
+  if (watch !== null) window.clearInterval(watch);
+  watch = window.setInterval(() => { if ((bridge()?.ticks ?? 0) > base + 2) hideLoading(); }, 800);
   if (safety !== null) window.clearTimeout(safety);
   // hard cap: never let the loading screen cover the game forever
   safety = window.setTimeout(hideLoading, 90000);
@@ -93,5 +101,6 @@ export function hideLoading(): void {
   root.classList.remove("show");
   document.body.classList.remove("gpf-loading-open");
   if (rotTimer !== null) { window.clearInterval(rotTimer); rotTimer = null; }
+  if (watch !== null) { window.clearInterval(watch); watch = null; }
   if (safety !== null) { window.clearTimeout(safety); safety = null; }
 }
