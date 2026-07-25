@@ -1,32 +1,45 @@
 /**
  * Match loading screen. Booting a match (asset load + scene build) takes a while
- * on weak hardware; instead of the bare native "loading" text, we cover the
- * screen with a full-bleed action photo + a progress bar. Shown when a match is
- * launched (homemenu.startNativeMatch) and hidden as soon as the match/ceremony
- * is actually up (onMatchStarted, or the anthem banner appearing) — with a hard
- * safety timeout so it can never get stuck.
+ * on weak hardware; instead of the bare native "loading" text we cover the screen
+ * with full-bleed action photos.
+ *
+ * IMPORTANT: the photo slideshow is a pure-CSS @keyframes animation, NOT a JS
+ * timer. During the match build the single browser thread is blocked, which
+ * starves setInterval/setTimeout — so a JS-driven rotation would freeze on one
+ * image exactly when the loading screen is up. CSS opacity animations run on the
+ * compositor thread, so the photos keep cycling (every 5s) even while the main
+ * thread is frozen.
+ *
+ * Shown from homemenu.startNativeMatch; hidden as soon as the match is actually
+ * running (onMatchStarted / anthem, plus a ticks watchdog) with a hard cap.
  */
 let root: HTMLElement | null = null;
 let safety: number | null = null;
 let watch: number | null = null;
-let rotTimer: number | null = null;
-let imgIdx = 0;
-const ROTATE_MS = 5000; // switch to another photo every 5s while loading
 
-// a full-bleed action photo is picked at random each time the screen shows, so
-// every match load looks a bit different. Add files to wasm/uiassets to grow it.
 const LOADING_IMAGES = [
   "/uiassets/loading.jpg", "/uiassets/loading2.jpg", "/uiassets/loading3.jpg",
   "/uiassets/loading4.jpg", "/uiassets/loading5.jpg", "/uiassets/loading6.jpg",
 ];
+const SLIDE_MS = 5000; // each photo is shown ~5s
+const CYCLE_MS = LOADING_IMAGES.length * SLIDE_MS; // full loop
 
 const CSS = `
 #gpf-loading { position:fixed; inset:0; z-index:2147483300; display:none; color:#fff;
   font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif; overflow:hidden; background:#05070a; }
 #gpf-loading.show { display:block; }
 body.gpf-loading-open #gpf-menu, body.gpf-loading-open #gpf-home { display:none !important; }
-#gpf-loading .ld-img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
-  object-position:center 30%; transition:opacity .55s ease; }
+#gpf-loading .ld-imgs { position:absolute; inset:0; }
+#gpf-loading .ld-imgs img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  object-position:center 30%; opacity:0; will-change:opacity;
+  animation:ld-cycle ${CYCLE_MS}ms linear infinite; }
+@keyframes ld-cycle {
+  0%   { opacity:0; }
+  2%   { opacity:1; }   /* fade in */
+  ${(100 / LOADING_IMAGES.length - 2).toFixed(2)}% { opacity:1; }  /* hold ~5s */
+  ${(100 / LOADING_IMAGES.length).toFixed(2)}% { opacity:0; }      /* fade out */
+  100% { opacity:0; }
+}
 #gpf-loading .ld-veil { position:absolute; inset:0;
   background:linear-gradient(180deg,rgba(5,7,10,.35) 0%,rgba(5,7,10,.1) 40%,rgba(5,7,10,.85) 100%); }
 #gpf-loading .ld-panel { position:absolute; left:0; right:0; bottom:8%; display:flex; flex-direction:column;
@@ -50,13 +63,14 @@ export function initLoading(): void {
   style.id = "gpf-loading-style"; style.textContent = CSS;
   document.head.appendChild(style);
 
-  // preload every photo so the 5s rotation swaps are instant (no flash)
-  for (const src of LOADING_IMAGES) { const im = new Image(); im.src = src; }
-
   root = document.createElement("div");
   root.id = "gpf-loading";
+  // each photo gets a staggered negative animation-delay so they take turns
+  // (image i is on screen during [i*5s, (i+1)*5s] of the loop).
+  const imgs = LOADING_IMAGES.map((src, i) =>
+    `<img src="${src}" alt="" style="animation-delay:${i * SLIDE_MS}ms">`).join("");
   root.innerHTML = `
-    <img class="ld-img" src="/uiassets/loading.jpg" alt="">
+    <div class="ld-imgs">${imgs}</div>
     <div class="ld-veil"></div>
     <div class="ld-panel">
       <div class="ld-title">GAMEPLAY <span>FOOTBALL</span></div>
@@ -66,27 +80,12 @@ export function initLoading(): void {
   document.body.appendChild(root);
 }
 
-function setImage(i: number): void {
-  const img = root?.querySelector<HTMLImageElement>(".ld-img");
-  if (!img) return;
-  imgIdx = ((i % LOADING_IMAGES.length) + LOADING_IMAGES.length) % LOADING_IMAGES.length;
-  // gentle fade-in on swap (photos are preloaded, so the new one is ready instantly)
-  img.style.opacity = "0";
-  img.src = LOADING_IMAGES[imgIdx]!;
-  window.requestAnimationFrame(() => { img.style.opacity = "1"; });
-}
-
 export function showLoading(): void {
   if (!root) return;
-  setImage(Math.floor(Math.random() * LOADING_IMAGES.length)); // random first photo
   root.classList.add("show");
   document.body.classList.add("gpf-loading-open");
-  // rotate to the next photo every 5s while the match loads
-  if (rotTimer !== null) window.clearInterval(rotTimer);
-  rotTimer = window.setInterval(() => setImage(imgIdx + 1), ROTATE_MS);
   // SAFETY NET: hide as soon as the match is actually running (ticks climbing),
-  // in case the onMatchStarted / anthem hooks don't fire. Baseline the current
-  // tick count so we react to NEW ticks after this launch.
+  // in case the onMatchStarted / anthem hooks don't fire.
   const bridge = () => (window as unknown as { __gpfRadioBridge?: { ticks: number } }).__gpfRadioBridge;
   const base = bridge()?.ticks ?? 0;
   if (watch !== null) window.clearInterval(watch);
@@ -100,7 +99,6 @@ export function hideLoading(): void {
   if (!root) return;
   root.classList.remove("show");
   document.body.classList.remove("gpf-loading-open");
-  if (rotTimer !== null) { window.clearInterval(rotTimer); rotTimer = null; }
   if (watch !== null) { window.clearInterval(watch); watch = null; }
   if (safety !== null) { window.clearTimeout(safety); safety = null; }
 }
