@@ -163,7 +163,34 @@ function initPhaseButton(): void {
   w.gpfPhaseMenuDone = (): void => { btn.classList.remove("show"); };
 }
 
+// GENERAL touch fix for the native C++ menus (game-over "WELL THEN", game plan,
+// phase menu, controller/team pickers…): those are SDL menus that respond to
+// MOUSE clicks (works on desktop) but a finger-tap on the <canvas> doesn't reach
+// them here. Translate each tap into a synthetic mousedown/up at the same point,
+// which emscripten/SDL turns into a real click on whatever button is under it.
+// (The gameplay joystick/buttons are DOM overlays that capture their own taps, so
+// only taps on the pitch/menus fall through to this — harmless during open play.)
+function initCanvasTapToClick(): void {
+  const canvas = document.getElementById("canvas") as HTMLCanvasElement | null;
+  if (!canvas) { window.setTimeout(initCanvasTapToClick, 1000); return; }
+  const fire = (type: string, x: number, y: number): void => {
+    canvas.dispatchEvent(new MouseEvent(type, {
+      clientX: x, clientY: y, bubbles: true, cancelable: true, button: 0, buttons: type === "mouseup" ? 0 : 1, view: window,
+    }));
+  };
+  canvas.addEventListener("touchstart", (e: TouchEvent) => {
+    const t = e.changedTouches[0]; if (!t) return;
+    fire("mousemove", t.clientX, t.clientY);
+    fire("mousedown", t.clientX, t.clientY);
+  }, { passive: true });
+  canvas.addEventListener("touchend", (e: TouchEvent) => {
+    const t = e.changedTouches[0]; if (!t) return;
+    fire("mouseup", t.clientX, t.clientY);
+  }, { passive: true });
+}
+
 export function initTouch(): void {
+  initCanvasTapToClick(); // make native menu buttons (WELL THEN, game plan…) tappable
   initPhaseButton(); // always, even on non-touch (harmless) / regardless of controls
 
   const params = new URLSearchParams(location.search);
