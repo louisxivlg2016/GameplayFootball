@@ -31,6 +31,17 @@ done
 cp -r web/src/assets/training "$D/menu-assets/training" 2>/dev/null || true
 cp web/src/assets/audio/goal-but-but.mp3 "$D/radio/goal-but-but.mp3"
 
+# menu music: the menu-theme-*.mp4 are VIDEO (~11MB each) but only the audio is
+# used. Extract audio-only mp3 (~1MB) named by theme key (no extension; served as
+# audio/mpeg via vercel.json). menu.ts requests /menu-music/<key>.
+echo ">> transcoding menu music (audio-only)"
+mkdir -p "$D/menu-music"
+ffmpeg -y -v error -i web/src/assets/audio/menu-theme.mp4 -vn -c:a libmp3lame -b:a 56k -f mp3 "$D/menu-music/default"
+for f in web/src/assets/audio/menu-theme-*.mp4; do
+  k="$(basename "$f" .mp4)"; k="${k#menu-theme-}"
+  ffmpeg -y -v error -i "$f" -vn -c:a libmp3lame -b:a 56k -f mp3 "$D/menu-music/$k"
+done
+
 # vercel.json + serverless function are kept in git under wasm/vercel-assets/
 cp wasm/vercel-assets/vercel.json "$D/vercel.json"
 cp wasm/vercel-assets/img-proxy.js "$D/api/img-proxy.js"

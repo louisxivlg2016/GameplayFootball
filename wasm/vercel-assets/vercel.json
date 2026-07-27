@@ -16,6 +16,13 @@
     {
       "source": "/(.*)\\.wasm",
       "headers": [{ "key": "Content-Type", "value": "application/wasm" }]
+    },
+    {
+      "source": "/menu-music/(.*)",
+      "headers": [
+        { "key": "Content-Type", "value": "audio/mpeg" },
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
     }
   ],
   "rewrites": [{ "source": "/img-proxy", "destination": "/api/img-proxy" }]
