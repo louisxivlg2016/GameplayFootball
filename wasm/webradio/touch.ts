@@ -123,7 +123,49 @@ function setMode(hasBall: boolean): void {
   });
 }
 
+// The native half-time / phase menu ("begin second half" / "game plan") can't be
+// tapped with a finger. Show an HTML button (driven by the C++ gpfPhaseMenu hook)
+// that fires the focused "begin ..." button via SDLK_RETURN. Always available,
+// independent of the gameplay touch controls.
+function frPhase(name: string): string {
+  switch (name) {
+    case "second half": return "2e mi-temps";
+    case "1st extra time": return "1re prolongation";
+    case "2nd extra time": return "2e prolongation";
+    case "penalties": return "séance de tirs au but";
+    default: return name;
+  }
+}
+function initPhaseButton(): void {
+  const style = document.createElement("style");
+  style.textContent =
+    `#gpf-phasebtn{position:fixed;z-index:2147483190;left:50%;bottom:14%;transform:translateX(-50%);` +
+    `display:none;pointer-events:auto;cursor:pointer;padding:18px 34px;border-radius:14px;border:none;` +
+    `background:linear-gradient(180deg,#ff2e63,#d81b52);color:#fff;letter-spacing:.5px;` +
+    `font:900 18px "Segoe UI",Arial,sans-serif;box-shadow:0 10px 30px rgba(216,27,82,.55);}` +
+    `#gpf-phasebtn.show{display:block;animation:pb-pop .3s ease;}` +
+    `@keyframes pb-pop{from{transform:translateX(-50%) scale(.8);opacity:0;}}`;
+  document.head.appendChild(style);
+  const btn = document.createElement("button");
+  btn.id = "gpf-phasebtn";
+  document.body.appendChild(btn);
+  const press = (): void => {
+    const m = (window as unknown as { Module?: { _gpf_menu_key?: (d: number) => void } }).Module;
+    if (m?._gpf_menu_key) { m._gpf_menu_key(1); window.setTimeout(() => { try { m._gpf_menu_key!(0); } catch { /* */ } }, 130); }
+    btn.classList.remove("show");
+  };
+  btn.addEventListener("click", press);
+  const w = window as unknown as { gpfPhaseMenu?: (n: string) => void; gpfPhaseMenuDone?: () => void };
+  w.gpfPhaseMenu = (name: string): void => {
+    btn.textContent = name ? `▶ Commencer la ${frPhase(name)}` : "▶ Continuer";
+    btn.classList.add("show");
+  };
+  w.gpfPhaseMenuDone = (): void => { btn.classList.remove("show"); };
+}
+
 export function initTouch(): void {
+  initPhaseButton(); // always, even on non-touch (harmless) / regardless of controls
+
   const params = new URLSearchParams(location.search);
   const forced = params.get("touch");
   const isTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;

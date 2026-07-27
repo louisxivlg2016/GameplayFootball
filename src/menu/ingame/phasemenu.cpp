@@ -9,6 +9,10 @@
 #include "../gameplan.hpp"
 #include "../pagefactory.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h> // touch button to continue the match (native buttons aren't tappable)
+#endif
+
 using namespace blunted;
 
 MatchPhasePage::MatchPhasePage(Gui2WindowManager *windowManager, const Gui2PageData &pageData) : Gui2Page(windowManager, pageData) {
@@ -42,9 +46,18 @@ MatchPhasePage::MatchPhasePage(Gui2WindowManager *windowManager, const Gui2PageD
   buttonNext->SetFocus();
 
   this->Show();
+
+#ifdef __EMSCRIPTEN__
+  // the native buttons can't be tapped with a finger -> show an HTML touch button
+  // that fires the focused "begin ..." button (SDLK_RETURN) or opens the game plan.
+  EM_ASM({ try { if (window.gpfPhaseMenu) window.gpfPhaseMenu(UTF8ToString($0)); } catch (e) {} }, phaseName.c_str());
+#endif
 }
 
 MatchPhasePage::~MatchPhasePage() {
+#ifdef __EMSCRIPTEN__
+  EM_ASM({ try { if (window.gpfPhaseMenuDone) window.gpfPhaseMenuDone(); } catch (e) {} });
+#endif
 }
 
 void MatchPhasePage::GoGamePlan() {
