@@ -22,6 +22,9 @@ const GOAL_CLIP = join(WEB, "src/assets/audio/goal-but-but.mp3");
 const AUDIO_DIR = join(WEB, "src/assets/audio"); // localized menu-theme-*.mp4 live here
 const ASSETS_DIR = join(WEB, "src/assets"); // menu card PNGs (play/training/worldcup)
 const CAPTAINS_DIR = join(import.meta.dir, "captains"); // full-body captain figures (wasm-side asset)
+// in-memory cache for proxied remote assets (anthems/flags/photos) — avoids
+// re-hitting Wikimedia (and its rate limits) for the same file every match.
+const proxyCache = new Map<string, { buf: ArrayBuffer; type: string }>();
 
 // bundle the radio module + TTS worker once at startup (the HTML shell can't
 // bundle `new Worker(new URL(...))` or a bare module entry itself)
@@ -139,13 +142,21 @@ Bun.serve({
       if (!/^https:\/\/(images\.unsplash\.com|upload\.wikimedia\.org|flagcdn\.com)\//.test(u)) {
         return new Response("bad host", { status: 400 });
       }
+      const cached = proxyCache.get(u);
+      if (cached) return new Response(cached.buf, { headers: { ...ISO, "Content-Type": cached.type, "Cache-Control": "public, max-age=86400" } });
       try {
-        const r = await fetch(u);
+        // Wikimedia REQUIRES a descriptive User-Agent (else 429/403), which is why
+        // anthems/flags/player photos were failing to load. Send a real one.
+        const r = await fetch(u, { headers: {
+          "User-Agent": "GameplayFootballWeb/1.0 (https://github.com/BazkieBumpercar/GameplayFootball; wasm port; anthem/flag/photo proxy)",
+          "Accept": "*/*",
+        } });
         if (!r.ok) return new Response("upstream " + r.status, { status: 502 });
         const buf = await r.arrayBuffer();
+        const type = r.headers.get("content-type") || "image/jpeg";
+        if (buf.byteLength < 8_000_000) proxyCache.set(u, { buf, type }); // cache smaller assets
         return new Response(buf, {
-          headers: { ...ISO, "Content-Type": r.headers.get("content-type") || "image/jpeg",
-            "Cache-Control": "public, max-age=86400" },
+          headers: { ...ISO, "Content-Type": type, "Cache-Control": "public, max-age=86400" },
         });
       } catch {
         return new Response("proxy failed", { status: 502 });

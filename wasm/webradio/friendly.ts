@@ -8,7 +8,7 @@
 import { startNativeMatch, show as showHome } from "./homemenu";
 import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
-import { applyMatchSquads, SQUADS, kitColor } from "./squads";
+import { applyMatchSquads, SQUADS, kitColor, skinsFor } from "./squads";
 import { showSettings } from "./settings";
 import { CONFEDS, flagImg, isoCode, type Nation, type Confed } from "./national";
 
@@ -214,8 +214,8 @@ function launch(): void {
     { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },
   );
   applyMatchSquads(
-    { color: kitColor(home.name, home.color), names: SQUADS[home.name] || [] },
-    { color: kitColor(away.name, away.color), names: SQUADS[away.name] || [] },
+    { color: kitColor(home.name, home.color), names: SQUADS[home.name] || [], skins: skinsFor(home.name) },
+    { color: kitColor(away.name, away.color), names: SQUADS[away.name] || [], skins: skinsFor(away.name) },
   );
   hideFriendly();
   startNativeMatch();

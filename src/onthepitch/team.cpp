@@ -21,6 +21,7 @@
 extern int gpf_natColorSet[2];
 extern unsigned char gpf_natColor[2][3];
 extern std::vector<std::string> gpf_natNames[2];
+extern std::vector<int> gpf_natSkins[2];
 
 // Recolour a kit texture toward a solid national colour while keeping the
 // original shading (folds, seams, shadows) so the shirt still looks like cloth
@@ -133,6 +134,12 @@ void Team::InitPlayers(boost::intrusive_ptr<Node> fullbodyNode, std::map<Vector3
     // builds its floating name caption from GetLastName().
     if (!gpf_natNames[GetID()].empty() && i < (signed int)gpf_natNames[GetID()].size()) {
       playerData->SetLastName(gpf_natNames[GetID()][i]);
+    }
+    // real skin tone per player (shirt order); set before the humanoid Activates
+    // and fetches skin0<N>.png. 1..4 = skin01..skin04; 0 = keep the DB skin.
+    if (!gpf_natSkins[GetID()].empty() && i < (signed int)gpf_natSkins[GetID()].size()) {
+      int sc = gpf_natSkins[GetID()][i];
+      if (sc >= 1 && sc <= 4) playerData->SetSkinColor(sc);
     }
 #endif
     Player *player = new Player(this, playerData);

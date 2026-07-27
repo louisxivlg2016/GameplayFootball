@@ -76,22 +76,50 @@ export function applyNationOverrides(
   setOne(1, away.name, away.color);
 }
 
+// Per-player skin tone (1..4 = skin01 lightest .. skin04 darkest), shirt-ordered
+// to match SQUADS. Only listed nations get real tones; others keep the DB skin.
+// (skinsFor() reads this for a nation name.)
+export const SKINS: Record<string, number[]> = {
+  // shirt-ordered, aligned with SQUADS. Approximate real-life tones; tweak freely.
+  France:      [4, 4, 4, 4, 1, 4, 1, 1, 4, 4, 4, 4, 4, 1, 4, 4, 4, 4],
+  Allemagne:   [1, 1, 4, 4, 1, 1, 2, 3, 1, 4, 1, 1, 1, 1, 1, 1, 1, 4],
+  Espagne:     [1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 4, 1, 1, 1, 1, 1, 1, 1],
+  Italie:      [1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 4, 3, 1, 1],
+  Angleterre:  [1, 4, 1, 4, 1, 1, 1, 1, 4, 1, 1, 1, 1, 4, 1, 3, 4, 4],
+  Portugal:    [1, 2, 1, 4, 4, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  "Pays-Bas":  [1, 4, 1, 4, 4, 1, 3, 4, 1, 4, 4, 1, 4, 4, 1, 1, 1, 4],
+  Belgique:    [1, 1, 4, 1, 1, 4, 1, 1, 4, 4, 4, 1, 1, 1, 1, 4, 4, 1],
+  Croatie:     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  Suisse:      [1, 1, 4, 1, 2, 1, 1, 1, 4, 4, 3, 1, 1, 2, 4, 1, 2, 4],
+  Bresil:      [1, 4, 3, 4, 4, 3, 2, 3, 4, 4, 2, 3, 4, 4, 4, 2, 3, 3],
+  "Brésil":    [1, 4, 3, 4, 4, 3, 2, 3, 4, 4, 2, 3, 4, 4, 4, 2, 3, 3],
+  Argentine:   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  Uruguay:     [1, 1, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 3, 4, 1, 1, 1, 1],
+  Colombie:    [2, 3, 4, 4, 3, 3, 3, 1, 4, 4, 3, 3, 2, 4, 4, 3, 2, 4],
+  "États-Unis":[1, 3, 4, 4, 1, 4, 4, 4, 1, 4, 4, 1, 3, 1, 1, 2, 1, 2],
+  Maroc:       [2, 3, 2, 3, 2, 2, 2, 2, 2, 3, 3, 2, 3, 2, 2, 3, 3, 3],
+  "Sénégal":   [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+};
+export function skinsFor(nation: string): number[] | undefined { return SKINS[nation]; }
+
 // DEFI: apply an EXPLICIT squad (era-accurate names) + colour per side, so a
-// 2006 challenge fields the 2006 XI, not the current one.
+// 2006 challenge fields the 2006 XI, not the current one. `skins` (optional) is
+// the per-player skin tone list, shirt-ordered like `names`.
 export function applyMatchSquads(
-  home: { color: string; names: string[] },
-  away: { color: string; names: string[] },
+  home: { color: string; names: string[]; skins?: number[] },
+  away: { color: string; names: string[]; skins?: number[] },
 ): void {
   const m = mod();
   if (!m) return;
   m._gpf_clear_team_overrides?.();
-  const one = (team: number, color: string, names: string[]): void => {
+  const one = (team: number, color: string, names: string[], skins?: number[]): void => {
     const [r, g, b] = hexToRgb(color);
     m._gpf_set_team_color?.(team, r, g, b);
     if (names.length && m.ccall) m.ccall("gpf_set_team_names", null, ["number", "string"], [team, names.join("|")]);
+    if (skins && skins.length && m.ccall) m.ccall("gpf_set_team_skins", null, ["number", "string"], [team, skins.join("|")]);
   };
-  one(0, home.color, home.names);
-  one(1, away.color, away.names);
+  one(0, home.color, home.names, home.skins);
+  one(1, away.color, away.names, away.skins);
 }
 
 // Clubs: recolour kits to the club colour, but keep DB names (no real rosters).

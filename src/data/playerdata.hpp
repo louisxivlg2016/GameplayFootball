@@ -28,6 +28,7 @@ class PlayerData {
     float GetStat(const char *name);
 
     int GetSkinColor() { return skinColor; }
+    void SetSkinColor(int c) { skinColor = c; } // wasm: real-squad skin-tone override
     std::string GetHairStyle() { return hairStyle; }
     std::string GetHairColor() { return hairColor; }
     float GetHeight() { return height; }

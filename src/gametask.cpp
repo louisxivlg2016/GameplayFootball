@@ -64,6 +64,9 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_quality(int level) {
 int gpf_natColorSet[2] = {0, 0};
 unsigned char gpf_natColor[2][3] = {{0, 0, 0}, {0, 0, 0}};
 std::vector<std::string> gpf_natNames[2];
+// per-player skin colour override (shirt-ordered, 1..4 = skin01..skin04; 0/empty
+// = keep the DB skin). Lets the web set realistic skin tones per squad.
+std::vector<int> gpf_natSkins[2];
 
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_team_color(int team, int r, int g, int b) {
   if (team < 0 || team > 1) return;
@@ -84,10 +87,24 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_team_names(int team, const char *na
   if (!cur.empty()) gpf_natNames[team].push_back(cur);
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_team_skins(int team, const char *skins) {
+  if (team < 0 || team > 1 || !skins) return;
+  gpf_natSkins[team].clear();
+  std::string s(skins);
+  if (s.empty()) return;
+  std::string cur;
+  for (size_t i = 0; i <= s.size(); i++) {
+    if (i == s.size() || s[i] == '|') { gpf_natSkins[team].push_back(cur.empty() ? 0 : atoi(cur.c_str())); cur.clear(); }
+    else cur.push_back(s[i]);
+  }
+}
+
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_clear_team_overrides() {
   gpf_natColorSet[0] = gpf_natColorSet[1] = 0;
   gpf_natNames[0].clear();
   gpf_natNames[1].clear();
+  gpf_natSkins[0].clear();
+  gpf_natSkins[1].clear();
 }
 
 // Generic engine-config bridge for the HTML SETTINGS panel: read/write any
