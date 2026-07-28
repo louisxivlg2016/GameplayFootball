@@ -65,6 +65,7 @@ let supported = true;
 const MAX_SEGMENTS = 300;      // ~20 min at SEG_MS (4s) per segment
 let fullMatch: Blob[] = [];    // every completed segment, in play order
 let fullTruncated = false;     // true once we start dropping the oldest segments
+let goalMarks: number[] = [];  // segment index of each goal (for "revoir les buts")
 let matchOver = false;         // full time reached -> the watch button is offered
 function keepSegment(b: Blob | null): void {
   if (!b || b.size < 600) return; // skip empty/degenerate blobs
@@ -101,7 +102,7 @@ function startRecording(): void {
   try { stream = c.captureStream(captureFps()); } catch { supported = false; return; }
   prevBlob = null;
   // fresh match -> start a new full-match film and retract any old watch button
-  fullMatch = []; fullTruncated = false; matchOver = false;
+  fullMatch = []; fullTruncated = false; matchOver = false; goalMarks = [];
   recording = true;
   beginSegment();
 }
@@ -246,7 +247,7 @@ async function onFullTime(score: [number, number] | null): Promise<void> {
   const b = (window as unknown as { __gpfRadioBridge?: { teams?: string[] } }).__gpfRadioBridge;
   const home = (b?.teams?.[0]) || "Domicile";
   const away = (b?.teams?.[1]) || "Extérieur";
-  try { await saveMatch({ home, away, score }, fullMatch.slice(), fullTruncated, MIME); } catch { /* storage full/blocked */ }
+  try { await saveMatch({ home, away, score, goals: goalMarks.slice() }, fullMatch.slice(), fullTruncated, MIME); } catch { /* storage full/blocked */ }
 }
 
 // ---- triggers --------------------------------------------------------------
@@ -293,7 +294,7 @@ export function initReplay(): void {
   const prev = w.gpfRadioEvent;
   w.gpfRadioEvent = (event, player, team, s0, s1): void => {
     try { prev?.(event, player, team, s0, s1); } finally {
-      if (event === "goal") trigger("goal");
+      if (event === "goal") { if (recording) goalMarks.push(fullMatch.length); trigger("goal"); }
       else if (event === "foul" || event === "penalty") trigger("foul");
       else if (event === "fulltime") void onFullTime(s0 >= 0 ? [s0, s1] : null);
     }

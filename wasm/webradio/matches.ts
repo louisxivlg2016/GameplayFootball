@@ -17,6 +17,7 @@ export interface MatchMeta {
   home: string;
   away: string;
   score: [number, number] | null;
+  goals?: number[]; // segment index of each goal (for "revoir les buts")
 }
 interface MatchRecord extends MatchMeta {
   id: number;          // Date.now() at save — also the sort key
@@ -60,7 +61,7 @@ export async function saveMatch(meta: MatchMeta, segments: Blob[], truncated: bo
   const id = Date.now();
   const rec: MatchRecord = {
     id, date: new Date(id).toISOString(),
-    home: meta.home, away: meta.away, score: meta.score,
+    home: meta.home, away: meta.away, score: meta.score, goals: meta.goals || [],
     mime, truncated, segments,
   };
   try { await reqAsPromise(tx(db, "readwrite").put(rec)); } catch { return; }
@@ -108,6 +109,7 @@ let galleryOpen = false;
 let fmRoot: HTMLElement | null = null;
 let fmVideo: HTMLVideoElement | null = null;
 let fmSegments: Blob[] = [];
+let fmGoals: number[] = []; // segment indices of goals, for the "⚽ but" jump chips
 let fmIndex = 0;
 let fmSpeed = 1;
 let fmUrl: string | null = null;
@@ -141,6 +143,7 @@ body.gpf-matches-open #gpf-menu { display:none !important; }
   border-radius:8px; font:900 13px inherit; }
 #gpf-matches .mm-play { color:#08120c; background:#ffe94a; border:1px solid #fff3a6; }
 #gpf-matches .mm-del { color:#ffb3a6; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.2); }
+#gpf-matches .mm-goals { color:#08120c; background:#ffe94a; border:1px solid #fff3a6; }
 #gpf-matches .mm-empty { margin:auto; text-align:center; color:#9fb3a8; font-size:14px; max-width:420px; line-height:1.5; }
 
 #gpf-fullmatch { position:fixed; inset:0; z-index:2147483252; display:none; background:#000;
@@ -157,6 +160,9 @@ body.gpf-matches-open #gpf-menu { display:none !important; }
 #gpf-fullmatch .fm-pos { color:#ffe94a; font-weight:900; font-variant-numeric:tabular-nums; min-width:120px; }
 #gpf-fullmatch .fm-seek { flex:1; min-width:160px; accent-color:#ffe94a; pointer-events:auto; }
 #gpf-fullmatch .fm-note { color:#9fb3a8; font-size:12px; width:100%; }
+#gpf-fullmatch .fm-goals { display:flex; gap:6px; flex-wrap:wrap; }
+#gpf-fullmatch .fm-goal { pointer-events:auto; cursor:pointer; min-height:36px; padding:0 12px; border-radius:8px;
+  border:1px solid #fff3a6; background:#ffe94a; color:#08120c; font:900 12px "Segoe UI",Arial,sans-serif; }
 `;
 
 // ---- player ----------------------------------------------------------------
@@ -191,11 +197,23 @@ function fmSetPlaying(on: boolean): void {
   if (!fmVideo) return;
   if (on) { const p = fmVideo.play(); if (p) p.catch(() => {}); } else fmVideo.pause();
 }
-function openPlayer(segments: Blob[], truncated: boolean, title: string): void {
+function openPlayer(segments: Blob[], truncated: boolean, title: string, goals: number[] = []): void {
   if (!fmRoot || !segments.length) return;
   fmSegments = segments;
+  fmGoals = goals.filter((g) => g >= 0 && g < segments.length);
   const seek = fmRoot.querySelector<HTMLInputElement>(".fm-seek");
   if (seek) { seek.max = String(Math.max(0, segments.length - 1)); seek.value = "0"; }
+  // goal jump chips: jump to ~a segment before each goal (build-up + the goal)
+  const goalsBox = fmRoot.querySelector(".fm-goals");
+  if (goalsBox) {
+    goalsBox.innerHTML = fmGoals.length ? "" : "";
+    fmGoals.forEach((seg, i) => {
+      const b = document.createElement("button");
+      b.className = "fm-goal"; b.textContent = `⚽ But ${i + 1}`;
+      b.addEventListener("click", () => { fmLoad(Math.max(0, seg - 1), true); fmSetPlaying(true); });
+      goalsBox.appendChild(b);
+    });
+  }
   const t = fmRoot.querySelector(".fm-title"); if (t) t.textContent = "🎬 " + title;
   const note = fmRoot.querySelector(".fm-note");
   if (note) note.textContent = truncated ? "(début du match coupé — match trop long)" : "";
@@ -247,16 +265,22 @@ async function renderList(): Promise<void> {
     const row = document.createElement("div");
     row.className = "mm-row";
     const scoreTxt = r.score ? `${r.score[0]} - ${r.score[1]}` : "–";
+    const goals = r.goals || [];
     row.innerHTML =
       `<div class="mm-teams">` +
         `<div class="mm-vs">${esc(r.home)} <span style="color:#9fb3a8">vs</span> ${esc(r.away)}</div>` +
-        `<div class="mm-sub">${fmtDate(r.date)} · ${fmtDuration(r.segments.length)}${r.truncated ? " (coupé)" : ""}</div>` +
+        `<div class="mm-sub">${fmtDate(r.date)} · ${fmtDuration(r.segments.length)}${goals.length ? " · ⚽ " + goals.length : ""}${r.truncated ? " (coupé)" : ""}</div>` +
       `</div>` +
       `<div class="mm-score">${scoreTxt}</div>` +
+      (goals.length ? `<button class="mm-goals">⚽ Buts</button>` : "") +
       `<button class="mm-play">▶ Revoir</button>` +
       `<button class="mm-del">🗑</button>`;
     row.querySelector(".mm-play")!.addEventListener("click", () => {
-      openPlayer(r.segments, r.truncated, `${r.home} ${scoreTxt} ${r.away}`);
+      openPlayer(r.segments, r.truncated, `${r.home} ${scoreTxt} ${r.away}`, goals);
+    });
+    row.querySelector(".mm-goals")?.addEventListener("click", () => {
+      openPlayer(r.segments, r.truncated, `${r.home} ${scoreTxt} ${r.away}`, goals);
+      if (goals.length) { fmLoad(Math.max(0, goals[0]! - 1), true); fmSetPlaying(true); }
     });
     row.querySelector(".mm-del")!.addEventListener("click", async () => {
       await deleteMatch(r.id);
@@ -302,6 +326,7 @@ export function initMatches(): void {
       <span class="fm-title">🎬 MATCH COMPLET</span>
       <span class="fm-pos">0:00</span>
       <input class="fm-seek" type="range" min="0" max="0" value="0" step="1">
+      <span class="fm-goals"></span>
       <span class="fm-note"></span>
     </div>`;
   document.body.appendChild(fmRoot);

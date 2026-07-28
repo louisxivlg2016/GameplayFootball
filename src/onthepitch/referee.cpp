@@ -245,6 +245,12 @@ void Referee::Process() {
           buffer.restartPos.coords[2] = 0;
           buffer.active = true;
           gpfRadioEvent("throwin", "", buffer.teamID);
+#ifdef __EMSCRIPTEN__
+          // human's team takes the throw-in -> close (penalty-style) camera +
+          // trace-to-pass toward a team-mate.
+          if (match->GetTeam(buffer.teamID)->GetHumanGamerCount() > 0)
+            humanOffsideKickTeam = buffer.teamID;
+#endif
         }
       }
     }
@@ -315,7 +321,8 @@ void Referee::Process() {
             EM_ASM({ try { if (window.gpfPenaltyReady) window.gpfPenaltyReady(); } catch (e) {} });
           }
         } else if (humanOffsideKickTeam >= 0 &&
-                   (buffer.desiredSetPiece == e_SetPiece_FreeKick || buffer.desiredSetPiece == e_SetPiece_GoalKick)) {
+                   (buffer.desiredSetPiece == e_SetPiece_FreeKick || buffer.desiredSetPiece == e_SetPiece_GoalKick ||
+                    buffer.desiredSetPiece == e_SetPiece_ThrowIn)) {
           // In-match free kick (CPU foul / offside) or goal kick the human takes:
           // arm the trace-to-pass overlay (close camera set in Match::UpdateIngameCamera).
           EM_ASM({ try { if (window.gpfFreekickReady) window.gpfFreekickReady(); } catch (e) {} });
