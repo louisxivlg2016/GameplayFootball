@@ -172,10 +172,12 @@ window.addEventListener("keydown", (e) => {
 });
 
 // browsers need a user gesture before audio can play — wake the radio on the
-// first interaction with the page (the game canvas gets clicks/keys anyway).
+// first interaction. Use the CAPTURE phase + touch events so a tap on the game
+// <canvas> (whose touch handlers preventDefault) still unlocks audio on tablets.
 const wake = (): void => resumeRadio();
-window.addEventListener("pointerdown", wake, { once: false });
-window.addEventListener("keydown", wake, { once: false });
+for (const ev of ["pointerdown", "touchstart", "touchend", "mousedown", "keydown"] as const) {
+  window.addEventListener(ev, wake, { capture: true, passive: true });
+}
 
 // continuous play-by-play loop, dt-based like the web commentary system.
 // EVERYTHING is wrapped and rAF is always re-scheduled so nothing — a commentary
