@@ -9,6 +9,7 @@ import { startNativeMatch, show as showHome } from "./homemenu";
 import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads, SQUADS, kitColor, skinsFor } from "./squads";
+import { teamLineup } from "./lineup";
 import { showSettings } from "./settings";
 import { CONFEDS, flagImg, isoCode, type Nation, type Confed } from "./national";
 
@@ -208,17 +209,26 @@ function render(): void {
 }
 
 function launch(): void {
-  setAnthemOverride(home.name, away.name);
-  setScoreFlags(
-    { img: flagImg(home.iso), emoji: home.flag, code: isoCode(home.iso) },
-    { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },
-  );
-  applyMatchSquads(
-    { color: kitColor(home.name, home.color), names: SQUADS[home.name] || [], skins: skinsFor(home.name) },
-    { color: kitColor(away.name, away.color), names: SQUADS[away.name] || [], skins: skinsFor(away.name) },
-  );
+  const homeSquad = SQUADS[home.name] || [];
+  // like Club / National: pick your XI first (compo), then kick off. The lineup
+  // may reorder players, so remap each chosen name back to its real skin tone.
+  const play = (homeNames: string[]): void => {
+    setAnthemOverride(home.name, away.name);
+    setScoreFlags(
+      { img: flagImg(home.iso), emoji: home.flag, code: isoCode(home.iso) },
+      { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },
+    );
+    const hs = skinsFor(home.name);
+    const homeSkins = hs ? homeNames.map((n) => { const i = homeSquad.indexOf(n); return i >= 0 ? (hs[i] ?? 0) : 0; }) : undefined;
+    applyMatchSquads(
+      { color: kitColor(home.name, home.color), names: homeNames, skins: homeSkins },
+      { color: kitColor(away.name, away.color), names: SQUADS[away.name] || [], skins: skinsFor(away.name) },
+    );
+    startNativeMatch();
+  };
   hideFriendly();
-  startNativeMatch();
+  if (homeSquad.length) teamLineup(`${home.flag} ${home.name}`, homeSquad, home.name, play);
+  else play(homeSquad);
 }
 
 // ---- country picker --------------------------------------------------------
