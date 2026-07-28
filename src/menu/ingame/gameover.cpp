@@ -8,6 +8,10 @@
 
 #include "../pagefactory.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h> // touch button to leave the game-over screen ("well then")
+#endif
+
 using namespace blunted;
 
 GameOverPage::GameOverPage(Gui2WindowManager *windowManager, const Gui2PageData &pageData) : Gui2Page(windowManager, pageData) {
@@ -55,9 +59,18 @@ GameOverPage::GameOverPage(Gui2WindowManager *windowManager, const Gui2PageData 
   buttonOkay->SetFocus();
 
   this->Show();
+
+#ifdef __EMSCRIPTEN__
+  // the native "well then" button can't be tapped -> HTML touch button that fires
+  // it (SDLK_RETURN activates the focused button -> back to menu).
+  EM_ASM({ try { if (window.gpfPhaseMenu) window.gpfPhaseMenu("gameover"); } catch (e) {} });
+#endif
 }
 
 GameOverPage::~GameOverPage() {
+#ifdef __EMSCRIPTEN__
+  EM_ASM({ try { if (window.gpfPhaseMenuDone) window.gpfPhaseMenuDone(); } catch (e) {} });
+#endif
 }
 
 void GameOverPage::GoRematch() {
