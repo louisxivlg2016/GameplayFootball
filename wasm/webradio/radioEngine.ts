@@ -419,9 +419,25 @@ function playSpeechFallback(text: string, gen: number, language: AppLanguage, fx
   }
 }
 
-/** Wake the playback context — browsers may suspend it; call on user gestures. */
+/** Wake the playback context — browsers may suspend it; call on user gestures.
+ * CRITICAL on mobile/tablet: create AND unlock the context DURING the gesture,
+ * not lazily on the first commentary (which happens mid-match, long after the
+ * gesture expired, so resume() would fail and the radio stays silent). We build
+ * the context now and play a 1-sample silent buffer — the standard WebAudio
+ * unlock — so audio is armed before the first line/anthem. */
+let radioUnlocked = false;
 export function resumeRadio(): void {
-  if (radioCtx && radioCtx.state !== "running") void radioCtx.resume();
+  const ctx = ensureRadioCtx(); // creates the shared context on first gesture + resumes
+  if (ctx.state !== "running") void ctx.resume();
+  if (!radioUnlocked && ctx.state === "running") {
+    radioUnlocked = true;
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, 22050);
+      src.connect(ctx.destination);
+      src.start(0);
+    } catch { /* */ }
+  }
 }
 
 // Safety net: a backgrounded tab suspends the AudioContext, and coming back
