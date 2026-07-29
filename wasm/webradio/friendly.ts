@@ -29,16 +29,18 @@ function ratingOf(n: Nation): number {
   return 76 + (h % 8);
 }
 // "Force réaliste" mode (Réglages › Gameplay toggle): when on, each side plays at
-// its real level — map the shown OVR (~76..85) to a stat multiplier so the weaker
-// nation genuinely plays worse. 85 -> 1.0 (full base stats), lower OVR -> weaker.
-// Off -> 1.0 for both (no effect). Persisted under the same LS key as the toggle.
+// its real level — map the shown OVR (~76..85) to a stat multiplier. Centered on
+// an average side (OVR 82 -> x1.0, unchanged); the top nations get a real BOOST
+// above normal (85 -> x1.15) so a great team feels genuinely fast and superior,
+// while weaker ones drop (76 -> x0.70). Off -> 1.0 for both (no effect). The C++
+// bridge clamps to [0.1, 1.5]. Persisted under the same LS key as the toggle.
 const REALISTIC_LS = "gpf-realistic";
 function realisticOn(): boolean {
   try { return localStorage.getItem(REALISTIC_LS) === "1"; } catch { return false; }
 }
 function strengthFromOvr(ovr: number): number {
-  const s = 0.65 + (ovr - 76) * 0.0389; // 76 -> .65, 85 -> ~1.0
-  return Math.max(0.55, Math.min(1.0, s));
+  const s = 1.0 + (ovr - 82) * 0.05; // 82 -> 1.0, 85 -> 1.15, 78 -> 0.80, 76 -> 0.70
+  return Math.max(0.60, Math.min(1.20, s));
 }
 // explicit captain names for nations where we override the figure with a real
 // photo (so the name matches the person shown).
