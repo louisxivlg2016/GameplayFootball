@@ -210,8 +210,15 @@ void Referee::Process() {
 
         buffer.active = true;
         // browser radio (kickoff-after-goal is covered by the "goal" event)
-        if (buffer.desiredSetPiece == e_SetPiece_Corner)
+        if (buffer.desiredSetPiece == e_SetPiece_Corner) {
           gpfRadioEvent("corner", "", buffer.teamID);
+#ifdef __EMSCRIPTEN__
+          // human's team takes the corner -> same close corner camera + trace as
+          // the training corner (the corner camera is chosen in UpdateIngameCamera).
+          if (match->GetTeam(buffer.teamID)->GetHumanGamerCount() > 0)
+            humanOffsideKickTeam = buffer.teamID;
+#endif
+        }
         else if (buffer.desiredSetPiece == e_SetPiece_GoalKick) {
           gpfRadioEvent("goalkick");
 #ifdef __EMSCRIPTEN__
@@ -322,7 +329,7 @@ void Referee::Process() {
           }
         } else if (humanOffsideKickTeam >= 0 &&
                    (buffer.desiredSetPiece == e_SetPiece_FreeKick || buffer.desiredSetPiece == e_SetPiece_GoalKick ||
-                    buffer.desiredSetPiece == e_SetPiece_ThrowIn)) {
+                    buffer.desiredSetPiece == e_SetPiece_ThrowIn || buffer.desiredSetPiece == e_SetPiece_Corner)) {
           // In-match free kick (CPU foul / offside) or goal kick the human takes:
           // arm the trace-to-pass overlay (close camera set in Match::UpdateIngameCamera).
           EM_ASM({ try { if (window.gpfFreekickReady) window.gpfFreekickReady(); } catch (e) {} });

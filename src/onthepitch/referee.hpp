@@ -89,6 +89,7 @@ class Referee {
     // camera). GetSetPieceTeam() is the team taking it.
     bool IsPenaltySetPiece() { return buffer.active && buffer.desiredSetPiece == e_SetPiece_Penalty; }
     int GetSetPieceTeam() { return buffer.teamID; }
+    e_SetPiece GetDesiredSetPiece() { return buffer.desiredSetPiece; } // for the in-match set-piece camera
     // A "major" stoppage the commentator should go quiet for (free kick / corner /
     // penalty) — NOT throw-ins, goal kicks or kickoffs, which keep the radio going.
     bool IsMajorSetPiece() {

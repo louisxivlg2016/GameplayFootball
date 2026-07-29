@@ -1001,14 +1001,26 @@ void Match::UpdateIngameCamera() {
 
   } else if (GetReferee()->IsHumanOffsideKick()) {
 
-    // in-match free kick (CPU foul / offside) or goal kick the human takes: same
-    // close, behind-the-taker camera as a penalty, so you can see where you aim the pass.
+    // in-match set piece the human takes (free kick / goal kick / throw-in / corner):
+    // close, behind-the-taker camera so you can aim the pass.
     Vector3 fkBall = ball->Predict(0).Get2D();
     signed int oppSide = GetTeam(1 - GetReferee()->GetOffsideKickTeam())->GetSide(); // downfield
-    cameraOrientation.SetAngleAxis(0.43f * pi, Vector3(1, 0, 0));               // tilt down
-    cameraNodeOrientation.SetAngleAxis(-oppSide * 0.5f * pi, Vector3(0, 0, 1)); // face downfield
-    cameraNodePosition = fkBall + Vector3(-15.0f * oppSide, 0, 0) + Vector3(0, 0, 7.5f);
-    cameraFOV = 30.0f;
+    if (GetReferee()->GetDesiredSetPiece() == e_SetPiece_Corner) {
+      // corner: the SAME camera as the training corner — behind the taker along the
+      // taker->goal diagonal, box + goal ahead.
+      Vector3 target = Vector3((pitchHalfW - 9.0f) * oppSide, 0.0f, 1.2f);        // in front of the goal
+      Vector3 behind = (fkBall - target).Get2D();                                // goal -> corner direction
+      if (behind.GetLength() > 0.01f) behind = behind.GetNormalized();
+      cameraNodePosition = fkBall + behind * 8.0f + Vector3(0.0f, 0.0f, 6.5f);    // 8m behind taker, 6.5m up
+      cameraNodeOrientation.SetAngleAxis((target - cameraNodePosition).GetAngle2D() + 1.5f * pi, Vector3(0, 0, 1));
+      cameraOrientation.SetAngleAxis(0.40f * pi, Vector3(1, 0, 0));               // tilt down
+      cameraFOV = 40.0f;
+    } else {
+      cameraOrientation.SetAngleAxis(0.43f * pi, Vector3(1, 0, 0));               // tilt down
+      cameraNodeOrientation.SetAngleAxis(-oppSide * 0.5f * pi, Vector3(0, 0, 1)); // face downfield
+      cameraNodePosition = fkBall + Vector3(-15.0f * oppSide, 0, 0) + Vector3(0, 0, 7.5f);
+      cameraFOV = 30.0f;
+    }
     cameraNearCap = 1;
     cameraFarCap = 250;
 
