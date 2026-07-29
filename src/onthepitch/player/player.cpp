@@ -530,6 +530,13 @@ float Player::GetStat(const char *name) const {
   float multiplier = 1.0f;
   //if (team->GetID() == 0) multiplier = 0.5f; else multiplier = 1.0f;
   if (team->GetHumanGamerCount() == 0) multiplier = 0.3f + 0.7f * team->GetMatch()->GetMatchDifficulty();
+#ifdef __EMSCRIPTEN__
+  // "Realistic strength" mode: scale each side by its nation's OVR (1.0 = off),
+  // so weaker nations play worse and stronger ones better. Applies to BOTH the
+  // human and the CPU team, so picking a small nation genuinely handicaps you.
+  extern float gpf_natStrength[2];
+  { int _tid = team->GetID(); if (_tid >= 0 && _tid < 2) multiplier *= gpf_natStrength[_tid]; }
+#endif
   multiplier *= 0.7f + 0.3f * GetFatigueFactorInv(); // todo: some stats are more affected by fatigue than others
   //if (GetExternalController()) printf("stat %s: %f\n", name, playerData->GetStat(name));
   //if (GetDebug()) printf("stat %s == %f\n", name, playerData->GetStat(name) * multiplier);

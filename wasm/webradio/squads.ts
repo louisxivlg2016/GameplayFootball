@@ -168,20 +168,23 @@ export function skinsFor(nation: string): number[] | undefined { return SKINS[na
 // 2006 challenge fields the 2006 XI, not the current one. `skins` (optional) is
 // the per-player skin tone list, shirt-ordered like `names`.
 export function applyMatchSquads(
-  home: { color: string; names: string[]; skins?: number[] },
-  away: { color: string; names: string[]; skins?: number[] },
+  home: { color: string; names: string[]; skins?: number[]; strength?: number },
+  away: { color: string; names: string[]; skins?: number[]; strength?: number },
 ): void {
   const m = mod();
   if (!m) return;
-  m._gpf_clear_team_overrides?.();
-  const one = (team: number, color: string, names: string[], skins?: number[]): void => {
+  m._gpf_clear_team_overrides?.(); // resets per-team strength back to 1.0
+  const one = (team: number, color: string, names: string[], skins?: number[], strength?: number): void => {
     const [r, g, b] = hexToRgb(color);
     m._gpf_set_team_color?.(team, r, g, b);
     if (names.length && m.ccall) m.ccall("gpf_set_team_names", null, ["number", "string"], [team, names.join("|")]);
     if (skins && skins.length && m.ccall) m.ccall("gpf_set_team_skins", null, ["number", "string"], [team, skins.join("|")]);
+    // realistic-strength mode: OVR-derived multiplier (undefined -> 1.0, no effect)
+    if (strength != null && strength !== 1 && m.ccall)
+      m.ccall("gpf_set_team_strength", null, ["number", "number"], [team, strength]);
   };
-  one(0, home.color, home.names, home.skins);
-  one(1, away.color, away.names, away.skins);
+  one(0, home.color, home.names, home.skins, home.strength);
+  one(1, away.color, away.names, away.skins, away.strength);
 }
 
 // Clubs: recolour kits to the club colour, but keep DB names (no real rosters).

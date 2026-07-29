@@ -31,6 +31,10 @@ const setF = (key: string, val: number): void => {
 // the old pre-match "Match options" screen (now removed); set them here instead.
 const MATCH_DIFF_LS = "gpf-difficulty";
 const MATCH_DUR_LS = "gpf-duration";
+// "Force réaliste des équipes": scale each team by its nation's OVR so weak sides
+// play worse and strong sides better (read by friendly.ts at kickoff). Persisted
+// here; default off. See strengthFromOvr() in friendly.ts.
+const REALISTIC_LS = "gpf-realistic";
 const DEF_DIFFICULTY = 0.6;
 const DEF_DURATION = 0.1;   // match.cpp maps 0.1 -> ~3 min in-play (the default)
 function lsGet(key: string, def: number): number {
@@ -296,6 +300,34 @@ function renderGraphics(): void {
   body.appendChild(fRow);
 }
 
+// a boolean toggle persisted to localStorage ("1"/"0"), with an optional note.
+function toggleRow(label: string, ls: string, def: boolean, note?: string): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "set-row";
+  let on = def;
+  try { const v = localStorage.getItem(ls); if (v !== null) on = v === "1"; } catch { /* private */ }
+  row.innerHTML = `<div class="set-label"><span>${label}</span></div>`;
+  const tgl = document.createElement("button");
+  tgl.className = "set-toggle";
+  const paint = (): void => {
+    tgl.classList.toggle("on", on);
+    tgl.textContent = on ? "✔ Activé" : "Désactivé";
+  };
+  tgl.addEventListener("click", () => {
+    on = !on;
+    try { localStorage.setItem(ls, on ? "1" : "0"); } catch { /* private */ }
+    paint();
+  });
+  paint();
+  row.appendChild(tgl);
+  if (note) {
+    const n = document.createElement("div");
+    n.className = "set-note"; n.textContent = note;
+    row.appendChild(n);
+  }
+  return row;
+}
+
 function renderGameplay(): void {
   if (!body) return;
   body.innerHTML = "";
@@ -306,6 +338,8 @@ function renderGameplay(): void {
     (v) => `${Math.round(v * 100)}%`, (v) => setF("match_difficulty", v)));
   body.appendChild(persistedRow("Durée du match", MATCH_DUR_LS, DEF_DURATION,
     (v) => `≈ ${durationToMin(v)} min`, (v) => setF("match_duration", v)));
+  body.appendChild(toggleRow("Force réaliste des équipes", REALISTIC_LS, false,
+    "Chaque équipe joue à son vrai niveau (selon son OVR) : les nations faibles jouent moins bien, les grandes nations mieux. Désactivé = toutes à niveau égal."));
   const assistHdr = document.createElement("div");
   assistHdr.className = "set-section"; assistHdr.textContent = "Assistances";
   body.appendChild(assistHdr);
@@ -317,6 +351,7 @@ function renderGameplay(): void {
   reset.addEventListener("click", () => {
     lsSet(MATCH_DIFF_LS, DEF_DIFFICULTY); setF("match_difficulty", DEF_DIFFICULTY);
     lsSet(MATCH_DUR_LS, DEF_DURATION); setF("match_duration", DEF_DURATION);
+    try { localStorage.setItem(REALISTIC_LS, "0"); } catch { /* private */ }
     for (const [, key, def] of GAMEPLAY) setF(key, def);
     renderGameplay();
   });

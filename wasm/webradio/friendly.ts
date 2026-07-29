@@ -28,6 +28,18 @@ function ratingOf(n: Nation): number {
   let h = 0; for (const c of n.name) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
   return 76 + (h % 8);
 }
+// "Force réaliste" mode (Réglages › Gameplay toggle): when on, each side plays at
+// its real level — map the shown OVR (~76..85) to a stat multiplier so the weaker
+// nation genuinely plays worse. 85 -> 1.0 (full base stats), lower OVR -> weaker.
+// Off -> 1.0 for both (no effect). Persisted under the same LS key as the toggle.
+const REALISTIC_LS = "gpf-realistic";
+function realisticOn(): boolean {
+  try { return localStorage.getItem(REALISTIC_LS) === "1"; } catch { return false; }
+}
+function strengthFromOvr(ovr: number): number {
+  const s = 0.65 + (ovr - 76) * 0.0389; // 76 -> .65, 85 -> ~1.0
+  return Math.max(0.55, Math.min(1.0, s));
+}
 // explicit captain names for nations where we override the figure with a real
 // photo (so the name matches the person shown).
 const CAPTAIN_NAME: Record<string, string> = { Argentine: "Messi" };
@@ -220,9 +232,12 @@ function launch(): void {
     );
     const hs = skinsFor(home.name);
     const homeSkins = hs ? homeNames.map((n) => { const i = homeSquad.indexOf(n); return i >= 0 ? (hs[i] ?? 0) : 0; }) : undefined;
+    const real = realisticOn();
+    const homeStr = real ? strengthFromOvr(ratingOf(home)) : 1;
+    const awayStr = real ? strengthFromOvr(ratingOf(away)) : 1;
     applyMatchSquads(
-      { color: kitColor(home.name, home.color), names: homeNames, skins: homeSkins },
-      { color: kitColor(away.name, away.color), names: SQUADS[away.name] || [], skins: skinsFor(away.name) },
+      { color: kitColor(home.name, home.color), names: homeNames, skins: homeSkins, strength: homeStr },
+      { color: kitColor(away.name, away.color), names: SQUADS[away.name] || [], skins: skinsFor(away.name), strength: awayStr },
     );
     startNativeMatch();
   };

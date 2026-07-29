@@ -67,6 +67,10 @@ std::vector<std::string> gpf_natNames[2];
 // per-player skin colour override (shirt-ordered, 1..4 = skin01..skin04; 0/empty
 // = keep the DB skin). Lets the web set realistic skin tones per squad.
 std::vector<int> gpf_natSkins[2];
+// per-team strength multiplier (1.0 = full base stats). "Realistic strength" mode
+// scales each side by its nation's OVR so weaker nations genuinely play worse and
+// stronger ones play better. Read in Player::GetStat. 1.0 = no effect (mode off).
+float gpf_natStrength[2] = {1.0f, 1.0f};
 
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_team_color(int team, int r, int g, int b) {
   if (team < 0 || team > 1) return;
@@ -99,12 +103,20 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_team_skins(int team, const char *sk
   }
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_team_strength(int team, float strength) {
+  if (team < 0 || team > 1) return;
+  if (strength < 0.1f) strength = 0.1f;
+  if (strength > 1.5f) strength = 1.5f;
+  gpf_natStrength[team] = strength;
+}
+
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_clear_team_overrides() {
   gpf_natColorSet[0] = gpf_natColorSet[1] = 0;
   gpf_natNames[0].clear();
   gpf_natNames[1].clear();
   gpf_natSkins[0].clear();
   gpf_natSkins[1].clear();
+  gpf_natStrength[0] = gpf_natStrength[1] = 1.0f;
 }
 
 // Generic engine-config bridge for the HTML SETTINGS panel: read/write any
