@@ -14,6 +14,8 @@ let slot0: HTMLElement | null = null;
 let slot1: HTMLElement | null = null;
 let lab0: HTMLElement | null = null;
 let lab1: HTMLElement | null = null;
+let sc0: HTMLElement | null = null; // home (your) goal count — the native digit is
+let sc1: HTMLElement | null = null; // hidden under the wide away-flag overlay
 let youTag: HTMLElement | null = null; // "TOI" marker over the human's (left) badge
 
 // positions as a fraction of the canvas (tuned to the C++ scoreboard)
@@ -25,6 +27,15 @@ const BADGE_X0 = 0.286; // home team badge centre (over the C++ scoreboard)
 const BADGE_X1 = 0.386; // away team badge centre
 const NAME_X0 = 0.334;  // home team name ("ARS") centre
 const NAME_X1 = 0.435;  // away team name centre
+const SCORE_X0 = 0.377; // home goal-count centre (native scoreboard xOffset[4]=25)
+const SCORE_X1 = 0.478; // away goal-count centre (native scoreboard xOffset[7]=39)
+
+// live score, mirrored from the C++ tick into window.__gpfRadioBridge.score
+function liveScore(): [number, number] {
+  const b = (window as unknown as { __gpfRadioBridge?: { score?: [number, number] } }).__gpfRadioBridge;
+  const s = b?.score;
+  return Array.isArray(s) && s.length === 2 ? s : [0, 0];
+}
 
 function fill(slot: HTMLElement, f: ScoreFlag | null): void {
   if (!f) { slot.innerHTML = ""; slot.style.display = "none"; return; }
@@ -59,7 +70,7 @@ function matchLive(): boolean {
 
 function place(): void {
   const canvas = document.getElementById("canvas");
-  if (!canvas || !root || !slot0 || !slot1 || !lab0 || !lab1 || !youTag) return;
+  if (!canvas || !root || !slot0 || !slot1 || !lab0 || !lab1 || !youTag || !sc0 || !sc1) return;
   const showYou = matchLive();
   if (!home && !away && !showYou) { root.style.display = "none"; return; }
   const r = canvas.getBoundingClientRect();
@@ -101,6 +112,29 @@ function place(): void {
   };
   styleLab(lab0, NAME_X0);
   styleLab(lab1, NAME_X1);
+
+  // goal counts — drawn on top (the native home digit is under the away flag).
+  // Only during a live match; otherwise the baked-in scoreboard shows through.
+  if (showYou) {
+    const [g0, g1] = liveScore();
+    sc0.textContent = String(g0);
+    sc1.textContent = String(g1);
+    sc0.style.display = "flex";
+    sc1.style.display = "flex";
+    const sw = h * 1.15;
+    const styleSc = (el: HTMLElement, cx: number): void => {
+      el.style.left = `${r.left + r.width * cx - sw / 2}px`;
+      el.style.top = `${y}px`;
+      el.style.width = `${sw}px`;
+      el.style.height = `${h}px`;
+      el.style.fontSize = `${h * 0.72}px`;
+    };
+    styleSc(sc0, SCORE_X0);
+    styleSc(sc1, SCORE_X1);
+  } else {
+    sc0.style.display = "none";
+    sc1.style.display = "none";
+  }
 }
 
 export function setScoreFlags(h: ScoreFlag | null, a: ScoreFlag | null): void {
@@ -139,6 +173,20 @@ export function initScoreFlags(): void {
     return s;
   };
   lab0 = mkLab(); lab1 = mkLab();
+  // goal-count plates: solid dark chip + bold digit, drawn over the flags. Home
+  // (your) digit in gold to match the "TOI" marker; away in white.
+  const mkScore = (color: string): HTMLElement => {
+    const s = document.createElement("div");
+    Object.assign(s.style, {
+      position: "fixed", display: "none", alignItems: "center", justifyContent: "center",
+      color, fontWeight: "900", fontFamily: "Arial, Helvetica, sans-serif",
+      lineHeight: "1", overflow: "hidden", whiteSpace: "nowrap",
+      background: "linear-gradient(#242424,#0d0d0d)", borderRadius: "3px",
+      boxShadow: "0 1px 3px rgba(0,0,0,.6)", textShadow: "0 1px 1px #000",
+    } as CSSStyleDeclaration);
+    return s;
+  };
+  sc0 = mkScore("#ffe94a"); sc1 = mkScore("#ffffff");
   youTag = document.createElement("div");
   youTag.textContent = "▲ TOI";
   Object.assign(youTag.style, {
@@ -147,7 +195,7 @@ export function initScoreFlags(): void {
     letterSpacing: "0.04em", lineHeight: "1", whiteSpace: "nowrap", borderRadius: "3px",
     background: "linear-gradient(#ffe94a,#f5c518)", boxShadow: "0 2px 6px rgba(0,0,0,.45)",
   } as CSSStyleDeclaration);
-  root.append(slot0, slot1, lab0, lab1, youTag);
+  root.append(slot0, slot1, lab0, lab1, youTag, sc0, sc1);
   document.body.appendChild(root);
 
   window.addEventListener("resize", place);

@@ -64,7 +64,7 @@ interface RadioWindow {
 const w = window as unknown as RadioWindow;
 
 // live diagnostics: inspect window.__gpfRadioBridge in the console
-const bridge = { events: [] as string[], ticks: 0, teams: ["", ""] as string[], lastCarrier: "", teamId: -1, loose: true };
+const bridge = { events: [] as string[], ticks: 0, teams: ["", ""] as string[], lastCarrier: "", teamId: -1, loose: true, score: [0, 0] as [number, number] };
 (window as unknown as { __gpfRadioBridge: typeof bridge }).__gpfRadioBridge = bridge;
 
 w.gpfRadioSetTeams = (home, away): void => {
@@ -109,6 +109,11 @@ w.gpfRadioEvent = (event, player, team, score0, score1): void => {
 
 w.gpfRadioTick = (snap): void => {
   bridge.ticks++;
+  // mirror the live score so the HTML scoreboard overlay can show it (the native
+  // scoreboard's home-score digit is hidden under the wide away-flag overlay)
+  if (Array.isArray(snap.score) && snap.score.length === 2) {
+    bridge.score[0] = snap.score[0]; bridge.score[1] = snap.score[1];
+  }
   snap.carrier = niceName(snap.carrier);
   snap.oppName = niceName(snap.oppName);
   bridge.lastCarrier = snap.carrier;
