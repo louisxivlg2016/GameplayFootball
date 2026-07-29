@@ -130,7 +130,15 @@ float PlayerBase::GetStat(const char *name) const {
 
 float PlayerBase::GetMaxVelocity() const {
   // see humanoidbase's physics function
-  return sprintVelocity * GetVelocityMultiplier();
+  float v = sprintVelocity * GetVelocityMultiplier();
+#ifdef __EMSCRIPTEN__
+  // "Force réaliste" mode: scale the actual sprint speed by the team's OVR-based
+  // strength so a great side is visibly faster and a weak one sluggish. The stat
+  // path (Player::GetStat) barely moves velocity (0.9 + stat*0.1), so this is the
+  // lever that makes the mode felt. 1.0 = neutral (mode off).
+  v *= gpfStrength;
+#endif
+  return v;
 }
 
 float PlayerBase::GetVelocityMultiplier() const {

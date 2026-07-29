@@ -22,6 +22,7 @@ extern int gpf_natColorSet[2];
 extern unsigned char gpf_natColor[2][3];
 extern std::vector<std::string> gpf_natNames[2];
 extern std::vector<int> gpf_natSkins[2];
+extern float gpf_natStrength[2];
 
 // Recolour a kit texture toward a solid national colour while keeping the
 // original shading (folds, seams, shadows) so the shirt still looks like cloth
@@ -144,6 +145,11 @@ void Team::InitPlayers(boost::intrusive_ptr<Node> fullbodyNode, std::map<Vector3
 #endif
     Player *player = new Player(this, playerData);
     players.push_back(player);
+#ifdef __EMSCRIPTEN__
+    // "Force réaliste": scale this player's felt sprint speed by the team's
+    // OVR-based strength (1.0 = neutral). Read in PlayerBase::GetMaxVelocity.
+    player->SetGpfStrength(gpf_natStrength[GetID()]);
+#endif
 
     if (i < activePlayerCount) {
       // activate playerCount players (the starting eleven, usually)

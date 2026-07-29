@@ -76,6 +76,9 @@ class PlayerBase {
     virtual float GetStat(const char *name) const;
     float GetVelocityMultiplier() const;
     float GetMaxVelocity() const;
+    // wasm "Force réaliste": OVR-based per-team strength scaling the felt sprint
+    // speed (the sprint anim is stretched to GetMaxVelocity). 1.0 = neutral.
+    void SetGpfStrength(float s) { gpfStrength = s; }
 
     const Anim *GetCurrentAnim() { return humanoid->GetCurrentAnim(); }
     const Anim *GetPreviousAnim() { return humanoid->GetPreviousAnim(); }
@@ -107,6 +110,8 @@ class PlayerBase {
     HumanoidBase *humanoid;
     IController *controller;
     IController *externalController;
+
+    float gpfStrength = 1.0f; // wasm realistic-strength velocity scale (1.0 = off)
 
     bool isActive;
 
