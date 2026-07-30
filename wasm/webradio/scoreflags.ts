@@ -27,7 +27,7 @@ const BADGE_X0 = 0.286; // home team badge centre (over the C++ scoreboard)
 const BADGE_X1 = 0.386; // away team badge centre
 const NAME_X0 = 0.334;  // home team name ("ARS") centre
 const NAME_X1 = 0.435;  // away team name centre
-const SCORE_X0 = 0.377; // home goal-count centre (native scoreboard xOffset[4]=25)
+const SCORE_X0 = 0.366; // home goal-count centre (nudged left of the away flag)
 const SCORE_X1 = 0.478; // away goal-count centre (native scoreboard xOffset[7]=39)
 
 // live score, mirrored from the C++ tick into window.__gpfRadioBridge.score
@@ -121,13 +121,13 @@ function place(): void {
     sc1.textContent = String(g1);
     sc0.style.display = "flex";
     sc1.style.display = "flex";
-    const sw = h * 1.15;
+    const sw = h * 0.9;
     const styleSc = (el: HTMLElement, cx: number): void => {
       el.style.left = `${r.left + r.width * cx - sw / 2}px`;
       el.style.top = `${y}px`;
       el.style.width = `${sw}px`;
       el.style.height = `${h}px`;
-      el.style.fontSize = `${h * 0.72}px`;
+      el.style.fontSize = `${h * 0.88}px`;
     };
     styleSc(sc0, SCORE_X0);
     styleSc(sc1, SCORE_X1);
@@ -175,14 +175,16 @@ export function initScoreFlags(): void {
   lab0 = mkLab(); lab1 = mkLab();
   // goal-count plates: solid dark chip + bold digit, drawn over the flags. Home
   // (your) digit in gold to match the "TOI" marker; away in white.
+  // no background plate (it was covering the flag) — just a bold digit with a
+  // heavy black outline, TV-style, so the flag stays visible around it.
   const mkScore = (color: string): HTMLElement => {
     const s = document.createElement("div");
     Object.assign(s.style, {
       position: "fixed", display: "none", alignItems: "center", justifyContent: "center",
       color, fontWeight: "900", fontFamily: "Arial, Helvetica, sans-serif",
-      lineHeight: "1", overflow: "hidden", whiteSpace: "nowrap",
-      background: "linear-gradient(#242424,#0d0d0d)", borderRadius: "3px",
-      boxShadow: "0 1px 3px rgba(0,0,0,.6)", textShadow: "0 1px 1px #000",
+      lineHeight: "1", whiteSpace: "nowrap", background: "none",
+      textShadow: "0 0 2px #000, 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, " +
+        "-1px -1px 0 #000, 0 2px 3px rgba(0,0,0,.85)",
     } as CSSStyleDeclaration);
     return s;
   };
