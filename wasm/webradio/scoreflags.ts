@@ -14,8 +14,7 @@ let slot0: HTMLElement | null = null;
 let slot1: HTMLElement | null = null;
 let lab0: HTMLElement | null = null;
 let lab1: HTMLElement | null = null;
-let sc0: HTMLElement | null = null; // home (your) goal count — the native digit is
-let sc1: HTMLElement | null = null; // hidden under the wide away-flag overlay
+let scBox: HTMLElement | null = null; // combined "H – A" score chip (right of codes)
 let youTag: HTMLElement | null = null; // "TOI" marker over the human's (left) badge
 
 // positions as a fraction of the canvas (tuned to the C++ scoreboard)
@@ -27,8 +26,10 @@ const BADGE_X0 = 0.286; // home team badge centre (over the C++ scoreboard)
 const BADGE_X1 = 0.386; // away team badge centre
 const NAME_X0 = 0.334;  // home team name ("ARS") centre
 const NAME_X1 = 0.435;  // away team name centre
-const SCORE_X0 = 0.366; // home goal-count centre (nudged left of the away flag)
-const SCORE_X1 = 0.478; // away goal-count centre (native scoreboard xOffset[7]=39)
+// The scoreboard is packed: the native home-score slot sits under the wide away
+// flag with no room. So show ONE combined "H – A" chip just right of the away
+// code, in clear space (no flag there) — home number gold (your side), away white.
+const SCORE_CX = 0.492; // combined score chip centre (right end of the scoreboard)
 
 // live score, mirrored from the C++ tick into window.__gpfRadioBridge.score
 function liveScore(): [number, number] {
@@ -70,7 +71,7 @@ function matchLive(): boolean {
 
 function place(): void {
   const canvas = document.getElementById("canvas");
-  if (!canvas || !root || !slot0 || !slot1 || !lab0 || !lab1 || !youTag || !sc0 || !sc1) return;
+  if (!canvas || !root || !slot0 || !slot1 || !lab0 || !lab1 || !youTag || !scBox) return;
   const showYou = matchLive();
   if (!home && !away && !showYou) { root.style.display = "none"; return; }
   const r = canvas.getBoundingClientRect();
@@ -113,27 +114,23 @@ function place(): void {
   styleLab(lab0, NAME_X0);
   styleLab(lab1, NAME_X1);
 
-  // goal counts — drawn on top (the native home digit is under the away flag).
+  // combined "H – A" score chip, right of the away code where nothing overlaps.
   // Only during a live match; otherwise the baked-in scoreboard shows through.
   if (showYou) {
     const [g0, g1] = liveScore();
-    sc0.textContent = String(g0);
-    sc1.textContent = String(g1);
-    sc0.style.display = "flex";
-    sc1.style.display = "flex";
-    const sw = h * 0.9;
-    const styleSc = (el: HTMLElement, cx: number): void => {
-      el.style.left = `${r.left + r.width * cx - sw / 2}px`;
-      el.style.top = `${y}px`;
-      el.style.width = `${sw}px`;
-      el.style.height = `${h}px`;
-      el.style.fontSize = `${h * 0.88}px`;
-    };
-    styleSc(sc0, SCORE_X0);
-    styleSc(sc1, SCORE_X1);
+    scBox.innerHTML =
+      `<span style="color:#ffe94a">${g0}</span>` +
+      `<span style="color:#8aa;margin:0 ${h * 0.16}px;font-weight:700">–</span>` +
+      `<span style="color:#fff">${g1}</span>`;
+    scBox.style.display = "flex";
+    const sw = h * 2.2;
+    scBox.style.left = `${r.left + r.width * SCORE_CX - sw / 2}px`;
+    scBox.style.top = `${y}px`;
+    scBox.style.width = `${sw}px`;
+    scBox.style.height = `${h}px`;
+    scBox.style.fontSize = `${h * 0.66}px`;
   } else {
-    sc0.style.display = "none";
-    sc1.style.display = "none";
+    scBox.style.display = "none";
   }
 }
 
@@ -175,20 +172,16 @@ export function initScoreFlags(): void {
   lab0 = mkLab(); lab1 = mkLab();
   // goal-count plates: solid dark chip + bold digit, drawn over the flags. Home
   // (your) digit in gold to match the "TOI" marker; away in white.
-  // no background plate (it was covering the flag) — just a bold digit with a
-  // heavy black outline, TV-style, so the flag stays visible around it.
-  const mkScore = (color: string): HTMLElement => {
-    const s = document.createElement("div");
-    Object.assign(s.style, {
-      position: "fixed", display: "none", alignItems: "center", justifyContent: "center",
-      color, fontWeight: "900", fontFamily: "Arial, Helvetica, sans-serif",
-      lineHeight: "1", whiteSpace: "nowrap", background: "none",
-      textShadow: "0 0 2px #000, 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, " +
-        "-1px -1px 0 #000, 0 2px 3px rgba(0,0,0,.85)",
-    } as CSSStyleDeclaration);
-    return s;
-  };
-  sc0 = mkScore("#ffe94a"); sc1 = mkScore("#ffffff");
+  // combined score chip: its own dark pill, sitting in the clear space right of
+  // the away code — no flag there, so nothing gets covered.
+  scBox = document.createElement("div");
+  Object.assign(scBox.style, {
+    position: "fixed", display: "none", alignItems: "center", justifyContent: "center",
+    fontWeight: "900", fontFamily: "Arial, Helvetica, sans-serif",
+    lineHeight: "1", whiteSpace: "nowrap", borderRadius: "3px",
+    background: "linear-gradient(#242424,#0d0d0d)", boxShadow: "0 1px 3px rgba(0,0,0,.6)",
+    textShadow: "0 1px 1px #000",
+  } as CSSStyleDeclaration);
   youTag = document.createElement("div");
   youTag.textContent = "▲ TOI";
   Object.assign(youTag.style, {
@@ -197,7 +190,7 @@ export function initScoreFlags(): void {
     letterSpacing: "0.04em", lineHeight: "1", whiteSpace: "nowrap", borderRadius: "3px",
     background: "linear-gradient(#ffe94a,#f5c518)", boxShadow: "0 2px 6px rgba(0,0,0,.45)",
   } as CSSStyleDeclaration);
-  root.append(slot0, slot1, lab0, lab1, youTag, sc0, sc1);
+  root.append(slot0, slot1, lab0, lab1, youTag, scBox);
   document.body.appendChild(root);
 
   window.addEventListener("resize", place);
