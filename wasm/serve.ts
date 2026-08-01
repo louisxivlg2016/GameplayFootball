@@ -22,6 +22,7 @@ const GOAL_CLIP = join(WEB, "src/assets/audio/goal-but-but.mp3");
 const AUDIO_DIR = join(WEB, "src/assets/audio"); // localized menu-theme-*.mp4 live here
 const ASSETS_DIR = join(WEB, "src/assets"); // menu card PNGs (play/training/worldcup)
 const CAPTAINS_DIR = join(import.meta.dir, "captains"); // full-body captain figures (wasm-side asset)
+const VOICES_DIR = join(import.meta.dir, "ttsvoices"); // self-hosted Piper voice models (gitignored 63MB blobs); optional locally
 // in-memory cache for proxied remote assets (anthems/flags/photos) — avoids
 // re-hitting Wikimedia (and its rate limits) for the same file every match.
 const proxyCache = new Map<string, { buf: ArrayBuffer; type: string }>();
@@ -95,6 +96,15 @@ Bun.serve({
     // --- radio + TTS routes ---
     if (path === "/radio.js") return js(await radioJs());
     if (path === "/tts/worker.js") return js(await workerJs());
+    // narrow voice-rerouting service worker (must be same-origin, root scope)
+    if (path === "/sw.js") return js(await Bun.file(join(import.meta.dir, "sw.js")).text());
+    // self-hosted Piper voice models (mirror of huggingface's layout). Optional
+    // locally; if absent the SW falls back to huggingface. Allows nested subdirs.
+    if (path.startsWith("/tts/voices/")) {
+      const name = path.slice("/tts/voices/".length);
+      if (!/^[\w./-]+$/.test(name) || name.includes("..")) return new Response("bad", { status: 400 });
+      return serveAbs(join(VOICES_DIR, name));
+    }
     if (path === "/radio/goal-but-but.mp3") return serveAbs(GOAL_CLIP);
     // localized menu theme music: /menu-music/<lang> -> menu-theme-<lang>.mp4
     if (path.startsWith("/menu-music/")) {

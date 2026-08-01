@@ -42,6 +42,24 @@ for f in web/src/assets/audio/menu-theme-*.mp4; do
   ffmpeg -y -v error -i "$f" -vn -c:a libmp3lame -b:a 56k -f mp3 "$D/menu-music/$k"
 done
 
+# self-hosted Piper voice model(s): the radio's TTS worker otherwise pulls its
+# ~63MB voice straight from huggingface (slow, 429-prone on mobile → radio looked
+# broken). Host a copy on the Vercel CDN; the narrow sw.js reroutes the worker's
+# huggingface fetch to it. Cache the download in wasm/ttsvoices so redeploys and
+# the local serve.ts reuse it. French only (the game is French-first); other
+# languages still fall back to huggingface via the SW.
+echo ">> Piper voice model (fr, cached in wasm/ttsvoices)"
+HF="https://huggingface.co/diffusionstudio/piper-voices/resolve/main"
+VC="wasm/ttsvoices"
+FRDIR="$VC/fr/fr_FR/tom/medium"
+mkdir -p "$FRDIR"
+[ -s "$FRDIR/fr_FR-tom-medium.onnx" ]      || curl -fsSL "$HF/fr/fr_FR/tom/medium/fr_FR-tom-medium.onnx"      -o "$FRDIR/fr_FR-tom-medium.onnx"
+[ -s "$FRDIR/fr_FR-tom-medium.onnx.json" ] || curl -fsSL "$HF/fr/fr_FR/tom/medium/fr_FR-tom-medium.onnx.json" -o "$FRDIR/fr_FR-tom-medium.onnx.json"
+[ -s "$VC/voices.json" ]                   || curl -fsSL "$HF/voices.json" -o "$VC/voices.json" || true
+mkdir -p "$D/tts/voices"
+cp -r "$VC/." "$D/tts/voices/"
+cp wasm/sw.js "$D/sw.js"
+
 # vercel.json + serverless function are kept in git under wasm/vercel-assets/
 cp wasm/vercel-assets/vercel.json "$D/vercel.json"
 cp wasm/vercel-assets/img-proxy.js "$D/api/img-proxy.js"

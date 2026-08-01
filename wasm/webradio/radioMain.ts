@@ -44,7 +44,22 @@ if (urlLang) setRadioLanguage(urlLang);
 // diagnostic: ?audiocap=1 routes playback through WebAudio so a test can verify
 // the voice produces real (non-silent) samples
 if (params.get("audiocap") === "1") enableAudioCapture();
-warmupRadioVoice();
+// Register the narrow voice-rerouting service worker BEFORE warming the voice up,
+// so the very first load already pulls the 63 MB Piper model from our fast Vercel
+// copy instead of the slow / rate-limited huggingface origin. Best-effort: if the
+// SW isn't ready within ~3.5s (or isn't supported), warm up anyway (falls back to
+// huggingface, still works). The SW controls the TTS worker's fetches too.
+function registerVoiceSW(): Promise<void> {
+  if (!("serviceWorker" in navigator)) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const done = (): void => resolve();
+    const t = window.setTimeout(done, 3500);
+    navigator.serviceWorker.register("/sw.js").then(() => navigator.serviceWorker.ready)
+      .then(() => { window.clearTimeout(t); done(); })
+      .catch(() => { window.clearTimeout(t); done(); });
+  });
+}
+void registerVoiceSW().then(() => warmupRadioVoice());
 console.log(`[gpf-radio] loaded — lang=${urlLang || "en"} (R toggles the commentary). ` +
   `Interact with the page once to allow audio. Check window.__radioDebug / window.__radioPeak.`);
 

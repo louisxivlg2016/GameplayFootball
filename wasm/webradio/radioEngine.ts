@@ -612,6 +612,17 @@ function piperReadyForLanguage(language: AppLanguage): boolean {
   return !!voiceId && piperState === "ready" && requestedVoiceId === voiceId;
 }
 
+// Voice-download phase for the current language, for the RADIO pill's status text.
+// "ready" = can speak now; "loading" = still downloading the (63MB) model; "off" =
+// this language needs no Piper model (browser speech / silent). Never "failed" for
+// long — the engine self-heals with retries.
+export function radioVoicePhase(): "ready" | "loading" | "off" {
+  const voiceId = getPiperVoiceId(currentLanguage());
+  if (!voiceId) return "off";
+  if (piperState === "ready" && requestedVoiceId === voiceId) return "ready";
+  return "loading";
+}
+
 function ensureVoiceForCurrentLanguage(): AppLanguage {
   const language = currentLanguage();
   const voiceId = getPiperVoiceId(language);

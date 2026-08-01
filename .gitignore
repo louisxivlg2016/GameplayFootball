@@ -2,3 +2,4 @@
 .idea/
 .vercel
 wasm/.vercel-deploy/
+wasm/ttsvoices/

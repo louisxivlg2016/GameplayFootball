@@ -5,7 +5,7 @@
  * without touching the native C++ menu.
  */
 import { RADIO_LANGUAGES, type AppLanguage } from "./radioText";
-import { radioEnabled, setRadioLanguage, toggleRadio } from "./radioEngine";
+import { radioEnabled, setRadioLanguage, toggleRadio, radioVoicePhase } from "./radioEngine";
 
 // Native display names for the language picker.
 const LANG_NAMES: Record<AppLanguage, string> = {
@@ -115,7 +115,19 @@ function buildOverlay(): void {
   // RADIO STADE (commentaire)
   const radio = pill("radio", "Radio stade");
   setStatus(radio.status, radioEnabled());
-  radio.btn.addEventListener("click", () => setStatus(radio.status, toggleRadio()));
+  radio.btn.addEventListener("click", () => { setStatus(radio.status, toggleRadio()); paintRadio(); });
+  // while the 63MB neural voice is still downloading (first load), show "⏳ chargement"
+  // on the pill so it's clear the radio is coming, not broken. Once ready → "Actif".
+  function paintRadio(): void {
+    if (radioEnabled() && radioVoicePhase() === "loading") {
+      radio.status.textContent = "⏳ chargement…";
+      radio.status.className = "on";
+    } else {
+      setStatus(radio.status, radioEnabled());
+    }
+  }
+  paintRadio();
+  window.setInterval(paintRadio, 800);
 
   // LANGUE
   const lang = document.createElement("label");
