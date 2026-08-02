@@ -6,6 +6,8 @@
  * the match. Replaces the bare "pick a lineup" screen for a friendly.
  */
 import { startNativeMatch, show as showHome } from "./homemenu";
+import { showLoading } from "./loading";
+import { radioEnabled, radioVoicePhase, warmupRadioVoice } from "./radioEngine";
 import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads, SQUADS, kitColor, skinsFor } from "./squads";
@@ -241,11 +243,30 @@ function launch(): void {
       { color: kitColor(home.name, home.color), names: homeNames, skins: homeSkins, strength: homeStr },
       { color: kitColor(away.name, away.color), names: SQUADS[away.name] || [], skins: skinsFor(away.name), strength: awayStr },
     );
-    startNativeMatch();
+    void startWithRadioReady();
   };
   hideFriendly();
   if (homeSquad.length) teamLineup(`${home.flag} ${home.name}`, homeSquad, home.name, play);
   else play(homeSquad);
+}
+
+// Radio from the very first whistle: if the ~63MB neural commentator voice is
+// still downloading (only ever the FIRST match — it's cached afterwards), hold on
+// the loading screen until it's ready before kicking off, so the commentary is
+// live from kickoff instead of joining a minute in. Capped so a slow/failed voice
+// never blocks the match forever; skipped entirely when the radio is off or the
+// voice is already loaded (instant on every later match).
+async function startWithRadioReady(): Promise<void> {
+  if (radioEnabled() && radioVoicePhase() === "loading") {
+    warmupRadioVoice();          // make sure it's actively downloading
+    showLoading();               // cover the wait with the loading slideshow
+    const t0 = Date.now();
+    const CAP_MS = 45000;
+    while (radioVoicePhase() === "loading" && Date.now() - t0 < CAP_MS) {
+      await new Promise((r) => window.setTimeout(r, 500));
+    }
+  }
+  startNativeMatch();
 }
 
 // ---- country picker --------------------------------------------------------
