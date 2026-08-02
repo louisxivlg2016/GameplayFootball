@@ -47,14 +47,32 @@ function strengthFromOvr(ovr: number): number {
 // explicit captain names for nations where we override the figure with a real
 // photo (so the name matches the person shown).
 const CAPTAIN_NAME: Record<string, string> = { Argentine: "Messi" };
-// "MBAPPE" / "N.WILLIAMS" -> "Mbappe" / "Williams" (the star = the #10-ish slot)
-function captainName(n: Nation): string {
-  if (CAPTAIN_NAME[n.name]) return CAPTAIN_NAME[n.name]!;
-  const sq = SQUADS[n.name];
-  const raw = sq && sq.length ? (sq[9] ?? sq[sq.length - 1] ?? "") : "";
+// per-nation captain chosen by the player (the raw squad token, e.g. "MBAPPE"),
+// persisted so it sticks between sessions. Overrides the auto-pick + the photo.
+const CAPTAIN_LS = "gpf-captain";
+function loadCaptainOverrides(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(CAPTAIN_LS) || "{}"); } catch { return {}; }
+}
+const captainOverride: Record<string, string> = loadCaptainOverrides();
+function setCaptainOverride(nation: string, raw: string): void {
+  captainOverride[nation] = raw;
+  try { localStorage.setItem(CAPTAIN_LS, JSON.stringify(captainOverride)); } catch { /* private */ }
+}
+// "MBAPPE" / "N.WILLIAMS" -> "Mbappe" / "Williams"
+function prettyName(raw: string): string {
   const parts = raw.split(".").map((t) => t.trim()).filter((t) => t.length > 1)
     .map((t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
-  return parts.length ? parts.join(" ") : "";
+  return parts.length ? parts.join(" ") : raw;
+}
+// the default (auto) captain = the #10-ish slot, before any player override
+function defaultCaptainRaw(n: Nation): string {
+  const sq = SQUADS[n.name];
+  return sq && sq.length ? (sq[9] ?? sq[sq.length - 1] ?? "") : "";
+}
+function captainName(n: Nation): string {
+  if (captainOverride[n.name]) return prettyName(captainOverride[n.name]!);
+  if (CAPTAIN_NAME[n.name]) return CAPTAIN_NAME[n.name]!;
+  return prettyName(defaultCaptainRaw(n));
 }
 
 // the figure shown on each side: the kit silhouette as a base, with a real
@@ -62,9 +80,13 @@ function captainName(n: Nation): string {
 // wasm/captains/<iso>.png (served at /captains/<iso>.png) — just drop a file in
 // and it's used automatically; if there's none the request 404s, onerror strips
 // the <img>, and the silhouette shows through. No code change per country.
+// A photo is a per-NATION shot of the default captain, so only show it when the
+// player hasn't picked a different captain (else the name wouldn't match the face).
 function captainFigure(n: Nation, kit: string, num: number): string {
-  return `<div class="fr-figwrap">${playerSVG(kit, num)}` +
-    `<img class="fr-photo" src="/captains/${n.iso}.png" alt="" onerror="this.remove()"></div>`;
+  const photo = captainOverride[n.name]
+    ? ""
+    : `<img class="fr-photo" src="/captains/${n.iso}.png" alt="" onerror="this.remove()">`;
+  return `<div class="fr-figwrap">${playerSVG(kit, num)}${photo}</div>`;
 }
 
 // full-body footballer figure in the kit colour + a shirt number. Not a photo —
@@ -130,6 +152,27 @@ body.gpf-friendly-open #gpf-home, body.gpf-friendly-open #gpf-menu { display:non
 #gpf-friendly .fr-bar { width:100%; height:5px; border-radius:3px; }
 #gpf-friendly .fr-change { pointer-events:auto; cursor:pointer; min-height:34px; padding:0 14px; border-radius:8px;
   border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.1); color:#fff; font:900 12px inherit; }
+#gpf-friendly .fr-capbtn { pointer-events:auto; cursor:pointer; margin-top:6px; min-height:32px; padding:0 12px; border-radius:8px;
+  border:1px solid rgba(255,233,74,.5); background:rgba(255,233,74,.14); color:#ffe94a; font:900 12px inherit; }
+/* captain picker (reuses the country-picker look) */
+#gpf-fr-cap { position:fixed; inset:0; z-index:2147483120; display:none; color:#fff; font-family:"Segoe UI",Arial,sans-serif; }
+#gpf-fr-cap.show { display:block; }
+#gpf-fr-cap .pk-shell { position:absolute; inset:12px; display:flex; flex-direction:column; gap:12px;
+  padding:18px 22px; box-sizing:border-box; background:linear-gradient(180deg,#0a1f16,#050f0b);
+  border:2px solid rgba(255,255,255,.14); border-radius:8px; }
+#gpf-fr-cap .pk-head { display:flex; align-items:center; justify-content:space-between; padding:10px 12px;
+  background:rgba(0,0,0,.28); border:2px solid rgba(255,255,255,.14); border-radius:6px; }
+#gpf-fr-cap .pk-head b { color:#ffe94a; letter-spacing:1px; }
+#gpf-fr-cap .pk-back { pointer-events:auto; cursor:pointer; min-height:36px; padding:0 14px; color:#fff;
+  background:rgba(255,255,255,.12); border:2px solid rgba(255,255,255,.24); border-radius:6px; font:800 13px inherit; }
+#gpf-fr-cap .pk-grid { flex:1; min-height:0; overflow-y:auto; display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; padding-right:4px; }
+#gpf-fr-cap .pk-card { pointer-events:auto; cursor:pointer; display:flex; flex-direction:row; align-items:center;
+  justify-content:flex-start; gap:10px; padding:12px 12px; background:rgba(5,18,12,.72);
+  border:1px solid rgba(255,255,255,.12); border-radius:10px; color:#fff; font:800 13px inherit; }
+#gpf-fr-cap .pk-num { min-width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+  border-radius:6px; background:rgba(255,233,74,.18); color:#ffe94a; font-weight:900; }
+#gpf-fr-cap .pk-card.on { border-color:#ffe94a; background:rgba(255,233,74,.16); }
 #gpf-friendly .fr-mid { display:flex; flex-direction:column; align-items:center; gap:8px; }
 #gpf-friendly .fr-vslabel { font-size:38px; font-weight:900; color:#fff; text-shadow:0 3px 10px rgba(0,0,0,.6); }
 #gpf-friendly .fr-stadium { margin-top:16px; text-align:center; color:#cfd8d3; font-weight:800; font-size:14px; }
@@ -167,6 +210,8 @@ body.gpf-friendly-open #gpf-home, body.gpf-friendly-open #gpf-menu { display:non
 
 let root: HTMLElement | null = null;
 let pick: HTMLElement | null = null;
+let capPick: HTMLElement | null = null;
+let capTarget: "home" | "away" = "home";
 let home: Nation = byName("France") ?? ALL[0]!;
 let away: Nation = byName("Espagne") ?? ALL[1]!;
 const STADIUMS = ["Stade Sky", "Arena Nova", "Grand Stade", "Estadio Central", "Parc des Sports"];
@@ -206,6 +251,7 @@ function render(): void {
     <div class="fr-player fr-left">
       <div class="fr-figure">${captainFigure(home, hk, 10)}</div>
       <div class="fr-cap">${captainName(home) || home.name}</div>
+      <button class="fr-capbtn" data-side="home">⚑ Changer le capitaine</button>
     </div>
     <div class="fr-center">
       <div class="fr-title">Match amical</div>
@@ -222,6 +268,8 @@ function render(): void {
     </div>`;
   body.querySelectorAll<HTMLElement>(".fr-change").forEach((b) =>
     b.addEventListener("click", () => openPick(b.dataset.side === "home" ? "home" : "away")));
+  body.querySelectorAll<HTMLElement>(".fr-capbtn").forEach((b) =>
+    b.addEventListener("click", () => openCaptainPick(b.dataset.side === "away" ? "away" : "home")));
 }
 
 function launch(): void {
@@ -301,6 +349,37 @@ function renderPick(conf: Confed): void {
   }
 }
 
+// ---- captain picker --------------------------------------------------------
+function openCaptainPick(target: "home" | "away"): void {
+  capTarget = target;
+  if (!capPick) return;
+  capPick.classList.add("show");
+  renderCaptainPick();
+}
+function closeCaptainPick(): void { if (capPick) capPick.classList.remove("show"); }
+function renderCaptainPick(): void {
+  if (!capPick) return;
+  const nat = capTarget === "home" ? home : away;
+  const squad = SQUADS[nat.name] || [];
+  const currentRaw = captainOverride[nat.name] ?? defaultCaptainRaw(nat);
+  const title = capPick.querySelector<HTMLElement>(".pk-head b");
+  if (title) title.textContent = `CAPITAINE — ${nat.name.toUpperCase()}`;
+  const grid = capPick.querySelector<HTMLElement>(".pk-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  squad.forEach((raw, i) => {
+    const card = document.createElement("button");
+    card.className = "pk-card" + (raw === currentRaw ? " on" : "");
+    card.innerHTML = `<span class="pk-num">${i + 1}</span><span>${prettyName(raw)}</span>`;
+    card.addEventListener("click", () => {
+      setCaptainOverride(nat.name, raw);
+      closeCaptainPick();
+      render();
+    });
+    grid.appendChild(card);
+  });
+}
+
 export function initFriendly(): void {
   const style = document.createElement("style");
   style.id = "gpf-friendly-style"; style.textContent = CSS;
@@ -336,4 +415,14 @@ export function initFriendly(): void {
     tabs.appendChild(b);
   }
   pick.querySelector(".pk-back")!.addEventListener("click", closePick);
+
+  capPick = document.createElement("div");
+  capPick.id = "gpf-fr-cap";
+  capPick.innerHTML = `
+    <div class="pk-shell">
+      <div class="pk-head"><button class="pk-back">← Retour</button><b>CAPITAINE</b><span style="width:70px"></span></div>
+      <div class="pk-grid"></div>
+    </div>`;
+  document.body.appendChild(capPick);
+  capPick.querySelector(".pk-back")!.addEventListener("click", closeCaptainPick);
 }
