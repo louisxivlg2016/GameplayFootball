@@ -14,6 +14,7 @@ import { applyMatchSquads, SQUADS, kitColor, skinsFor } from "./squads";
 import { teamLineup } from "./lineup";
 import { showSettings } from "./settings";
 import { CONFEDS, flagImg, isoCode, type Nation, type Confed } from "./national";
+import { L, Lcaptain, onLangChange } from "./i18n";
 
 const ALL: Nation[] = CONFEDS.flatMap((c) => c.teams);
 const byName = (n: string): Nation | undefined => ALL.find((x) => x.name === n);
@@ -238,7 +239,7 @@ function sideHTML(n: Nation, cls: string): string {
     </div>
     <div class="fr-name">${n.name}</div>
     <div class="fr-bar" style="background:${kit}"></div>
-    <button class="fr-change" data-side="${cls}">Changer le pays</button>
+    <button class="fr-change" data-side="${cls}">${L("Changer le pays")}</button>
   </div>`;
 }
 
@@ -251,10 +252,10 @@ function render(): void {
     <div class="fr-player fr-left">
       <div class="fr-figure">${captainFigure(home, hk, 10)}</div>
       <div class="fr-cap">${captainName(home) || home.name}</div>
-      <button class="fr-capbtn" data-side="home">⚑ Changer le capitaine</button>
+      <button class="fr-capbtn" data-side="home">${L("⚑ Changer le capitaine")}</button>
     </div>
     <div class="fr-center">
-      <div class="fr-title">Match amical</div>
+      <div class="fr-title">${L("Match amical")}</div>
       <div class="fr-vs">
         ${sideHTML(home, "home")}
         <div class="fr-mid"><div class="fr-vslabel">VS</div></div>
@@ -363,7 +364,7 @@ function renderCaptainPick(): void {
   const squad = SQUADS[nat.name] || [];
   const currentRaw = captainOverride[nat.name] ?? defaultCaptainRaw(nat);
   const title = capPick.querySelector<HTMLElement>(".pk-head b");
-  if (title) title.textContent = `CAPITAINE — ${nat.name.toUpperCase()}`;
+  if (title) title.textContent = Lcaptain(nat.name);
   const grid = capPick.querySelector<HTMLElement>(".pk-grid");
   if (!grid) return;
   grid.innerHTML = "";
@@ -388,10 +389,10 @@ export function initFriendly(): void {
   root = document.createElement("div");
   root.id = "gpf-friendly";
   root.innerHTML = `
-    <button class="fr-gear" title="Réglages">⚙</button>
+    <button class="fr-gear" title="${L("Réglages")}">⚙</button>
     <div class="fr-shell"></div>
-    <button class="fr-back" title="Retour">‹</button>
-    <button class="fr-play">JOUER ⚽</button>`;
+    <button class="fr-back" title="${L("Retour")}">‹</button>
+    <button class="fr-play" data-i18n="JOUER ⚽">${L("JOUER ⚽")}</button>`;
   document.body.appendChild(root);
   root.querySelector(".fr-gear")!.addEventListener("click", showSettings);
   root.querySelector(".fr-back")!.addEventListener("click", () => { hideFriendly(); showHome(); });
@@ -401,7 +402,7 @@ export function initFriendly(): void {
   pick.id = "gpf-fr-pick";
   pick.innerHTML = `
     <div class="pk-shell">
-      <div class="pk-head"><button class="pk-back">← Retour</button><b>CHOISIS LE PAYS</b><span style="width:70px"></span></div>
+      <div class="pk-head"><button class="pk-back">${L("← Retour")}</button><b data-i18n="CHOISIS LE PAYS">${L("CHOISIS LE PAYS")}</b><span style="width:70px"></span></div>
       <div class="pk-tabs"></div>
       <div class="pk-grid"></div>
     </div>`;
@@ -420,9 +421,20 @@ export function initFriendly(): void {
   capPick.id = "gpf-fr-cap";
   capPick.innerHTML = `
     <div class="pk-shell">
-      <div class="pk-head"><button class="pk-back">← Retour</button><b>CAPITAINE</b><span style="width:70px"></span></div>
+      <div class="pk-head"><button class="pk-back">${L("← Retour")}</button><b>${L("CAPITAINE")}</b><span style="width:70px"></span></div>
       <div class="pk-grid"></div>
     </div>`;
   document.body.appendChild(capPick);
   capPick.querySelector(".pk-back")!.addEventListener("click", closeCaptainPick);
+
+  // re-translate the friendly screen + pickers when the language changes
+  onLangChange(() => {
+    root?.querySelectorAll<HTMLElement>("[data-i18n]").forEach((el) => { const k = el.dataset.i18n; if (k) el.textContent = L(k); });
+    const gear = root?.querySelector<HTMLElement>(".fr-gear"); if (gear) gear.title = L("Réglages");
+    const back = root?.querySelector<HTMLElement>(".fr-back"); if (back) back.title = L("Retour");
+    pick?.querySelectorAll<HTMLElement>("[data-i18n]").forEach((el) => { const k = el.dataset.i18n; if (k) el.textContent = L(k); });
+    pick?.querySelectorAll<HTMLElement>(".pk-back").forEach((b) => { b.textContent = L("← Retour"); });
+    capPick?.querySelectorAll<HTMLElement>(".pk-back").forEach((b) => { b.textContent = L("← Retour"); });
+    if (root?.classList.contains("show")) render();
+  });
 }

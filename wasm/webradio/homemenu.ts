@@ -7,6 +7,7 @@
  *
  * CSS + DOM extracted verbatim from web/index.html + Hud.tsx (see MENU_SPEC.md).
  */
+import { L, onLangChange } from "./i18n";
 import { hideClubs, showClubs } from "./clubs";
 import { hideLineup } from "./lineup";
 import { showFriendly } from "./friendly";
@@ -229,7 +230,7 @@ function iconBtn(icon: string, label: string, active: boolean, onClick?: () => v
   b.className = "menu-sidebar-button" + (active ? " active" : "");
   const s = document.createElement("span");
   s.className = "menu-sidebar-icon"; s.textContent = icon;
-  const t = document.createElement("b"); t.textContent = label;
+  const t = document.createElement("b"); t.textContent = L(label); t.dataset.i18n = label;
   b.append(s, t);
   if (onClick) b.addEventListener("click", onClick);
   return b;
@@ -245,7 +246,7 @@ function imgBtn(src: string, label: string, onClick?: () => void): HTMLElement {
   im.src = src; im.alt = label;
   im.style.cssText = "width:100%;height:100%;object-fit:contain;border-radius:6px";
   s.appendChild(im);
-  const t = document.createElement("b"); t.textContent = label;
+  const t = document.createElement("b"); t.textContent = L(label); t.dataset.i18n = label;
   b.append(s, t);
   if (onClick) b.addEventListener("click", onClick);
   return b;
@@ -281,15 +282,15 @@ export function initHomeMenu(): void {
           <div class="home-settings-strip"></div>
         </div>
       </div>
-      <div class="gpf-hint">Clique sur une carte pour lancer le match</div>
+      <div class="gpf-hint" data-i18n="Clique sur une carte pour lancer le match">${L("Clique sur une carte pour lancer le match")}</div>
     </div></div>`;
 
   const sidebar = root.querySelector(".menu-sidebar")!;
   sidebar.append(
-    iconBtn("⌂", "Main", true), iconBtn("◎", "Club", false, showClubs),
-    iconBtn("◔", "National", false, showNational), iconBtn("◌", "Defi", false, showDefi),
+    iconBtn("⌂", "Accueil", true), iconBtn("◎", "Clubs", false, showClubs),
+    iconBtn("◔", "Sélections", false, showNational), iconBtn("◌", "Défis", false, showDefi),
     iconBtn("🎬", "Matchs", false, showMatches),
-    imgBtn("/menu-assets/settings-button.png", "Settings", showSettings),
+    imgBtn("/menu-assets/settings-button.png", "Réglages", showSettings),
   );
 
   const actions = root.querySelector(".menu-main-actions")!;
@@ -306,10 +307,10 @@ export function initHomeMenu(): void {
   const render = (): void => {
     opt.innerHTML =
       `<span class="menu-key">J</span>` +
-      `<span class="menu-option-label">Joueurs</span>` +
+      `<span class="menu-option-label">${L("Joueurs")}</span>` +
       `<span class="menu-choice-line">` +
-      `<span class="${players === 1 ? "active-choice yellow-choice" : "muted-choice"}">1 JOUEUR</span>` +
-      `<span class="${players === 2 ? "active-choice yellow-choice" : "muted-choice"}">2 JOUEURS</span>` +
+      `<span class="${players === 1 ? "active-choice yellow-choice" : "muted-choice"}">${L("1 JOUEUR")}</span>` +
+      `<span class="${players === 2 ? "active-choice yellow-choice" : "muted-choice"}">${L("2 JOUEURS")}</span>` +
       `</span>`;
   };
   render();
@@ -317,4 +318,12 @@ export function initHomeMenu(): void {
   strip.append(opt);
 
   document.body.appendChild(root);
+
+  // re-translate the whole home menu when the language changes
+  onLangChange(() => {
+    root!.querySelectorAll<HTMLElement>("[data-i18n]").forEach((el) => {
+      const k = el.dataset.i18n; if (k) el.textContent = L(k);
+    });
+    render();
+  });
 }

@@ -6,6 +6,7 @@
  */
 import { RADIO_LANGUAGES, type AppLanguage } from "./radioText";
 import { radioEnabled, setRadioLanguage, toggleRadio, radioVoicePhase } from "./radioEngine";
+import { L, fireLangChange, onLangChange } from "./i18n";
 
 // Native display names for the language picker.
 const LANG_NAMES: Record<AppLanguage, string> = {
@@ -94,7 +95,7 @@ function pill(cls: string, label: string): { btn: HTMLButtonElement; status: HTM
   return { btn, status };
 }
 function setStatus(status: HTMLElement, on: boolean): void {
-  status.textContent = on ? "Actif" : "Coupé";
+  status.textContent = on ? L("Actif") : L("Coupé");
   status.className = on ? "on" : "off";
 }
 
@@ -108,19 +109,19 @@ function buildOverlay(): void {
   menu.id = "gpf-menu";
 
   // SON (musique de menu)
-  const son = pill("son", "Son");
+  const son = pill("son", L("Son"));
   setStatus(son.status, musicOn);
   son.btn.addEventListener("click", () => { setMusic(!musicOn); setStatus(son.status, musicOn); });
 
   // RADIO STADE (commentaire)
-  const radio = pill("radio", "Radio stade");
+  const radio = pill("radio", L("Radio stade"));
   setStatus(radio.status, radioEnabled());
   radio.btn.addEventListener("click", () => { setStatus(radio.status, toggleRadio()); paintRadio(); });
   // while the 63MB neural voice is still downloading (first load), show "⏳ chargement"
   // on the pill so it's clear the radio is coming, not broken. Once ready → "Actif".
   function paintRadio(): void {
     if (radioEnabled() && radioVoicePhase() === "loading") {
-      radio.status.textContent = "⏳ chargement…";
+      radio.status.textContent = L("⏳ chargement…");
       radio.status.className = "on";
     } else {
       setStatus(radio.status, radioEnabled());
@@ -133,7 +134,7 @@ function buildOverlay(): void {
   const lang = document.createElement("label");
   lang.className = "lang";
   const lspan = document.createElement("span");
-  lspan.textContent = "Langue";
+  lspan.textContent = L("Langue");
   const select = document.createElement("select");
   for (const l of RADIO_LANGUAGES) {
     const opt = document.createElement("option");
@@ -147,12 +148,24 @@ function buildOverlay(): void {
     setRadioLanguage(current);
     pushUiLang(current); // translate the in-match native menus to the picked language
     loadMusic(); // swap to the new language's theme
+    fireLangChange(); // re-render every HTML menu in the new language
   });
   lang.append(lspan, select);
 
   menu.append(son.btn, radio.btn, lang);
   document.body.appendChild(menu);
   pushUiLang(current); // initial (retries until the wasm module is up)
+
+  // re-translate the pills when the language changes (labels + on/off status)
+  const sonSpan = son.btn.querySelector("span")!;
+  const radioSpan = radio.btn.querySelector("span")!;
+  onLangChange(() => {
+    sonSpan.textContent = L("Son");
+    radioSpan.textContent = L("Radio stade");
+    lspan.textContent = L("Langue");
+    setStatus(son.status, musicOn);
+    paintRadio();
+  });
 }
 
 // push the selected language to the C++ side so the native in-match menus
