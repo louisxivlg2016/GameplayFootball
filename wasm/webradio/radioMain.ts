@@ -7,7 +7,7 @@
  */
 import { commentaryTick, pushMatchState, type MatchSnapshot } from "./commentary";
 import { initMenu } from "./menu";
-import { initHomeMenu, onMatchStarted, isDrillSession, show as showHomeMenu } from "./homemenu";
+import { initHomeMenu, onMatchStarted, isDrillSession, isMatchStarting, show as showHomeMenu } from "./homemenu";
 import { initClubs } from "./clubs";
 import { initLineup } from "./lineup";
 import { initNational } from "./national";
@@ -152,6 +152,11 @@ w.gpfRadioSetLanguage = (lang): void => setRadioLanguage(lang);
 // It never fires mid-match (the page isn't recreated while a match runs), so this
 // can't cover the pitch or the loading screen.
 (w as unknown as { gpfNativeMainMenu?: () => void }).gpfNativeMainMenu = (): void => {
+  // Ignore while startNativeMatch is driving the native menu into a match — firing
+  // here would cover the pitch AND wipe the score flags just set for the kickoff
+  // (show() clears them). The native main menu is only genuinely "back at the menu"
+  // when we're NOT mid-launch.
+  if (isMatchStarting()) return;
   try { showHomeMenu(); } catch { /* not ready yet */ }
 };
 

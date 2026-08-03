@@ -164,6 +164,10 @@ let pendingKeeper = false;
 // ceremony is skipped for drills (see anthem.ts gpfCeremonyWanted)
 let drillSession = false;
 export function isDrillSession(): boolean { return drillSession; }
+// true while startNativeMatch is driving the native menu into a match (Enter
+// hammer). Used to ignore the native-main-menu hook during that window, so it
+// doesn't cover the pitch or wipe the score flags just set for the match.
+export function isMatchStarting(): boolean { return driveTimer !== null; }
 export function setPendingDrill(setPiece: number): void { pendingDrill = setPiece; pendingKeeper = false; drillSession = true; }
 export function setPendingKeeper(): void { pendingKeeper = true; pendingDrill = 0; drillSession = true; }
 // DEFI: a real match (keep the touch controls + instant replay) that just skips
