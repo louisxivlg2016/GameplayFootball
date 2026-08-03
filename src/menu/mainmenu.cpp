@@ -16,6 +16,10 @@
 #include <set>
 #include <boost/algorithm/string.hpp>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h> // notify the web layer so the HTML home always covers the native menu
+#endif
+
 using namespace blunted;
 
 IntroPage::IntroPage(Gui2WindowManager *windowManager, const Gui2PageData &pageData) : Gui2Page(windowManager, pageData) {
@@ -139,6 +143,13 @@ MainMenuPage::MainMenuPage(Gui2WindowManager *windowManager, const Gui2PageData 
   buttons.at(pageData.properties->GetInt("selectedButtonID"))->SetFocus();
 
   this->Show();
+
+#ifdef __EMSCRIPTEN__
+  // The native main menu must never be seen on the web build — the HTML home is
+  // the real menu. Whenever this page appears (boot, after a match, forfeit, …),
+  // tell the web layer to cover it immediately with the HTML home overlay.
+  EM_ASM({ try { if (window.gpfNativeMainMenu) window.gpfNativeMainMenu(); } catch (e) {} });
+#endif
 }
 
 MainMenuPage::~MainMenuPage() {

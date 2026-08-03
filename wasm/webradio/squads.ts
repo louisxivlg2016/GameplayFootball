@@ -17,7 +17,7 @@ const mod = (): NativeModule | undefined =>
 
 // GK, then 10 outfield (roughly by shirt). Recognisable current-era names.
 export const SQUADS: Record<string, string[]> = {
-  France: ["MAIGNAN", "KOUNDE", "SALIBA", "UPAMECANO", "T.HERNANDEZ", "TCHOUAMENI", "RABIOT", "DIGNE", "DEMBELE", "MBAPPE", "OLISE", "AREOLA", "KONATE", "L.HERNANDEZ", "CAMAVINGA", "ZAIRE.EMERY", "M.THURAM", "BARCOLA"],
+  France: ["MAIGNAN", "KOUNDE", "SALIBA", "UPAMECANO", "T.HERNANDEZ", "TCHOUAMENI", "RABIOT", "DIGNE", "DEMBELE", "MBAPPE", "OLISE", "AREOLA", "KONATE", "L.HERNANDEZ", "CAMAVINGA", "ZAIRE.EMERY", "M.THURAM", "BARCOLA", "DOUE"],
   Allemagne: ["NEUER", "KIMMICH", "RUDIGER", "TAH", "RAUM", "ANDRICH", "GUNDOGAN", "MUSIALA", "WIRTZ", "SANE", "HAVERTZ", "TER.STEGEN", "SCHLOTTERBECK", "ANTON", "GROSS", "GORETZKA", "FULLKRUG", "ADEYEMI"],
   Espagne: ["SIMON", "CARVAJAL", "LE.NORMAND", "LAPORTE", "CUCURELLA", "RODRI", "PEDRI", "OLMO", "YAMAL", "MORATA", "N.WILLIAMS", "R.SANCHEZ", "VIVIAN", "G.MARTIN", "F.LOPEZ", "MERINO", "F.TORRES", "OYARZABAL"],
   Italie: ["DONNARUMMA", "DI.LORENZO", "BASTONI", "CALAFIORI", "DIMARCO", "BARELLA", "JORGINHO", "TONALI", "CHIESA", "RETEGUI", "SCAMACCA", "VICARIO", "DARMIAN", "MANCINI", "UDOGIE", "FRATTESI", "RASPADORI", "ORSOLINI"],
@@ -112,7 +112,7 @@ export function applyNationOverrides(
 // (skinsFor() reads this for a nation name.)
 export const SKINS: Record<string, number[]> = {
   // shirt-ordered, aligned with SQUADS. Approximate real-life tones; tweak freely.
-  France:      [4, 4, 4, 4, 1, 4, 1, 1, 4, 4, 4, 4, 4, 1, 4, 4, 4, 4],
+  France:      [4, 4, 4, 4, 1, 4, 1, 1, 4, 4, 4, 4, 4, 1, 4, 4, 4, 4, 4],
   Allemagne:   [1, 1, 4, 4, 1, 1, 2, 3, 1, 4, 1, 1, 1, 1, 1, 1, 1, 4],
   Espagne:     [1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 4, 1, 1, 1, 1, 1, 1, 1],
   Italie:      [1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 4, 3, 1, 1],

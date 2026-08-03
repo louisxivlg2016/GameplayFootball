@@ -4,7 +4,7 @@
  * W/S/D/E keys), pushed into SDL via Module._gpf_game_key. Shown only during
  * live open play on a touch device (or with ?touch=1), hidden in menus/drills.
  */
-import { isDrillSession } from "./homemenu";
+import { isDrillSession, show as showHome } from "./homemenu";
 
 const KEY = {
   UP: 1073741906, DOWN: 1073741905, LEFT: 1073741904, RIGHT: 1073741903,
@@ -156,12 +156,22 @@ function initPhaseButton(): void {
   };
   btn.addEventListener("click", press);
   const w = window as unknown as { gpfPhaseMenu?: (n: string) => void; gpfPhaseMenuDone?: () => void };
+  let lastPhase = "";
   w.gpfPhaseMenu = (name: string): void => {
+    lastPhase = name;
     btn.textContent = name === "gameover" ? "✔ Retour au menu"
       : name ? `▶ Commencer la ${frPhase(name)}` : "▶ Continuer";
     btn.classList.add("show");
   };
-  w.gpfPhaseMenuDone = (): void => { btn.classList.remove("show"); };
+  w.gpfPhaseMenuDone = (): void => {
+    btn.classList.remove("show");
+    // leaving the game-over screen returns to the NATIVE main menu on the canvas —
+    // re-show the HTML home so that native menu is never seen (however it was
+    // dismissed: touch button or native Enter). Half-time "done" goes into the
+    // match, so only do this for gameover.
+    if (lastPhase === "gameover") { showHome(); }
+    lastPhase = "";
+  };
 }
 
 export function initTouch(): void {

@@ -8,6 +8,7 @@
 
 #include "../gameplan.hpp"
 #include "../pagefactory.hpp"
+#include "../gpf_i18n.hpp"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h> // touch button to continue the match (native buttons aren't tappable)
@@ -22,13 +23,13 @@ MatchPhasePage::MatchPhasePage(Gui2WindowManager *windowManager, const Gui2PageD
   nextPhase = (e_MatchPhase)pageData.properties->GetInt("nextphase");
 
   std::string phaseName;
-  if (nextPhase == e_MatchPhase_2ndHalf) phaseName = "second half";
-  else if (nextPhase == e_MatchPhase_1stExtraTime) phaseName = "1st extra time";
-  else if (nextPhase == e_MatchPhase_2ndExtraTime) phaseName = "2nd extra time";
-  else if (nextPhase == e_MatchPhase_Penalties) phaseName = "penalties";
+  if (nextPhase == e_MatchPhase_2ndHalf) phaseName = GPF_TR("second half", "la 2e mi-temps");
+  else if (nextPhase == e_MatchPhase_1stExtraTime) phaseName = GPF_TR("1st extra time", "la 1re prolongation");
+  else if (nextPhase == e_MatchPhase_2ndExtraTime) phaseName = GPF_TR("2nd extra time", "la 2e prolongation");
+  else if (nextPhase == e_MatchPhase_Penalties) phaseName = GPF_TR("penalties", "les tirs au but");
 
-  buttonNext = new Gui2Button(windowManager, "button_next", 0, 0, 30, 3, "begin " + phaseName);
-  Gui2Button *button1 = new Gui2Button(windowManager, "button1", 0, 0, 30, 3, "game plan");
+  buttonNext = new Gui2Button(windowManager, "button_next", 0, 0, 30, 3, GPF_TR("begin ", "Commencer ") + phaseName);
+  Gui2Button *button1 = new Gui2Button(windowManager, "button1", 0, 0, 30, 3, GPF_TR("game plan", "Plan de jeu"));
 
   buttonNext->sig_OnClick.connect(boost::bind(&MatchPhasePage::ContinueGame, this));
   button1->sig_OnClick.connect(boost::bind(&MatchPhasePage::GoGamePlan, this));

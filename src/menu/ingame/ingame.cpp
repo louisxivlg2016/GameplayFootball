@@ -10,6 +10,7 @@
 #include "../pagefactory.hpp"
 
 #include "replaymenu.hpp"
+#include "../gpf_i18n.hpp"
 
 #include "../settings.hpp"
 
@@ -23,13 +24,13 @@ IngamePage::IngamePage(Gui2WindowManager *windowManager, const Gui2PageData &pag
 
   Gui2Root *root = windowManager->GetRoot();
 
-  Gui2Button *buttonGamePlan = new Gui2Button(windowManager, "button_gameplan", 0, 0, 30, 3, "game plan");
-  Gui2Button *buttonControllerSelect = new Gui2Button(windowManager, "button_controllerselect", 0, 0, 30, 3, "controller select");
-  Gui2Button *buttonCameraSettings = new Gui2Button(windowManager, "button_camerasettings", 0, 0, 30, 3, "camera settings");
-  Gui2Button *buttonVisualOptions = new Gui2Button(windowManager, "button_visualoptions", 0, 0, 30, 3, "visual options");
-  Gui2Button *buttonSystemSettings = new Gui2Button(windowManager, "button_systemsettings", 0, 0, 30, 3, "system settings");
-  Gui2Button *buttonReplay = new Gui2Button(windowManager, "button_replay", 0, 0, 30, 3, "replay");
-  Gui2Button *buttonPreQuit = new Gui2Button(windowManager, "button_quit", 0, 0, 30, 3, "forfeit match");
+  Gui2Button *buttonGamePlan = new Gui2Button(windowManager, "button_gameplan", 0, 0, 30, 3, GPF_TR("game plan", "Plan de jeu"));
+  Gui2Button *buttonControllerSelect = new Gui2Button(windowManager, "button_controllerselect", 0, 0, 30, 3, GPF_TR("controller select", "Manettes"));
+  Gui2Button *buttonCameraSettings = new Gui2Button(windowManager, "button_camerasettings", 0, 0, 30, 3, GPF_TR("camera settings", "Réglages caméra"));
+  Gui2Button *buttonVisualOptions = new Gui2Button(windowManager, "button_visualoptions", 0, 0, 30, 3, GPF_TR("visual options", "Options visuelles"));
+  Gui2Button *buttonSystemSettings = new Gui2Button(windowManager, "button_systemsettings", 0, 0, 30, 3, GPF_TR("system settings", "Réglages système"));
+  Gui2Button *buttonReplay = new Gui2Button(windowManager, "button_replay", 0, 0, 30, 3, GPF_TR("replay", "Revoir l'action"));
+  Gui2Button *buttonPreQuit = new Gui2Button(windowManager, "button_quit", 0, 0, 30, 3, GPF_TR("forfeit match", "Abandonner le match"));
 
   buttonGamePlan->sig_OnClick.connect(boost::bind(&IngamePage::GoGamePlan, this));
   buttonControllerSelect->sig_OnClick.connect(boost::bind(&IngamePage::GoControllerSelect, this));
@@ -112,9 +113,9 @@ PreQuitPage::PreQuitPage(Gui2WindowManager *windowManager, const Gui2PageData &p
   bg->LoadImage("media/menu/backgrounds/black.png");
   this->AddView(bg);
 
-  Gui2Caption *restartCaption = new Gui2Caption(windowManager, "caption_prequit_info", 0, 0, 100, 3, "are you sure you want to forfeit?");
-  Gui2Button *okButton = new Gui2Button(windowManager, "button_prequit_ok", 10, 0, 30, 3, "OK, forfeit");
-  Gui2Button *cancelButton = new Gui2Button(windowManager, "button_prequit_cancel", 10, 0, 30, 3, "Continue match");
+  Gui2Caption *restartCaption = new Gui2Caption(windowManager, "caption_prequit_info", 0, 0, 100, 3, GPF_TR("are you sure you want to forfeit?", "Abandonner le match ?"));
+  Gui2Button *okButton = new Gui2Button(windowManager, "button_prequit_ok", 10, 0, 30, 3, GPF_TR("OK, forfeit", "Oui, abandonner"));
+  Gui2Button *cancelButton = new Gui2Button(windowManager, "button_prequit_cancel", 10, 0, 30, 3, GPF_TR("Continue match", "Reprendre le match"));
   okButton->sig_OnClick.connect(boost::bind(&PreQuitPage::GoMenu, this));
   cancelButton->sig_OnClick.connect(boost::bind(&PreQuitPage::GoBack, this));
 

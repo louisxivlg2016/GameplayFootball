@@ -145,12 +145,22 @@ function buildOverlay(): void {
   select.addEventListener("change", () => {
     current = select.value as AppLanguage;
     setRadioLanguage(current);
+    pushUiLang(current); // translate the in-match native menus to the picked language
     loadMusic(); // swap to the new language's theme
   });
   lang.append(lspan, select);
 
   menu.append(son.btn, radio.btn, lang);
   document.body.appendChild(menu);
+  pushUiLang(current); // initial (retries until the wasm module is up)
+}
+
+// push the selected language to the C++ side so the native in-match menus
+// (half-time / pause / game plan / game over) render in that language.
+function pushUiLang(lang: string): void {
+  const m = (window as unknown as { Module?: { ccall?: (n: string, r: null, t: string[], a: unknown[]) => unknown } }).Module;
+  if (!m?.ccall) { window.setTimeout(() => pushUiLang(lang), 1500); return; }
+  try { m.ccall("gpf_set_ui_lang", null, ["string"], [lang]); } catch { /* not up */ }
 }
 
 export function initMenu(): void {

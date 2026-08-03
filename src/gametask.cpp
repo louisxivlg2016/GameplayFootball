@@ -72,6 +72,13 @@ std::vector<int> gpf_natSkins[2];
 // stronger ones play better. Read in Player::GetStat. 1.0 = no effect (mode off).
 float gpf_natStrength[2] = {1.0f, 1.0f};
 
+// selected UI language for the in-match native menus (gpf_i18n.hpp / GPF_TR). The
+// web pushes it on boot + on every language change; "en" = English (default).
+std::string gpf_ui_lang = "en";
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_ui_lang(const char *code) {
+  gpf_ui_lang = (code && *code) ? code : "en";
+}
+
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_team_color(int team, int r, int g, int b) {
   if (team < 0 || team > 1) return;
   gpf_natColorSet[team] = 1;
@@ -223,17 +230,28 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_freekick_pass(float aimRight, float aim
   Referee *ref = m->GetReferee();
   if (!ref->IsHumanOffsideKick()) return;
 
-  signed int fwdSide = m->GetTeam(1 - ref->GetOffsideKickTeam())->GetSide(); // downfield (toward opponent goal)
+  signed int oppSide = m->GetTeam(1 - ref->GetOffsideKickTeam())->GetSide(); // attacked-goal side
   float p = clamp(power, 0.0f, 1.0f);
   float r = clamp(aimRight, -1.0f, 1.0f);
   float u = clamp(aimUp, 0.0f, 1.0f);
 
-  float speed = 13.0f + 16.0f * p;      // pass pace (m/s)
-  float vx = fwdSide * speed;           // forward, toward the attacked goal
-  float vy = -fwdSide * r * 12.0f;      // lateral: screen-right -> correct world side
-  float vz = 2.0f + u * 7.0f;           // loft (2..9 m/s) for a lofted pass/cross
+  // "Forward" is NOT a fixed downfield axis — from a corner or a throw-in that
+  // sends the ball straight over the touchline/byline (out!). Aim from the ball
+  // toward a point in front of the attacked goal (penalty-spot area), so a corner
+  // curls INTO the box and a throw-in goes INFIELD. For a central free kick / goal
+  // kick this still resolves to ~downfield, unchanged. `r` fans it left/right.
+  Vector3 ballPos = m->GetBall()->Predict(0).Get2D();
+  Vector3 target = Vector3((pitchHalfW - 11.0f) * oppSide, 0.0f, 0.0f);
+  Vector3 fwd = (target - ballPos).Get2D();
+  if (fwd.GetLength() < 0.01f) fwd = Vector3((float)oppSide, 0.0f, 0.0f);
+  fwd = fwd.GetNormalized();
+  Vector3 lat = Vector3(fwd.coords[1], -fwd.coords[0], 0.0f); // screen-right perpendicular
 
-  m->GetBall()->Touch(Vector3(vx, vy, vz));
+  float speed = 13.0f + 16.0f * p;      // pass pace (m/s)
+  Vector3 vel = fwd * speed + lat * (r * 12.0f);
+  vel.coords[2] = 2.0f + u * 7.0f;      // loft (2..9 m/s) for a lofted pass/cross
+
+  m->GetBall()->Touch(vel);
   ref->EndOffsideKick();
 }
 

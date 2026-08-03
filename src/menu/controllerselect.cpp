@@ -9,6 +9,7 @@
 #include "mainmenu.hpp"
 
 #include "startmatch/teamselect.hpp"
+#include "gpf_i18n.hpp"
 
 #include "pagefactory.hpp"
 
@@ -23,8 +24,8 @@ ControllerSelectPage::ControllerSelectPage(Gui2WindowManager *windowManager, con
   bg1->LoadImage("media/menu/backgrounds/black.png");
   bg1->Show();
 
-  Gui2Caption *t1 = new Gui2Caption(windowManager, "caption_controllerselect_t1", 0, 0, 28, 3, "Team 1");
-  Gui2Caption *t2 = new Gui2Caption(windowManager, "caption_controllerselect_t2", 0, 0, 28, 3, "Team 2");
+  Gui2Caption *t1 = new Gui2Caption(windowManager, "caption_controllerselect_t1", 0, 0, 28, 3, GPF_TR("Team 1", "Équipe 1"));
+  Gui2Caption *t2 = new Gui2Caption(windowManager, "caption_controllerselect_t2", 0, 0, 28, 3, GPF_TR("Team 2", "Équipe 2"));
 
   t1->SetPosition(25 - t1->GetTextWidthPercent() * 0.5, 10);
   t2->SetPosition(75 - t2->GetTextWidthPercent() * 0.5, 10);

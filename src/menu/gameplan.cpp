@@ -7,6 +7,7 @@
 #include "../main.hpp"
 
 #include "mainmenu.hpp"
+#include "gpf_i18n.hpp"
 
 using namespace blunted;
 
@@ -22,14 +23,14 @@ GamePlanPage::GamePlanPage(Gui2WindowManager *windowManager, const Gui2PageData 
   bg1->LoadImage("media/menu/backgrounds/black.png");
   bg1->Show();
 
-  Gui2Caption *header = new Gui2Caption(windowManager, "gameplan_header", xOffset, 11, 35, 3, "Team " + int_to_str(teamID + 1) + " game plan");
+  Gui2Caption *header = new Gui2Caption(windowManager, "gameplan_header", xOffset, 11, 35, 3, gpf_tr("game plan") + " \xE2\x80\x94 " + gpf_tr("Team") + " " + int_to_str(teamID + 1));
   grid = new Gui2Grid(windowManager, "gameplan_grid", xOffset, 15, 0, 0);
   gridNav = new Gui2Grid(windowManager, "gameplan_grid_navigation", xOffset, 0, 0, 0);
 
   map = new Gui2PlanMap(windowManager, "gameplan_planmap", 0, 0, 35, 28, teamData);
-  buttonLineup = new Gui2Button(windowManager, "gameplan_button_lineup", 0, 0, 34, 3, "Line-up");
-  buttonTactics = new Gui2Button(windowManager, "gameplan_button_tactics", 0, 0, 34, 3, "Tactics");
-  Gui2Button *buttonFormation = new Gui2Button(windowManager, "gameplan_button_formation", 0, 0, 34, 3, "Formation");
+  buttonLineup = new Gui2Button(windowManager, "gameplan_button_lineup", 0, 0, 34, 3, GPF_TR("Line-up", "Composition"));
+  buttonTactics = new Gui2Button(windowManager, "gameplan_button_tactics", 0, 0, 34, 3, GPF_TR("Tactics", "Tactique"));
+  Gui2Button *buttonFormation = new Gui2Button(windowManager, "gameplan_button_formation", 0, 0, 34, 3, GPF_TR("Formation", "Formation"));
 
   buttonLineup->sig_OnClick.connect(boost::bind(&GamePlanPage::GoLineupMenu, this));
   buttonTactics->sig_OnClick.connect(boost::bind(&GamePlanPage::GoTacticsMenu, this));

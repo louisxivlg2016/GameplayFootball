@@ -7,6 +7,7 @@
 #include "main.hpp"
 
 #include "../pagefactory.hpp"
+#include "../gpf_i18n.hpp"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h> // touch button to leave the game-over screen ("well then")
@@ -30,7 +31,7 @@ GameOverPage::GameOverPage(Gui2WindowManager *windowManager, const Gui2PageData 
   this->AddView(header);
   header->Show();
 
-  buttonOkay = new Gui2Button(windowManager, "button_gameover_ok", 40, 82, 20, 3, "well then");
+  buttonOkay = new Gui2Button(windowManager, "button_gameover_ok", 40, 82, 20, 3, GPF_TR("well then", "Retour au menu"));
   this->AddView(buttonOkay);
   buttonOkay->Show();
   buttonOkay->sig_OnClick.connect(boost::bind(&GameOverPage::GoMainMenu, this));
@@ -43,11 +44,11 @@ GameOverPage::GameOverPage(Gui2WindowManager *windowManager, const Gui2PageData 
   Gui2Grid *grid = new Gui2Grid(windowManager, "grid_gameover_stats", 15, 25, 70, 50);
 
   grid->AddView(new Gui2Caption(windowManager, "caption_possession_t1", 0, 0, 25, 3, int_to_str(round(possession1 / (possession1 + possession2) * 100)) + "%"), 0, 0);
-  grid->AddView(new Gui2Caption(windowManager, "caption_possession_header", 0, 0, 35, 3, "possession"), 0, 1);
+  grid->AddView(new Gui2Caption(windowManager, "caption_possession_header", 0, 0, 35, 3, GPF_TR("possession", "possession")), 0, 1);
   grid->AddView(new Gui2Caption(windowManager, "caption_possession_t2", 0, 0, 10, 3, int_to_str(round(possession2 / (possession1 + possession2) * 100)) + "%"), 0, 2);
 
   grid->AddView(new Gui2Caption(windowManager, "caption_shots_t1", 0, 0, 25, 3, int_to_str(shots1)), 1, 0);
-  grid->AddView(new Gui2Caption(windowManager, "caption_shots_header", 0, 0, 35, 3, "shots"), 1, 1);
+  grid->AddView(new Gui2Caption(windowManager, "caption_shots_header", 0, 0, 35, 3, GPF_TR("shots", "tirs")), 1, 1);
   grid->AddView(new Gui2Caption(windowManager, "caption_shots_t2", 0, 0, 10, 3, int_to_str(shots2)), 1, 2);
 
   grid->UpdateLayout(0.5);

@@ -7,7 +7,7 @@
  */
 import { commentaryTick, pushMatchState, type MatchSnapshot } from "./commentary";
 import { initMenu } from "./menu";
-import { initHomeMenu, onMatchStarted, isDrillSession } from "./homemenu";
+import { initHomeMenu, onMatchStarted, isDrillSession, show as showHomeMenu } from "./homemenu";
 import { initClubs } from "./clubs";
 import { initLineup } from "./lineup";
 import { initNational } from "./national";
@@ -145,6 +145,15 @@ w.gpfRadioTick = (snap): void => {
 
 w.gpfRadioToggle = (): boolean => toggleRadio();
 w.gpfRadioSetLanguage = (lang): void => setRadioLanguage(lang);
+
+// The native C++ main menu (MATCH/CUP/LEAGUE/…) must NEVER be seen — the HTML home
+// is the real menu. mainmenu.cpp fires this whenever that native page appears (boot,
+// after a match, forfeit, …); we immediately cover it with the opaque HTML home.
+// It never fires mid-match (the page isn't recreated while a match runs), so this
+// can't cover the pitch or the loading screen.
+(w as unknown as { gpfNativeMainMenu?: () => void }).gpfNativeMainMenu = (): void => {
+  try { showHomeMenu(); } catch { /* not ready yet */ }
+};
 
 // in-page overlays: the full home menu (#52) behind, and the SON/RADIO STADE/
 // LANGUE pills pinned above it (installed after the window hooks so menu.ts can
