@@ -11,6 +11,8 @@ interface NativeModule {
   _gpf_get_key?: (action: number) => number;
   ccall?: (name: string, ret: string | null, types: string[], args: unknown[]) => unknown;
 }
+import { L, onLangChange } from "./i18n";
+
 const M = (): NativeModule | undefined => (window as unknown as { Module?: NativeModule }).Module;
 
 const getF = (key: string, def: number): number => {
@@ -260,7 +262,7 @@ function renderGraphics(): void {
   let level = 4;
   try { level = parseInt(localStorage.getItem("gpf-quality") ?? "4", 10); } catch { /* */ }
   if (!Number.isFinite(level) || level < 0 || level > 4) level = 4;
-  qRow.innerHTML = `<div class="set-label"><span>Qualité graphique (CPU / GPU)</span></div><div class="set-btns"></div>`;
+  qRow.innerHTML = `<div class="set-label"><span>${L("Qualité graphique (CPU / GPU)")}</span></div><div class="set-btns"></div>`;
   const btns = qRow.querySelector(".set-btns")!;
   QUALITY.forEach((name, i) => {
     const b = document.createElement("button");
@@ -281,13 +283,13 @@ function renderGraphics(): void {
   // fullscreen
   const fRow = document.createElement("div");
   fRow.className = "set-row";
-  fRow.innerHTML = `<div class="set-label"><span>Plein écran</span></div>`;
+  fRow.innerHTML = `<div class="set-label"><span>${L("Plein écran")}</span></div>`;
   const tgl = document.createElement("button");
   tgl.className = "set-toggle";
   const sync = (): void => {
     const on = !!document.fullscreenElement;
     tgl.classList.toggle("on", on);
-    tgl.textContent = on ? "✔ Plein écran activé" : "Activer le plein écran";
+    tgl.textContent = on ? L("✔ Plein écran activé") : L("Activer le plein écran");
   };
   tgl.addEventListener("click", () => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -306,12 +308,12 @@ function toggleRow(label: string, ls: string, def: boolean, note?: string): HTML
   row.className = "set-row";
   let on = def;
   try { const v = localStorage.getItem(ls); if (v !== null) on = v === "1"; } catch { /* private */ }
-  row.innerHTML = `<div class="set-label"><span>${label}</span></div>`;
+  row.innerHTML = `<div class="set-label"><span>${L(label)}</span></div>`;
   const tgl = document.createElement("button");
   tgl.className = "set-toggle";
   const paint = (): void => {
     tgl.classList.toggle("on", on);
-    tgl.textContent = on ? "✔ Activé" : "Désactivé";
+    tgl.textContent = on ? L("✔ Activé") : L("Désactivé");
   };
   tgl.addEventListener("click", () => {
     on = !on;
@@ -332,22 +334,22 @@ function renderGameplay(): void {
   if (!body) return;
   body.innerHTML = "";
   const matchHdr = document.createElement("div");
-  matchHdr.className = "set-section"; matchHdr.textContent = "Match";
+  matchHdr.className = "set-section"; matchHdr.textContent = L("Match");
   body.appendChild(matchHdr);
-  body.appendChild(persistedRow("Difficulté du CPU (Humain vs CPU)", MATCH_DIFF_LS, DEF_DIFFICULTY,
+  body.appendChild(persistedRow(L("Difficulté du CPU (Humain vs CPU)"), MATCH_DIFF_LS, DEF_DIFFICULTY,
     (v) => `${Math.round(v * 100)}%`, (v) => setF("match_difficulty", v)));
-  body.appendChild(persistedRow("Durée du match", MATCH_DUR_LS, DEF_DURATION,
+  body.appendChild(persistedRow(L("Durée du match"), MATCH_DUR_LS, DEF_DURATION,
     (v) => `≈ ${durationToMin(v)} min`, (v) => setF("match_duration", v)));
   body.appendChild(toggleRow("Force réaliste des équipes", REALISTIC_LS, false,
-    "Chaque équipe joue à son vrai niveau (selon son OVR) : les nations faibles jouent moins bien, les grandes nations mieux. Désactivé = toutes à niveau égal."));
+    L("Chaque équipe joue à son vrai niveau (selon son OVR) : les nations faibles jouent moins bien, les grandes nations mieux. Désactivé = toutes à niveau égal.")));
   const assistHdr = document.createElement("div");
-  assistHdr.className = "set-section"; assistHdr.textContent = "Assistances";
+  assistHdr.className = "set-section"; assistHdr.textContent = L("Assistances");
   body.appendChild(assistHdr);
-  for (const [label, key, def] of GAMEPLAY) body.appendChild(sliderRow(label, key, def));
+  for (const [label, key, def] of GAMEPLAY) body.appendChild(sliderRow(L(label), key, def));
   const resetRow = document.createElement("div");
   resetRow.className = "set-btns set-reset";
   const reset = document.createElement("button");
-  reset.textContent = "↺ Valeurs d'usine";
+  reset.textContent = L("↺ Valeurs d'usine");
   reset.addEventListener("click", () => {
     lsSet(MATCH_DIFF_LS, DEF_DIFFICULTY); setF("match_difficulty", DEF_DIFFICULTY);
     lsSet(MATCH_DUR_LS, DEF_DURATION); setF("match_duration", DEF_DURATION);
@@ -362,7 +364,7 @@ function renderGameplay(): void {
 function renderAudio(): void {
   if (!body) return;
   body.innerHTML = "";
-  body.appendChild(sliderRow("Volume du jeu", "audio_volume", 0.5));
+  body.appendChild(sliderRow(L("Volume du jeu"), "audio_volume", 0.5));
   const note = document.createElement("div");
   note.className = "set-note";
   note.textContent = "Astuce : les pastilles SON et RADIO STADE (en haut à droite) coupent la voix du commentateur et la musique du menu.";
@@ -378,12 +380,12 @@ function renderControls(): void {
   KEYS.forEach(([label, section], action) => {
     if (section) {
       const h = document.createElement("div");
-      h.className = "set-section"; h.textContent = section;
+      h.className = "set-section"; h.textContent = L(section);
       body!.appendChild(h);
     }
     const row = document.createElement("div");
     row.className = "set-keyrow";
-    row.innerHTML = `<span>${label}</span>`;
+    row.innerHTML = `<span>${L(label)}</span>`;
     const btn = document.createElement("button");
     btn.className = "set-key";
     btn.textContent = sdlName(currentKey(action));
@@ -411,7 +413,7 @@ function renderControls(): void {
   const resetRow = document.createElement("div");
   resetRow.className = "set-btns set-reset";
   const reset = document.createElement("button");
-  reset.textContent = "↺ Touches par défaut";
+  reset.textContent = L("↺ Touches par défaut");
   reset.addEventListener("click", () => {
     try { localStorage.removeItem(KEYS_LS); } catch { /* */ }
     DEFAULT_KEYS.forEach((kc, a) => M()?._gpf_rebind_key?.(a, kc));
@@ -445,15 +447,15 @@ export function initSettings(): void {
   root.innerHTML = `
     <div class="menu-shell">
       <div class="menu-panel-head">
-        <button class="set-back">← Menu</button>
-        <b>RÉGLAGES</b>
+        <button class="set-back">${L("← Menu")}</button>
+        <b>${L("RÉGLAGES")}</b>
         <span style="width:70px"></span>
       </div>
       <div class="set-tabs">
-        <button class="set-tab" data-tab="graphics">🖥️ Graphique</button>
-        <button class="set-tab" data-tab="gameplay">🎮 Gameplay</button>
-        <button class="set-tab" data-tab="audio">🔊 Audio</button>
-        <button class="set-tab" data-tab="controls">⌨️ Commandes</button>
+        <button class="set-tab" data-tab="graphics" data-i18n="🖥️ Graphique">${L("🖥️ Graphique")}</button>
+        <button class="set-tab" data-tab="gameplay" data-i18n="🎮 Gameplay">${L("🎮 Gameplay")}</button>
+        <button class="set-tab" data-tab="audio" data-i18n="🔊 Audio">${L("🔊 Audio")}</button>
+        <button class="set-tab" data-tab="controls" data-i18n="⌨️ Commandes">${L("⌨️ Commandes")}</button>
       </div>
       <div class="set-body"></div>
     </div>`;
@@ -462,4 +464,19 @@ export function initSettings(): void {
   root.querySelectorAll<HTMLElement>(".set-tab").forEach((t) =>
     t.addEventListener("click", () => { active = t.dataset.tab || "graphics"; render(); }));
   document.body.appendChild(root);
+
+  // re-translate all visible settings text when the language picker changes:
+  // re-set the fixed labels (built once here) and re-render the open tab body.
+  onLangChange(() => {
+    if (!root) return;
+    const back = root.querySelector<HTMLElement>(".set-back");
+    if (back) back.textContent = L("← Menu");
+    const title = root.querySelector<HTMLElement>(".menu-panel-head b");
+    if (title) title.textContent = L("RÉGLAGES");
+    root.querySelectorAll<HTMLElement>(".set-tab").forEach((t) => {
+      const key = t.dataset.i18n;
+      if (key) t.textContent = L(key);
+    });
+    if (root.classList.contains("show")) render();
+  });
 }

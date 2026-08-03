@@ -5,6 +5,7 @@
  * modes yet, so every tile launches a normal match for now).
  */
 import { setPendingDrill, setPendingKeeper, startNativeMatch } from "./homemenu";
+import { L, onLangChange } from "./i18n";
 
 // setPiece = e_SetPiece value (FreeKick=3, Corner=4, Penalty=6; 0 = open play)
 interface Drill { label: string; sub: string; img?: string; setPiece: number; keeper?: boolean; emoji?: string }
@@ -65,18 +66,13 @@ export function hideTraining(): void {
   document.body.classList.remove("gpf-training-open");
 }
 
-export function initTraining(): void {
-  const style = document.createElement("style");
-  style.id = "gpf-training-style"; style.textContent = CSS;
-  document.head.appendChild(style);
-
-  root = document.createElement("div");
-  root.id = "gpf-training";
+function renderTraining(): void {
+  if (!root) return;
   root.innerHTML = `
     <div class="menu-shell">
       <div class="t-top">
-        <button class="t-back">← Menu</button>
-        <h2>Entra<span>înement</span></h2>
+        <button class="t-back">${L("← Menu")}</button>
+        <h2>${L("Entraînement")}</h2>
       </div>
       <div class="t-grid"></div>
     </div>`;
@@ -87,8 +83,8 @@ export function initTraining(): void {
     c.className = "t-card" + (d.keeper ? " keeper" : "");
     c.innerHTML = (d.keeper
       ? `<span class="t-emoji">${d.emoji}</span>`
-      : `<img src="${d.img}" alt="${d.label}">`)
-      + `<span class="t-cap"><b>${d.label}</b><em>${d.sub}</em></span>`;
+      : `<img src="${d.img}" alt="${L(d.label)}">`)
+      + `<span class="t-cap"><b>${L(d.label)}</b><em>${L(d.sub)}</em></span>`;
     c.addEventListener("click", () => {
       hideTraining();
       if (d.keeper) setPendingKeeper();
@@ -98,6 +94,17 @@ export function initTraining(): void {
     grid.appendChild(c);
   }
   root.querySelector(".t-back")!.addEventListener("click", hideTraining);
+}
+
+export function initTraining(): void {
+  const style = document.createElement("style");
+  style.id = "gpf-training-style"; style.textContent = CSS;
+  document.head.appendChild(style);
+
+  root = document.createElement("div");
+  root.id = "gpf-training";
+  renderTraining();
 
   document.body.appendChild(root);
+  onLangChange(renderTraining);
 }

@@ -9,6 +9,7 @@
  */
 import { startNativeMatch, show as showHome } from "./homemenu";
 import { POS } from "./positions";
+import { L, onLangChange } from "./i18n";
 
 const prox = (u: string): string => `/img-proxy?u=${encodeURIComponent(u)}`;
 
@@ -223,7 +224,7 @@ function renderCards(): void {
     pitchEl.appendChild(c);
     void loadPhoto(p, head);
   }
-  benchEl.innerHTML = `<span>Remplaçants${curSubs.length ? " — clique un titulaire puis un remplaçant pour échanger" : ""}</span>`;
+  benchEl.innerHTML = `<span>${L("Remplaçants")}${curSubs.length ? " — clique un titulaire puis un remplaçant pour échanger" : ""}</span>`;
   for (const p of curSubs) {
     const c = document.createElement("button");
     c.className = "bench-card" + (selected === p ? " sel" : "");
@@ -268,11 +269,11 @@ export function initLineup(): void {
           <span class="lineup-team">Manchester City</span>
           <small>Choisis tes joueurs avant le match</small>
         </div>
-        <button class="lineup-start">Jouer le match</button>
+        <button class="lineup-start">${L("Jouer le match")}</button>
       </div>
       <div class="lineup-layout">
-        <div class="lineup-pitch" aria-label="Composition"></div>
-        <div class="lineup-bench"><span>Remplaçants</span></div>
+        <div class="lineup-pitch" aria-label="${L("Composition")}"></div>
+        <div class="lineup-bench"><span>${L("Remplaçants")}</span></div>
       </div>
     </div></div>`;
 

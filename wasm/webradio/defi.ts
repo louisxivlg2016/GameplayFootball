@@ -13,6 +13,7 @@ import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads } from "./squads";
 import { setAnthemOverride } from "./anthem";
 import { teamLineup } from "./lineup";
+import { L, onLangChange } from "./i18n";
 
 interface Team { name: string; iso: string; flag: string; color: string }
 // objective: 0 = SCORE a goal, 1 = WIN (be ahead at full time), 2 = HOLD (don't concede)
@@ -199,7 +200,7 @@ function showResult(win: boolean): void {
   resultEl.querySelector(".big")!.textContent = win ? "DÉFI RÉUSSI ✅" : "DÉFI RATÉ ❌";
   resultEl.querySelector(".big")!.className = "big " + (win ? "win" : "lose");
   resultEl.querySelector(".msg")!.textContent = win
-    ? "Bravo, objectif rempli !" : "Pas cette fois — réessaie un autre défi.";
+    ? L("Bravo, objectif rempli !") : L("Pas cette fois — réessaie un autre défi.");
   resultEl.classList.add("show");
 }
 
@@ -239,7 +240,7 @@ export function initDefi(): void {
   root.innerHTML = `
     <div class="menu-shell">
       <div class="menu-panel-head">
-        <button class="df-back">← Menu</button>
+        <button class="df-back">${L("← Menu")}</button>
         <b>DÉFIS</b>
         <span style="width:70px"></span>
       </div>
@@ -262,6 +263,12 @@ export function initDefi(): void {
     showHome();
   });
   document.body.appendChild(resultEl);
+
+  // re-translate the (statically-built) back button when the UI language changes
+  onLangChange(() => {
+    const back = root?.querySelector<HTMLElement>(".df-back");
+    if (back) back.textContent = L("← Menu");
+  });
 
   // hooks the C++ / homemenu call into
   (window as unknown as { __gpfFireChallenge?: () => void }).__gpfFireChallenge = fireChallenge;

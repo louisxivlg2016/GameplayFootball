@@ -8,6 +8,8 @@
  * (each carries its own header), so we play them back-to-back as a playlist.
  */
 
+import { L, onLangChange } from "./i18n";
+
 const DB_NAME = "gpf-matches";
 const STORE = "matches";
 const MAX_MATCHES = 8;      // keep the last N matches (video is heavy) — prune older
@@ -256,7 +258,7 @@ async function renderList(): Promise<void> {
   if (!recs.length) {
     const e = document.createElement("div");
     e.className = "mm-empty";
-    e.innerHTML = "Aucun match enregistré pour l'instant.<br>Joue un match jusqu'au coup de sifflet final " +
+    e.innerHTML = L("Aucun match enregistré pour l'instant.<br>Joue un match jusqu'au coup de sifflet final ") +
       "(qualité <b>Basse</b> ou plus — l'enregistrement est coupé en mode Potato) et il apparaîtra ici.";
     listEl.appendChild(e);
     return;
@@ -306,7 +308,7 @@ export function initMatches(): void {
     <div class="mm-shell">
       <div class="mm-head">
         <button class="mm-back">← Menu</button>
-        <b>🎬 MES MATCHS</b>
+        <b>🎬 ${L("Mes matchs")}</b>
         <span style="width:70px"></span>
       </div>
       <div class="mm-list"></div>

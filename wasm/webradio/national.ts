@@ -8,6 +8,7 @@ import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads, SQUADS, kitColor } from "./squads";
 import { teamLineup } from "./lineup";
+import { L, onLangChange } from "./i18n";
 
 export interface Nation { name: string; flag: string; color: string; iso: string }
 export interface Confed { id: string; label: string; icon: string; teams: Nation[] }
@@ -174,8 +175,8 @@ function renderGrid(grid: HTMLElement, conf: Confed): void {
     card.style.setProperty("--nat-color", nat.color);
     card.innerHTML =
       `<span class="nat-flag">${nat.flag}</span><b>${nat.name}</b>` +
-      `<span class="nat-actions"><button class="nat-play" title="Jouer avec cette équipe">JOUER</button>` +
-      `<button class="nat-vs" title="Affronter cette équipe">VS</button></span>`;
+      `<span class="nat-actions"><button class="nat-play" title="${L("Jouer avec cette équipe")}">JOUER</button>` +
+      `<button class="nat-vs" title="${L("Affronter cette équipe")}">VS</button></span>`;
     card.querySelector(".nat-play")!.addEventListener("click", () => {
       // JOUER = play now: kick off straight away against an auto-picked opponent.
       // (Use VS on two teams to choose the opponent yourself.)
@@ -199,7 +200,7 @@ export function initNational(): void {
   root.innerHTML = `
     <div class="menu-shell">
       <div class="menu-panel-head">
-        <button class="nat-back">← Menu</button>
+        <button class="nat-back">${L("← Menu")}</button>
         <span>Équipes nationales</span>
         <b class="nat-status"><b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire</b>
       </div>
@@ -214,7 +215,7 @@ export function initNational(): void {
   for (const conf of CONFEDS) {
     const b = document.createElement("button");
     b.className = "conf-tab" + (conf === active ? " active" : "");
-    b.innerHTML = `<span>${conf.icon}</span><b>${conf.label}</b>`;
+    b.innerHTML = `<span>${conf.icon}</span><b>${L(conf.label)}</b>`;
     b.addEventListener("click", () => {
       active = conf;
       for (const e of tabEls) e.classList.toggle("active", e === b);
@@ -223,8 +224,19 @@ export function initNational(): void {
     tabs.appendChild(b);
     tabEls.push(b);
   }
-  root.querySelector(".nat-back")!.addEventListener("click", hideNational);
+  const backBtn = root.querySelector<HTMLElement>(".nat-back")!;
+  backBtn.addEventListener("click", hideNational);
   statusEl = root.querySelector<HTMLElement>(".nat-status");
   renderGrid(grid, active);
   document.body.appendChild(root);
+
+  // re-translate the built-once UI (tabs + back button) and re-render the grid
+  // (which carries the localized button tooltips) when the language changes.
+  onLangChange(() => {
+    backBtn.textContent = L("← Menu");
+    tabEls.forEach((b, i) => {
+      b.innerHTML = `<span>${CONFEDS[i]!.icon}</span><b>${L(CONFEDS[i]!.label)}</b>`;
+    });
+    renderGrid(grid, active);
+  });
 }

@@ -10,6 +10,7 @@ import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads } from "./squads";
 import { CLUB_SQUADS } from "./clubsquads";
 import { teamLineup } from "./lineup";
+import { L, onLangChange } from "./i18n";
 
 interface Club { name: string; code: string; city: string; color: string; wiki: string }
 interface League { id: string; country: string; flag: string; clubs: Club[] }
@@ -175,7 +176,7 @@ function renderGrid(grid: HTMLElement, league: League): void {
       `<span class="club-crest"><span>${club.code}</span></span>` +
       `<b>${club.name}</b><small>${club.city}</small>` +
       `<span class="club-actions"><button class="club-play" title="Jouer avec ce club">JOUER</button>` +
-      `<button class="club-vs" title="Affronter ce club">VS</button></span>`;
+      `<button class="club-vs" title="${L("Affronter ce club")}">VS</button></span>`;
     // JOUER = play now: kick off straight away against an auto-picked club.
     // (Use VS on two clubs to choose the opponent yourself.)
     card.querySelector(".club-play")!.addEventListener("click", () => { void launchClubs(club, randomClubOpponent(club)); });
@@ -203,7 +204,7 @@ export function initClubs(): void {
   root.innerHTML = `
     <div class="menu-shell">
       <div class="menu-panel-head">
-        <button class="club-back">← Menu</button>
+        <button class="club-back">${L("← Menu")}</button>
         <span>Clubs · effectifs réels</span>
         <b class="club-status"><b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire</b>
       </div>
@@ -218,7 +219,7 @@ export function initClubs(): void {
   for (const lg of LEAGUES) {
     const b = document.createElement("button");
     b.className = "club-league-tab" + (lg === active ? " active" : "");
-    b.innerHTML = `<span>${lg.flag}</span><b>${lg.country}</b>`;
+    b.innerHTML = `<span>${lg.flag}</span><b>${L(lg.country)}</b>`;
     b.addEventListener("click", () => {
       active = lg;
       for (const e of tabEls) e.classList.toggle("active", e === b);
@@ -240,4 +241,16 @@ export function initClubs(): void {
   root.querySelector(".club-back")!.addEventListener("click", hideClubs);
   renderGrid(grid, active);
   document.body.appendChild(root);
+
+  // Screen is built once; re-translate the visible action labels on language change.
+  onLangChange(() => {
+    if (!root) return;
+    const back = root.querySelector<HTMLElement>(".club-back");
+    if (back) back.textContent = L("← Menu");
+    tabEls.forEach((b, i) => {
+      const label = b.querySelector<HTMLElement>("b");
+      if (label && LEAGUES[i]) label.textContent = L(LEAGUES[i]!.country);
+    });
+    renderGrid(grid, active); // refreshes the "Affronter ce club" VS-button titles
+  });
 }
