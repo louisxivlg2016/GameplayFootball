@@ -311,8 +311,13 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
   try {
     // Mobile browsers are much more reliable with HTMLMediaElement than with
     // WebAudio for spoken clips; on this desktop wasm build we prefer WebAudio
-    // (louder, verifiably audible), so this branch is off by default.
-    if (typeof Audio !== "undefined" && PREFER_HTML_AUDIO) {
+    // (louder, verifiably audible). BUT if the radio's WebAudio context can't
+    // reach "running" (some desktop browsers keep this separate context
+    // suspended even though the game's OpenAL context plays), the WebAudio path
+    // is SILENT — so fall back to a bare <audio> element, which reliably plays.
+    const preCtx = ensureRadioCtx();
+    const useHtmlAudio = typeof Audio !== "undefined" && (PREFER_HTML_AUDIO || preCtx.state !== "running");
+    if (useHtmlAudio) {
       clearCurrentAudioElement();
       const url = URL.createObjectURL(wav);
       const audio = new Audio(url);
@@ -491,7 +496,10 @@ async function playGoalClip(): Promise<void> {
   const gen = takeMic(3);
   if (gen === null) return;
   try {
-    if (typeof Audio !== "undefined" && PREFER_HTML_AUDIO) {
+    // same WebAudio-suspended fallback as playBlob: use a bare <audio> element
+    // when the radio context can't run, so the goal shout isn't silent on desktop.
+    const preCtx = ensureRadioCtx();
+    if (typeof Audio !== "undefined" && (PREFER_HTML_AUDIO || preCtx.state !== "running")) {
       clearCurrentAudioElement();
       const audio = new Audio(GOAL_CLIP_URL);
       currentAudioEl = audio;
