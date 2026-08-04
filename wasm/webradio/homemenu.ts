@@ -293,7 +293,6 @@ export function initHomeMenu(): void {
   sidebar.append(
     iconBtn("⌂", "Accueil", true), iconBtn("◎", "Clubs", false, showClubs),
     iconBtn("◔", "Sélections", false, showNational), iconBtn("◌", "Défis", false, showDefi),
-    iconBtn("🎬", "Matchs", false, showMatches),
     imgBtn("/menu-assets/settings-button.png", "Réglages", showSettings),
   );
 
