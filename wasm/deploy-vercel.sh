@@ -52,9 +52,10 @@ done
 echo ">> Piper voice models (cached in wasm/ttsvoices)"
 HF="https://huggingface.co/diffusionstudio/piper-voices/resolve/main"
 VC="wasm/ttsvoices"
-# voice ids for fr/en/es/pt/it/nl (medium). de is thorsten-high (~100MB) — left on
-# huggingface fallback to keep the deploy size sane.
-VOICES="fr_FR-tom-medium en_GB-northern_english_male-medium es_ES-davefx-medium pt_BR-faber-medium it_IT-paola-medium nl_BE-rdh-medium"
+# voice ids for every language whose voice lives on the diffusionstudio mirror
+# (fr/en/es/pt/it/nl/de/nb/hr/ro/pl/tr/ru/uk/ar/vi/zh). hi/id (rhasspy mirror) and
+# th/ko (Xenova MMS) use other sources and still fall back to huggingface.
+VOICES="fr_FR-tom-medium en_GB-northern_english_male-medium es_ES-davefx-medium pt_BR-faber-medium it_IT-paola-medium nl_BE-rdh-medium de_DE-thorsten-high no_NO-talesyntese-medium sr_RS-serbski_institut-medium ro_RO-mihai-medium pl_PL-darkman-medium tr_TR-fahrettin-medium ru_RU-denis-medium uk_UA-ukrainian_tts-medium ar_JO-kareem-medium vi_VN-vais1000-medium zh_CN-huayan-medium"
 for vid in $VOICES; do
   region="${vid%%-*}"               # e.g. pt_BR
   lang="${region%%_*}"              # e.g. pt
