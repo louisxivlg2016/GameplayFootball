@@ -134,6 +134,16 @@ const T: Record<string, Record<Lang, string>> = {
   "Dribble lent":         { en: "Slow dribble", es: "Regate lento", pt: "Drible lento", de: "Langsames Dribbling", it: "Dribbling lento", nl: "Langzaam dribbelen" },
   "Sélection":            { en: "Select", es: "Selección", pt: "Selecionar", de: "Auswahl", it: "Seleziona", nl: "Selecteren" },
   "Valider / démarrer":   { en: "Confirm / start", es: "Confirmar / empezar", pt: "Confirmar / iniciar", de: "Bestätigen / Start", it: "Conferma / avvia", nl: "Bevestigen / start" },
+
+  // --- on-screen touch buttons (uppercase) ---
+  "PASSER EN PROFONDEUR": { en: "THROUGH BALL", es: "PASE PROFUNDO", pt: "PASSE EM PROFUNDIDADE", de: "STEILPASS", it: "FILTRANTE", nl: "DIEPTEPASS" },
+  "TIRER":                { en: "SHOOT", es: "DISPARAR", pt: "REMATAR", de: "SCHIESSEN", it: "TIRARE", nl: "SCHIETEN" },
+  "PASSER":               { en: "PASS", es: "PASAR", pt: "PASSAR", de: "PASSEN", it: "PASSARE", nl: "PASSEN" },
+  "ACCÉLÉRER & GESTES":   { en: "SPRINT & SKILLS", es: "ESPRINT Y GESTOS", pt: "SPRINT E GESTOS", de: "SPRINT & TRICKS", it: "SCATTO E GESTI", nl: "SPRINT & TRUCS" },
+  "PRESSER":              { en: "PRESSURE", es: "PRESIONAR", pt: "PRESSIONAR", de: "PRESSING", it: "PRESSARE", nl: "DRUK ZETTEN" },
+  "TACLE":                { en: "TACKLE", es: "ENTRADA", pt: "DESARME", de: "GRÄTSCHE", it: "CONTRASTO", nl: "SLIDING" },
+  "CHANGER DE JOUEUR":    { en: "SWITCH PLAYER", es: "CAMBIAR JUGADOR", pt: "TROCAR JOGADOR", de: "SPIELER WECHSELN", it: "CAMBIA GIOCATORE", nl: "SPELER WISSELEN" },
+  "ACCÉLÉRER":            { en: "SPRINT", es: "ESPRINTAR", pt: "SPRINT", de: "SPRINT", it: "SCATTO", nl: "SPRINT" },
 };
 
 /** current UI language code (en/fr/es/…), from the radio/menu picker. */

@@ -5,6 +5,7 @@
  * live open play on a touch device (or with ?touch=1), hidden in menus/drills.
  */
 import { isDrillSession, show as showHome } from "./homemenu";
+import { L, onLangChange } from "./i18n";
 
 const KEY = {
   UP: 1073741906, DOWN: 1073741905, LEFT: 1073741904, RIGHT: 1073741903,
@@ -111,15 +112,15 @@ function initBtn(el: HTMLElement): void {
   el.addEventListener("pointercancel", up);
 }
 let mode = "";
-function setMode(hasBall: boolean): void {
+function setMode(hasBall: boolean, force = false): void {
   const m = hasBall ? "atk" : "def";
-  if (m === mode || slots.length < 4) return;
+  if ((m === mode && !force) || slots.length < 4) return;
   mode = m;
   const cfg = hasBall ? ATTACK : DEFEND;
   slots.forEach((st, i) => {
     if (st.held) { st.held = false; gk(st.code, false); st.el.classList.remove("on"); } // release across the switch
     st.code = cfg[i]!.code;
-    st.el.textContent = cfg[i]!.label;
+    st.el.textContent = L(cfg[i]!.label);
   });
 }
 
@@ -205,6 +206,9 @@ export function initTouch(): void {
   initBtn(root.querySelector(".b-pass")!);      // bottom-left
   initBtn(root.querySelector(".b-sprint")!);    // bottom-right
   setMode(true); // default attacking labels
+  // re-label the action buttons when the language changes (force = re-apply even
+  // though the atk/def mode didn't change)
+  onLangChange(() => setMode(mode === "atk", true));
 
   // show during live open play; hide in menus / drills (those have their own UI)
   const anyOverlay = (): boolean =>
