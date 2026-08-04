@@ -244,10 +244,10 @@ async function onFullTime(score: [number, number] | null): Promise<void> {
   // flush the in-progress segment so the film runs right up to the final whistle
   if (recording && rec && rec.state !== "inactive") { try { await flushCurrent(); } catch { /* */ } }
   if (fullMatch.length < 1) return;
-  const b = (window as unknown as { __gpfRadioBridge?: { teams?: string[] } }).__gpfRadioBridge;
-  const home = (b?.teams?.[0]) || "Domicile";
-  const away = (b?.teams?.[1]) || "Extérieur";
-  try { await saveMatch({ home, away, score, goals: goalMarks.slice() }, fullMatch.slice(), fullTruncated, MIME); } catch { /* storage full/blocked */ }
+  // The match gallery was removed from the menu, so we no longer persist full
+  // matches (the goal/foul slow-mo replay still works — it plays from the live
+  // in-memory buffer, not storage). Existing recordings are purged on boot.
+  void score;
 }
 
 // ---- triggers --------------------------------------------------------------

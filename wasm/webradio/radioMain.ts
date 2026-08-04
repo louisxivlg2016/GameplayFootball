@@ -181,6 +181,10 @@ initFriendly();
 initLoading();
 initReplay();
 
+// The match gallery was removed — purge any match videos previously recorded to
+// IndexedDB so they no longer take up space (recording of new full matches is off).
+try { indexedDB.deleteDatabase("gpf-matches"); } catch { /* private / unsupported */ }
+
 // Re-apply the graphics quality picked in the native SETTINGS > GRAPHICS menu
 // (persisted in localStorage; 4 = ultra is the engine default, nothing to do).
 const applySavedQuality = (): void => {
