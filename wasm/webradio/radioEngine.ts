@@ -46,7 +46,21 @@ function sharedAudioOutput(): AudioNode | null {
   return null;
 }
 async function removeVoice(_id: string): Promise<void> {
-  /* no OPFS cache-purge dependency in the wasm build — a plain restart retries */
+  // Purge the OPFS voice cache the piper lib writes the model into. A half-written
+  // model (interrupted 63MB download) otherwise fails to load forever and every
+  // retry reloads the same corrupt bytes -> the pill sticks on "loading". Clearing
+  // OPFS (only the voice cache lives there; the game uses MEMFS/IDBFS) forces a
+  // clean re-download so the radio self-heals.
+  try {
+    const st = navigator.storage as unknown as { getDirectory?: () => Promise<unknown> };
+    const root = st.getDirectory ? await st.getDirectory() : null;
+    if (!root) return;
+    const dir = root as unknown as { keys?: () => AsyncIterable<string>; removeEntry?: (n: string, o?: { recursive: boolean }) => Promise<void> };
+    if (!dir.keys || !dir.removeEntry) return;
+    for await (const name of dir.keys()) {
+      try { await dir.removeEntry(name, { recursive: true }); } catch { /* locked / in use */ }
+    }
+  } catch { /* OPFS unavailable */ }
 }
 
 // Desktop wasm build: play the voice through the WebAudio graph (the loud
@@ -644,14 +658,14 @@ function ensureVoiceForCurrentLanguage(): AppLanguage {
 
 function scheduleWarmupRetry(why: string): void {
   if (!requestedVoiceId) return;
-  if (warmAttempts >= 10) return; // a couple of minutes of tries, then give up
+  if (warmAttempts >= 30) return; // ~5 min of tries (slow/flaky desktop downloads), then give up
   warmAttempts++;
   const delay = Math.min(1500 * warmAttempts, 10000);
   // a model-load (session create) failure that survives the first couple of
   // transient retries is most likely a corrupt cache — wipe it and re-fetch
   const purge = why === "session create" && warmAttempts >= 2;
   console.info(
-    `[radio] voice load failed (${why}) — retry ${warmAttempts}/10 in ${delay}ms${purge ? " (purging cached model)" : ""}`,
+    `[radio] voice load failed (${why}) — retry ${warmAttempts}/30 in ${delay}ms${purge ? " (purging cached model)" : ""}`,
   );
   setTimeout(() => {
     if (piperState !== "failed") return; // recovered some other way
