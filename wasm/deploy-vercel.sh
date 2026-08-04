@@ -42,20 +42,31 @@ for f in web/src/assets/audio/menu-theme-*.mp4; do
   ffmpeg -y -v error -i "$f" -vn -c:a libmp3lame -b:a 56k -f mp3 "$D/menu-music/$k"
 done
 
-# self-hosted Piper voice model(s): the radio's TTS worker otherwise pulls its
-# ~63MB voice straight from huggingface (slow, 429-prone on mobile → radio looked
-# broken). Host a copy on the Vercel CDN; the narrow sw.js reroutes the worker's
-# huggingface fetch to it. Cache the download in wasm/ttsvoices so redeploys and
-# the local serve.ts reuse it. French only (the game is French-first); other
-# languages still fall back to huggingface via the SW.
-echo ">> Piper voice model (fr, cached in wasm/ttsvoices)"
+# self-hosted Piper voice models: the radio's TTS worker otherwise pulls its
+# ~60MB-per-language voice straight from huggingface (slow, 429-prone → the pill
+# sticks on "loading"). Host a copy on the Vercel CDN; the narrow sw.js reroutes
+# the worker's huggingface fetch to it. Cache the downloads in wasm/ttsvoices so
+# redeploys and the local serve.ts reuse them. We host every LANGUAGE the UI is
+# translated into (radioI18n's PIPER_VOICE_BY_LANGUAGE) so switching language keeps
+# the radio fast; other languages still fall back to huggingface via the SW.
+echo ">> Piper voice models (cached in wasm/ttsvoices)"
 HF="https://huggingface.co/diffusionstudio/piper-voices/resolve/main"
 VC="wasm/ttsvoices"
-FRDIR="$VC/fr/fr_FR/tom/medium"
-mkdir -p "$FRDIR"
-[ -s "$FRDIR/fr_FR-tom-medium.onnx" ]      || curl -fsSL "$HF/fr/fr_FR/tom/medium/fr_FR-tom-medium.onnx"      -o "$FRDIR/fr_FR-tom-medium.onnx"
-[ -s "$FRDIR/fr_FR-tom-medium.onnx.json" ] || curl -fsSL "$HF/fr/fr_FR/tom/medium/fr_FR-tom-medium.onnx.json" -o "$FRDIR/fr_FR-tom-medium.onnx.json"
-[ -s "$VC/voices.json" ]                   || curl -fsSL "$HF/voices.json" -o "$VC/voices.json" || true
+# voice ids for fr/en/es/pt/it/nl (medium). de is thorsten-high (~100MB) — left on
+# huggingface fallback to keep the deploy size sane.
+VOICES="fr_FR-tom-medium en_GB-northern_english_male-medium es_ES-davefx-medium pt_BR-faber-medium it_IT-paola-medium nl_BE-rdh-medium"
+for vid in $VOICES; do
+  region="${vid%%-*}"               # e.g. pt_BR
+  lang="${region%%_*}"              # e.g. pt
+  rest="${vid#*-}"                  # e.g. faber-medium
+  name="${rest%%-*}"                # e.g. faber
+  qual="${rest#*-}"                 # e.g. medium
+  vdir="$VC/$lang/$region/$name/$qual"
+  mkdir -p "$vdir"
+  [ -s "$vdir/$vid.onnx" ]      || { echo "   downloading $vid …"; curl -fsSL "$HF/$lang/$region/$name/$qual/$vid.onnx"      -o "$vdir/$vid.onnx"; }
+  [ -s "$vdir/$vid.onnx.json" ] ||   curl -fsSL "$HF/$lang/$region/$name/$qual/$vid.onnx.json" -o "$vdir/$vid.onnx.json"
+done
+[ -s "$VC/voices.json" ] || curl -fsSL "$HF/voices.json" -o "$VC/voices.json" || true
 mkdir -p "$D/tts/voices"
 cp -r "$VC/." "$D/tts/voices/"
 cp wasm/sw.js "$D/sw.js"
