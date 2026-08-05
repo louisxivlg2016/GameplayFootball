@@ -277,7 +277,7 @@ function renderGraphics(): void {
   });
   const note = document.createElement("div");
   note.className = "set-note";
-  note.textContent = "Potato = le plus fluide (rend en basse résolution puis agrandit). Ultra = le plus beau.";
+  note.textContent = "Potato = le plus rapide (l'image reste nette, mais se rafraîchit moins souvent). Ultra = le plus fluide visuellement.";
   qRow.appendChild(note);
   body.appendChild(qRow);
   // fullscreen

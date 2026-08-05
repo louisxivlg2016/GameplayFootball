@@ -34,22 +34,23 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_quality(int level) {
   if (level < 0) level = 0;
   if (level > 4) level = 4;
   gpf_quality_level = level;
-  // potato/low render even fewer pixels than before (0.4^2 = 16% of the screen)
-  // so weak hardware keeps up — the biggest low-end win is fill-rate.
-  static const float scales[5] = {0.30f, 0.45f, 0.65f, 0.83f, 1.0f};
+  // Keep the picture SHARP at every quality — the resolution drop (blur) barely
+  // helped and looked bad, so all levels render at near-full resolution. Speed is
+  // won by the render-RATE cap below (render less often), not by blurring.
+  static const float scales[5] = {0.60f, 0.72f, 0.84f, 0.92f, 1.0f};
   blunted::Renderer3D *renderer = GetGraphicsSystem() ? GetGraphicsSystem()->GetRenderer3D() : 0;
   if (renderer) renderer->SetRenderScale(scales[level]);
   // Render-rate cap (ms/frame): the lower the quality, the less often we render,
   // so the scheduler spends far more time on the 10ms sim and the game keeps
-  // real-time speed instead of slow motion on weak hardware. Potato renders at
-  // ~12fps to hand nearly all the CPU to the physics.
-  static const int gfxFrame[5] = {80, 55, 33, 22, 16}; // ~12 / 18 / 30 / 45 / 60 fps
+  // real-time speed instead of slow motion. This is now the MAIN speed lever
+  // (sharpness is kept), so the low modes render notably less often.
+  static const int gfxFrame[5] = {120, 75, 45, 26, 16}; // ~8 / 13 / 22 / 38 / 60 fps
   gpf_apply_render_frametime(gfxFrame[level]);
   // Max time a render START may be DEFERRED while the sim catches up (~3 frame
   // periods). This bounds admission latency, not final present time (the render +
   // swap add more), but it guarantees the canvas can't be starved indefinitely on
   // a saturated machine.
-  static const int gfxDefer[5] = {240, 165, 99, 66, 48};
+  static const int gfxDefer[5] = {360, 225, 135, 78, 48};
   gpf_apply_render_defer(gfxDefer[level]);
   boost::shared_ptr<GameTask> gt = GetGameTask();
   Match *m = gt ? gt->GetMatch() : 0;
