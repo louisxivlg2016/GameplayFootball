@@ -13,6 +13,8 @@
  * Shown from homemenu.startNativeMatch; hidden as soon as the match is actually
  * running (onMatchStarted / anthem, plus a ticks watchdog) with a hard cap.
  */
+import { L } from "./i18n";
+
 let root: HTMLElement | null = null;
 let safety: number | null = null;
 let watch: number | null = null;
@@ -82,6 +84,9 @@ export function initLoading(): void {
 
 export function showLoading(): void {
   if (!root) return;
+  // set the label in the current language each time it's shown (built once at boot)
+  const sub = root.querySelector<HTMLElement>(".ld-sub");
+  if (sub) sub.innerHTML = `${L("Chargement du match")}<span class="ld-dots"></span>`;
   root.classList.add("show");
   document.body.classList.add("gpf-loading-open");
   // SAFETY NET: hide as soon as the match is actually running (ticks climbing),

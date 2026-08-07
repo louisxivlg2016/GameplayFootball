@@ -144,6 +144,9 @@ const T: Record<string, Record<Lang, string>> = {
   "TACLE":                { en: "TACKLE", es: "ENTRADA", pt: "DESARME", de: "GRÄTSCHE", it: "CONTRASTO", nl: "SLIDING" },
   "CHANGER DE JOUEUR":    { en: "SWITCH PLAYER", es: "CAMBIAR JUGADOR", pt: "TROCAR JOGADOR", de: "SPIELER WECHSELN", it: "CAMBIA GIOCATORE", nl: "SPELER WISSELEN" },
   "ACCÉLÉRER":            { en: "SPRINT", es: "ESPRINTAR", pt: "SPRINT", de: "SPRINT", it: "SCATTO", nl: "SPRINT" },
+
+  // --- loading screen ---
+  "Chargement du match":  { en: "Loading match", es: "Cargando partido", pt: "A carregar o jogo", de: "Spiel wird geladen", it: "Caricamento partita", nl: "Wedstrijd laden" },
 };
 
 /** current UI language code (en/fr/es/…), from the radio/menu picker. */
