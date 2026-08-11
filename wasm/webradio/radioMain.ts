@@ -28,7 +28,9 @@ import {
   audioPeak,
   enableAudioCapture,
   radio,
+  radioCtxState,
   radioReset,
+  radioVoicePhase,
   resumeRadio,
   setRadioLanguage,
   setRadioStoppage,
@@ -239,3 +241,39 @@ function loop(now: number): void {
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
+// ---- ?radiodebug=1 : on-screen diagnostic the user can screenshot ----
+// The radio works on tablet but not on some desktops. Rather than keep guessing
+// blindly, surface the live internals: voice-download phase, audio-context state,
+// which engine spoke, how many lines were emitted, and the true output peak. One
+// screenshot tells us whether it's a voice-load, a suspended-context, or a
+// silent-playback problem.
+if (params.get("radiodebug") === "1") {
+  const hud = document.createElement("div");
+  hud.style.cssText =
+    "position:fixed;left:8px;bottom:8px;z-index:2147483600;font:12px/1.5 monospace;" +
+    "background:rgba(0,0,0,.82);color:#7dffa0;padding:8px 10px;border-radius:8px;" +
+    "white-space:pre;pointer-events:none;max-width:90vw;box-shadow:0 2px 10px rgba(0,0,0,.6)";
+  document.body.appendChild(hud);
+  const g = window as unknown as {
+    __radioDebug?: { lastSay: string; lastSayAt: number; lastPlayAt: number; ctxState: string; lastError: string };
+    __radioEngine?: string;
+    __radioLines?: number;
+    __radioPeak?: number;
+  };
+  window.setInterval(() => {
+    const d = g.__radioDebug ?? { lastSay: "", lastSayAt: 0, lastPlayAt: 0, ctxState: "?", lastError: "" };
+    const now = Date.now();
+    const age = (t: number): string => (t ? `${Math.round((now - t) / 100) / 10}s` : "—");
+    hud.textContent =
+      `RADIO DEBUG\n` +
+      `phase   : ${radioVoicePhase()}\n` +
+      `ctx     : ${radioCtxState()}\n` +
+      `engine  : ${g.__radioEngine ?? "—"}\n` +
+      `lines   : ${g.__radioLines ?? 0}\n` +
+      `peak    : ${(g.__radioPeak ?? 0).toFixed(3)}\n` +
+      `lastSay : "${d.lastSay}" (${age(d.lastSayAt)})\n` +
+      `lastPlay: ${d.ctxState} (${age(d.lastPlayAt)})\n` +
+      `error   : ${d.lastError ? d.lastError.slice(0, 80) : "—"}`;
+  }, 500);
+}

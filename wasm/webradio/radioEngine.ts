@@ -75,6 +75,13 @@ let captureAnalyser: AnalyserNode | null = null;
 export function enableAudioCapture(): void {
   /* analyser is always on now; kept for call-site compatibility */
 }
+/** Live state of the radio's WebAudio context ("none" until it's created). For
+ *  the on-screen ?radiodebug HUD: tells desktop-vs-mobile playback apart. */
+export function radioCtxState(): string {
+  if (!radioCtx) return "none";
+  return `${radioCtx.state}${radioUnlocked ? "/unlocked" : ""}`;
+}
+
 /** Peak absolute sample amplitude currently at the radio output (-1 if no ctx). */
 export function audioPeak(): number {
   if (!captureAnalyser) return -1;
