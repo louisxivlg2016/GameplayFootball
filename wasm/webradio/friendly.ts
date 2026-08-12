@@ -5,7 +5,7 @@
  * opens the full country grid to change the nation; the big PLAY button kicks off
  * the match. Replaces the bare "pick a lineup" screen for a friendly.
  */
-import { startNativeMatch, show as showHome } from "./homemenu";
+import { startNativeMatch, show as showHome, beginMatchLaunch } from "./homemenu";
 import { showLoading } from "./loading";
 import { radioEnabled, radioVoicePhase, warmupRadioVoice } from "./radioEngine";
 import { setAnthemOverride } from "./anthem";
@@ -278,6 +278,7 @@ function launch(): void {
   // like Club / National: pick your XI first (compo), then kick off. The lineup
   // may reorder players, so remap each chosen name back to its real skin tone.
   const play = (homeNames: string[]): void => {
+    beginMatchLaunch(); // protect the score flags through the wait-for-voice window
     setAnthemOverride(home.name, away.name);
     setScoreFlags(
       { img: flagImg(home.iso), emoji: home.flag, code: isoCode(home.iso) },

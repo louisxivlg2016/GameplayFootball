@@ -121,6 +121,12 @@ const CSS = `
 
 let root: HTMLElement | null = null;
 let driveTimer: number | null = null;
+// True across the WHOLE match-launch window, including the friendly flow's
+// wait-for-radio-voice that runs BEFORE driveTimer is armed. Without this, a
+// native menu hook firing during that (up to 45s) wait would wipe the score
+// flags just set for the match. Cleared once the match is actually live.
+let launching = false;
+export function beginMatchLaunch(): void { launching = true; }
 
 /** Tap Enter on the native menu via the C++ SDL hook (synthetic DOM key events
  *  don't reach emscripten/SDL, so we push a real SDL Enter from C++). */
@@ -138,6 +144,7 @@ function pressEnter(): void {
  *  still fires once the match actually starts (onMatchStarted), whichever way
  *  the match was started. */
 export function startNativeMatch(): void {
+  launching = true; // protect the score flags until the match is truly live
   hide();
   hideLineup();
   if (!isDrillSession()) showLoading(); // cover the asset-load wait (not for training drills)
@@ -150,7 +157,9 @@ export function startNativeMatch(): void {
   let taps = 0;
   const tap = (): void => {
     pressEnter();
-    if (++taps > 20 && driveTimer !== null) { clearInterval(driveTimer); driveTimer = null; }
+    // safety: if the match never came up after ~22s of Enter-hammering, give up
+    // driving AND drop the launch guard so the menu/flags aren't wedged forever.
+    if (++taps > 20 && driveTimer !== null) { clearInterval(driveTimer); driveTimer = null; launching = false; }
   };
   if (driveTimer !== null) clearInterval(driveTimer);
   driveTimer = window.setInterval(tap, 1100);
@@ -167,7 +176,7 @@ export function isDrillSession(): boolean { return drillSession; }
 // true while startNativeMatch is driving the native menu into a match (Enter
 // hammer). Used to ignore the native-main-menu hook during that window, so it
 // doesn't cover the pitch or wipe the score flags just set for the match.
-export function isMatchStarting(): boolean { return driveTimer !== null; }
+export function isMatchStarting(): boolean { return driveTimer !== null || launching; }
 export function setPendingDrill(setPiece: number): void { pendingDrill = setPiece; pendingKeeper = false; drillSession = true; }
 export function setPendingKeeper(): void { pendingKeeper = true; pendingDrill = 0; drillSession = true; }
 // DEFI: a real match (keep the touch controls + instant replay) that just skips
@@ -193,11 +202,14 @@ function fireKeeper(): void {
 // the C++ StartMenuScene (after a match / at boot) calls this so the HTML home
 // overlay is re-shown — otherwise the bare native menu shows through.
 (window as unknown as { gpfReturnedToMenu?: () => void }).gpfReturnedToMenu = (): void => {
-  if (!drillSession) show();
+  // ignore while a match is still launching — this hook fires as the native menu
+  // scene (re)initialises during startup and would otherwise wipe the score flags.
+  if (!drillSession && !launching) show();
 };
 
 /** Called (via the wrapped gpfRadioReset) when a match actually starts. */
 export function onMatchStarted(): void {
+  launching = false; // match is live — normal menu hooks may run again
   if (driveTimer !== null) { clearInterval(driveTimer); driveTimer = null; }
   hideLoading(); // the match is live -> drop the loading screen
   hide();
