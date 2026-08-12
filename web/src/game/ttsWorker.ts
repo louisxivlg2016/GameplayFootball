@@ -18,6 +18,16 @@ import * as ort from "onnxruntime-web";
 (PATH_MAP as Record<string, string>)["id_ID-news_tts-medium"] =
   "id/id_ID/news_tts/medium/id_ID-news_tts-medium.onnx";
 
+// Force onnxruntime to a SINGLE thread for the Piper session. On some desktops
+// the multi-threaded init (SharedArrayBuffer + a nested worker under
+// crossOriginIsolated) hangs forever — TtsSession.create() then never resolves
+// and the radio is stuck on "loading" for the whole match (the "works on the
+// tablet, silent on the computer" bug). Piper shares this onnxruntime-web module
+// singleton, so setting it here applies to it too. Single-thread synthesis of a
+// short sentence is still only a couple of seconds — slow beats silent. (The MMS
+// engine re-raises this in initMms where it genuinely needs the threads.)
+ort.env.wasm.numThreads = 1;
+
 interface InitMsg {
   type: "init";
   voiceId: string;
@@ -239,6 +249,48 @@ function mmsTokenize(engine: MmsEngine, raw: string): BigInt64Array {
   return BigInt64Array.from(ids.map(BigInt));
 }
 
+// A raw <audio> element caps at volume 1.0 and (unlike a WebAudio graph) can't
+// be pushed past it — and routing the element through WebAudio for a gain stage
+// proved fragile (it silenced the radio outright on some setups). So the ONE
+// safe place to make the commentator LOUDER is right here, in the samples: lift
+// the PCM before it ever leaves the worker. Piper masters some voices quietly
+// (French "tom" especially), which is why the radio sounded too soft. A tanh
+// curve limits the peaks so the extra level never crunches into distortion.
+const PIPER_BOOST = 1.85; // Piper voices → broadcast loudness
+const MMS_BOOST = 2.2; // th/ko VITS voices are quieter still
+
+/** Amplify a 16-bit PCM WAV in place, tanh-limited. Leaves non-PCM/other bit
+ *  depths untouched (safe no-op) so an unexpected container is never corrupted. */
+function boostWavLoudness(buf: ArrayBuffer, gain: number): ArrayBuffer {
+  const dv = new DataView(buf);
+  if (dv.byteLength < 44 || dv.getUint32(0, false) !== 0x52494646 /* "RIFF" */) return buf;
+  let off = 12;
+  let fmtOk = false;
+  let dataOff = -1;
+  let dataEnd = 0;
+  while (off + 8 <= dv.byteLength) {
+    const id = dv.getUint32(off, false);
+    const sz = dv.getUint32(off + 4, true);
+    const body = off + 8;
+    if (id === 0x666d7420 /* "fmt " */) {
+      const audioFormat = dv.getUint16(body, true);
+      const bits = dv.getUint16(body + 14, true);
+      fmtOk = audioFormat === 1 && bits === 16; // PCM 16-bit only
+    } else if (id === 0x64617461 /* "data" */) {
+      dataOff = body;
+      dataEnd = Math.min(body + sz, dv.byteLength);
+      break;
+    }
+    off = body + sz + (sz & 1);
+  }
+  if (!fmtOk || dataOff < 0) return buf;
+  for (let i = dataOff; i + 1 < dataEnd; i += 2) {
+    const s = dv.getInt16(i, true) / 32768;
+    dv.setInt16(i, Math.round(Math.tanh(s * gain) * 32767), true);
+  }
+  return buf;
+}
+
 function pcmToWav(pcm: Float32Array, sampleRate: number): ArrayBuffer {
   const out = new ArrayBuffer(44 + pcm.length * 2);
   const dv = new DataView(out);
@@ -324,7 +376,7 @@ ctx.onmessage = async (e) => {
     try {
       if (activeEngine === "mms") {
         if (!mms) throw new Error("mms not ready");
-        const buf = await mmsPredict(mms, msg.text);
+        const buf = boostWavLoudness(await mmsPredict(mms, msg.text), MMS_BOOST);
         ctx.postMessage({ type: "wav", id: msg.id, buf }, [buf]);
         return;
       }
@@ -333,7 +385,7 @@ ctx.onmessage = async (e) => {
         return;
       }
       const wav = await session.predict(msg.text);
-      const buf = await wav.arrayBuffer();
+      const buf = boostWavLoudness(await wav.arrayBuffer(), PIPER_BOOST);
       ctx.postMessage({ type: "wav", id: msg.id, buf }, [buf]);
     } catch (err) {
       ctx.postMessage({ type: "sayError", id: msg.id, error: String(err) });

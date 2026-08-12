@@ -635,6 +635,16 @@ let workerRespawns = 0;
 let warmAttempts = 0;
 let piperLoadStartedAt = 0;
 const PIPER_FALLBACK_DELAY_MS = 12000;
+// A worker whose init HANGS (never posts "ready" nor "error") used to leave the
+// pill on "loading" for the entire match — nothing watched for a silent stall,
+// only for explicit errors. This watchdog treats an over-long load as a failure
+// so it self-heals (restart, then purge the OPFS cache) instead of dying for
+// good. 45s is well over a clean CDN download of the 63MB model.
+let piperLoadWatchdog: number | null = null;
+const PIPER_LOAD_TIMEOUT_MS = 45000;
+function clearLoadWatchdog(): void {
+  if (piperLoadWatchdog !== null) { clearTimeout(piperLoadWatchdog); piperLoadWatchdog = null; }
+}
 
 function piperReadyForLanguage(language: AppLanguage): boolean {
   const voiceId = getPiperVoiceId(language);
@@ -670,7 +680,7 @@ function scheduleWarmupRetry(why: string): void {
   const delay = Math.min(1500 * warmAttempts, 10000);
   // a model-load (session create) failure that survives the first couple of
   // transient retries is most likely a corrupt cache — wipe it and re-fetch
-  const purge = why === "session create" && warmAttempts >= 2;
+  const purge = (why === "session create" || why === "load timeout") && warmAttempts >= 2;
   console.info(
     `[radio] voice load failed (${why}) — retry ${warmAttempts}/30 in ${delay}ms${purge ? " (purging cached model)" : ""}`,
   );
@@ -722,9 +732,21 @@ function warmupPiper(language: AppLanguage = currentLanguage()): void {
   if (piperState !== "idle") return;
   piperState = "loading";
   piperLoadStartedAt = Date.now();
+  // arm the stuck-load watchdog: a worker init that never resolves is treated as
+  // a failure so it restarts / purges instead of hanging on "loading" forever.
+  clearLoadWatchdog();
+  piperLoadWatchdog = window.setTimeout(() => {
+    if (piperState !== "loading") return; // resolved some other way
+    console.info("[radio] voice load timed out — worker stuck, restarting");
+    piperState = "failed";
+    (globalThis as Record<string, unknown>).__radioEngine = "none";
+    scheduleWarmupRetry("load timeout");
+  }, PIPER_LOAD_TIMEOUT_MS);
   try {
-    // pre-bundled by serve.ts — the dev HTML bundler can't bundle worker URLs
-    piperWorker = new Worker("/tts/worker.js?v=4", { type: "module" });
+    // pre-bundled by serve.ts — the dev HTML bundler can't bundle worker URLs.
+    // ?v=5 busts any stale worker.js an old service worker cached from earlier
+    // deploys (a stale worker was one suspect for the desktop-only hang).
+    piperWorker = new Worker("/tts/worker.js?v=5", { type: "module" });
   } catch (err) {
     console.info("[radio] worker failed:", err);
     piperState = "failed";
@@ -745,12 +767,14 @@ function warmupPiper(language: AppLanguage = currentLanguage()): void {
       | { type: "wav"; id: number; buf: ArrayBuffer }
       | { type: "sayError"; id: number };
     if (msg.type === "ready") {
+      clearLoadWatchdog();
       piperState = "ready";
       warmAttempts = 0; // proven alive — reset the retry budget
       console.info(`[radio] piper voice on air (${voiceId})`);
       (globalThis as Record<string, unknown>).__radioEngine = `piper-${voiceId}`;
       speakPending();
     } else if (msg.type === "error") {
+      clearLoadWatchdog();
       console.info("[radio] piper failed:", msg.error);
       piperState = "failed"; // offline or unsupported: the radio stays silent
       (globalThis as Record<string, unknown>).__radioEngine = "none";
