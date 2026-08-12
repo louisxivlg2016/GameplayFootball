@@ -137,6 +137,10 @@ float PlayerBase::GetMaxVelocity() const {
   // path (Player::GetStat) barely moves velocity (0.9 + stat*0.1), so this is the
   // lever that makes the mode felt. 1.0 = neutral (mode off).
   v *= gpfStrength;
+  // global "player speed" slider (SETTINGS): speeds up / slows down EVERY player
+  // on the pitch equally. 1.0 = normal.
+  extern float gpf_speedScale;
+  v *= gpf_speedScale;
 #endif
   return v;
 }

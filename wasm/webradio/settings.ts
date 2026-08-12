@@ -7,6 +7,7 @@
  */
 interface NativeModule {
   _gpf_set_quality?: (level: number) => void;
+  _gpf_set_speed_scale?: (s: number) => void;
   _gpf_rebind_key?: (action: number, keycode: number) => void;
   _gpf_get_key?: (action: number) => number;
   ccall?: (name: string, ret: string | null, types: string[], args: unknown[]) => unknown;
@@ -37,6 +38,12 @@ const MATCH_DUR_LS = "gpf-duration";
 // play worse and strong sides better (read by friendly.ts at kickoff). Persisted
 // here; default off. See strengthFromOvr() in friendly.ts.
 const REALISTIC_LS = "gpf-realistic";
+// "Vitesse des joueurs": a global multiplier on every player's sprint speed
+// (gametask.cpp gpf_speedScale). Slider 0..1 maps to 0.6x..1.8x; the default
+// value (1/3) maps to 1.0x = normal. Persisted + re-applied on boot.
+const SPEED_LS = "gpf-player-speed";
+const DEF_SPEED = 1 / 3;               // -> speedScale 1.0 (normal)
+const speedScale = (v: number): number => 0.6 + v * 1.2; // 0.6..1.8
 const DEF_DIFFICULTY = 0.6;
 const DEF_DURATION = 0.1;   // match.cpp maps 0.1 -> ~3 min in-play (the default)
 function lsGet(key: string, def: number): number {
@@ -54,6 +61,7 @@ export function applySavedMatchSettings(): void {
   if (!m?.ccall) { window.setTimeout(applySavedMatchSettings, 2000); return; }
   setF("match_difficulty", lsGet(MATCH_DIFF_LS, DEF_DIFFICULTY));
   setF("match_duration", lsGet(MATCH_DUR_LS, DEF_DURATION));
+  m._gpf_set_speed_scale?.(speedScale(lsGet(SPEED_LS, DEF_SPEED)));
 }
 
 // gameplay assist sliders (label, config key, factory default) — 0..1
@@ -340,6 +348,8 @@ function renderGameplay(): void {
     (v) => `${Math.round(v * 100)}%`, (v) => setF("match_difficulty", v)));
   body.appendChild(persistedRow(L("Durée du match"), MATCH_DUR_LS, DEF_DURATION,
     (v) => `≈ ${durationToMin(v)} min`, (v) => setF("match_duration", v)));
+  body.appendChild(persistedRow(L("Vitesse des joueurs"), SPEED_LS, DEF_SPEED,
+    (v) => `${Math.round(speedScale(v) * 100)}%`, (v) => M()?._gpf_set_speed_scale?.(speedScale(v))));
   body.appendChild(toggleRow("Force réaliste des équipes", REALISTIC_LS, false,
     L("Chaque équipe joue à son vrai niveau (selon son OVR) : les nations faibles jouent moins bien, les grandes nations mieux. Désactivé = toutes à niveau égal.")));
   const assistHdr = document.createElement("div");
@@ -353,6 +363,7 @@ function renderGameplay(): void {
   reset.addEventListener("click", () => {
     lsSet(MATCH_DIFF_LS, DEF_DIFFICULTY); setF("match_difficulty", DEF_DIFFICULTY);
     lsSet(MATCH_DUR_LS, DEF_DURATION); setF("match_duration", DEF_DURATION);
+    lsSet(SPEED_LS, DEF_SPEED); M()?._gpf_set_speed_scale?.(speedScale(DEF_SPEED));
     try { localStorage.setItem(REALISTIC_LS, "0"); } catch { /* private */ }
     for (const [, key, def] of GAMEPLAY) setF(key, def);
     renderGameplay();

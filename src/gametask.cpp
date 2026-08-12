@@ -75,6 +75,14 @@ std::vector<int> gpf_natSkins[2];
 // stronger ones play better. Read in Player::GetStat. 1.0 = no effect (mode off).
 float gpf_natStrength[2] = {1.0f, 1.0f};
 
+// global player-speed slider (SETTINGS > "Vitesse des joueurs"): multiplies every
+// player's max sprint velocity equally (playerbase.cpp GetMaxVelocity). 1.0 =
+// normal. Clamped to a sane range so the match stays playable.
+float gpf_speedScale = 1.0f;
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_speed_scale(float s) {
+  gpf_speedScale = (s < 0.5f) ? 0.5f : (s > 1.8f ? 1.8f : s);
+}
+
 // selected UI language for the in-match native menus (gpf_i18n.hpp / GPF_TR). The
 // web pushes it on boot + on every language change; "en" = English (default).
 std::string gpf_ui_lang = "en";
