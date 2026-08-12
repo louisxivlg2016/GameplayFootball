@@ -15,6 +15,8 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include "onthepitch/player/controller/icontroller.hpp"
+#include "onthepitch/player/player.hpp"
+#include "onthepitch/team.hpp"
 #include "hid/keyboard.hpp"
 #include "systems/graphics/rendering/interface_renderer3d.hpp"
 
@@ -231,26 +233,59 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_freekick_pass(float aimRight, float aim
   Referee *ref = m->GetReferee();
   if (!ref->IsHumanOffsideKick()) return;
 
-  signed int oppSide = m->GetTeam(1 - ref->GetOffsideKickTeam())->GetSide(); // attacked-goal side
+  int kickTeam = ref->GetOffsideKickTeam();
+  signed int oppSide = m->GetTeam(1 - kickTeam)->GetSide(); // attacked-goal side
   float p = clamp(power, 0.0f, 1.0f);
   float r = clamp(aimRight, -1.0f, 1.0f);
   float u = clamp(aimUp, 0.0f, 1.0f);
 
-  // "Forward" is NOT a fixed downfield axis — from a corner or a throw-in that
-  // sends the ball straight over the touchline/byline (out!). Aim from the ball
-  // toward a point in front of the attacked goal (penalty-spot area), so a corner
-  // curls INTO the box and a throw-in goes INFIELD. For a central free kick / goal
-  // kick this still resolves to ~downfield, unchanged. `r` fans it left/right.
   Vector3 ballPos = m->GetBall()->Predict(0).Get2D();
-  Vector3 target = Vector3((pitchHalfW - 11.0f) * oppSide, 0.0f, 0.0f);
-  Vector3 fwd = (target - ballPos).Get2D();
-  if (fwd.GetLength() < 0.01f) fwd = Vector3((float)oppSide, 0.0f, 0.0f);
-  fwd = fwd.GetNormalized();
-  Vector3 lat = Vector3(fwd.coords[1], -fwd.coords[0], 0.0f); // screen-right perpendicular
 
-  float speed = 13.0f + 16.0f * p;      // pass pace (m/s)
-  Vector3 vel = fwd * speed + lat * (r * 12.0f);
-  vel.coords[2] = 2.0f + u * 7.0f;      // loft (2..9 m/s) for a lofted pass/cross
+  // The user's traced pass used to be launched as a fixed long ball toward the
+  // opponent's penalty area — which lands among OPPONENTS (corner/throw-in/free
+  // kick all "pass to the other team"). Instead, aim the pass at an actual
+  // TEAM-MATE: forward (toward the attacked goal) fanned left/right by the trace
+  // (`r`), then pick the best team-mate in that lane and drive the ball to him.
+  Vector3 fwd = Vector3((float)oppSide, 0.0f, 0.0f);
+  Vector3 lat = Vector3(fwd.coords[1], -fwd.coords[0], 0.0f); // screen-right perpendicular
+  Vector3 desired = (fwd + lat * r).GetNormalized();
+
+  std::vector<Player*> mates;
+  m->GetTeam(kickTeam)->GetActivePlayers(mates);
+  Player *best = 0;
+  float bestScore = -1e9f;
+  for (unsigned int i = 0; i < mates.size(); i++) {
+    Player *pl = mates[i];
+    if (!pl) continue;
+    if (pl->GetFormationEntry().role == e_PlayerRole_GK) continue; // never pass to our keeper
+    Vector3 rel = pl->GetPosition().Get2D() - ballPos;
+    float dist = rel.GetLength();
+    if (dist < 3.0f) continue;   // the taker standing on the ball / too close
+    if (dist > 42.0f) continue;  // beyond a believable pass
+    Vector3 dir = rel.GetNormalized();
+    float align = dir.GetDotProduct(desired); // -1..1: matches where you aimed
+    if (align < 0.10f) continue;              // never pass backwards out of the lane
+    float score = align * 2.0f - dist * 0.02f; // well-aimed + reachable wins
+    if (score > bestScore) { bestScore = score; best = pl; }
+  }
+
+  Vector3 vel;
+  if (best) {
+    // lead the runner a touch and give the ball just enough pace to arrive;
+    // loft from the trace (u), softened on short passes so they stay on the deck.
+    Vector3 lead = best->GetPosition().Get2D() + best->GetMovement().Get2D() * 0.35f;
+    Vector3 to = lead - ballPos;
+    float dist = to.GetLength();
+    Vector3 dir = (dist > 0.01f) ? to.GetNormalized() : desired;
+    float speed = clamp(9.0f + dist * 0.85f, 11.0f, 30.0f) + p * 5.0f;
+    vel = dir * speed;
+    vel.coords[2] = (0.6f + u * 6.0f) * clamp(dist / 20.0f, 0.4f, 1.4f);
+  } else {
+    // nobody in the aimed lane — fall back to a forward ball fanned by r
+    float speed = 13.0f + 16.0f * p;
+    vel = desired * speed + lat * (r * 8.0f);
+    vel.coords[2] = 2.0f + u * 7.0f;
+  }
 
   m->GetBall()->Touch(vel);
   ref->EndOffsideKick();
