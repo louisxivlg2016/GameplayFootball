@@ -42,6 +42,15 @@ Referee::Referee(Match *match) : match(match) {
   humanOffsideKickTeam = -1;
   humanPenaltyTeam = -1;
 
+  shootoutActive = false;
+  shootoutKicker = 1;
+  shootoutTaken[0] = shootoutTaken[1] = 0;
+  shootoutScore[0] = shootoutScore[1] = 0;
+  shootoutSnapGoals[0] = shootoutSnapGoals[1] = 0;
+  shootoutFireTime = 0;
+  shootoutResolveTime = 0;
+  shootoutPending = false;
+
 
   // whistle
 
@@ -120,7 +129,14 @@ void Referee::Process() {
     NotifyDrillShotTaken();
   }
 
-  if (match->IsInPlay() && !match->IsInSetPiece()) {
+  // penalty shootout: drive its own kick sequence (fire AI shots, judge results,
+  // alternate, end). The set-piece countdown (below, in the not-in-play branch)
+  // still runs so each penalty prepares/whistles and the human take/keep UI arms;
+  // only the in-play RESTART logic (kickoff after a goal, throw-ins/corners on a
+  // miss that goes out) is suppressed, or it would break the alternation.
+  ProcessShootout();
+
+  if (!shootoutActive && match->IsInPlay() && !match->IsInSetPiece()) {
 
     Vector3 ballPos = match->GetBall()->Predict(0);
 
@@ -287,7 +303,13 @@ void Referee::Process() {
               }
             }
             if (match->GetMatchPhase() == e_MatchPhase_Penalties) {
-              match->GameOver();
+              // still level after extra time -> a real penalty shootout instead
+              // of ending on a draw. If a late ET goal broke the tie, just end.
+              if (match->GetScore(0) == match->GetScore(1)) {
+                StartShootout();
+              } else {
+                match->GameOver();
+              }
               return;
             }
             match->sig_OnMatchPhaseChange(match);
@@ -440,6 +462,126 @@ void Referee::StartKeeperDrill(int reps) {
   ForceSetPiece(e_SetPiece_Penalty, botTeam);
 }
 
+// ---- penalty shootout ------------------------------------------------------
+// A drawn match after extra time is decided on penalties: 5 kicks each, then
+// sudden death. Built on the proven set-piece machinery — the human takes with
+// the trace overlay and keeps with the dive arrows; the AI's kick is SCRIPTED
+// (like the keeper drill) so it can never hang waiting on a controller. Goals
+// are read from the match's own goal detection (the kicking team's score going
+// up), so no separate goal geometry is needed.
+
+void Referee::StartShootout() {
+  shootoutActive = true;
+  shootoutScore[0] = shootoutScore[1] = 0;
+  shootoutTaken[0] = shootoutTaken[1] = 0;
+  shootoutFireTime = 0;
+  shootoutResolveTime = 0;
+  shootoutPending = false;
+  // the AI side kicks first so the human opens by keeping (dramatic); if both are
+  // AI (headless), team 1 first is fine too.
+  shootoutKicker = (match->GetTeam(0)->GetHumanGamerCount() > 0) ? 1 : 0;
+  gpfRadioEvent("shootout");
+#ifdef __EMSCRIPTEN__
+  EM_ASM({ try { if (window.gpfShootoutStart) window.gpfShootoutStart(); } catch (e) {} });
+#endif
+  ShootoutNextKick();
+}
+
+void Referee::ShootoutNextKick() {
+  // clear any lingering "goal scored" celebration/flag from the previous kick so
+  // the next kick's detection starts clean (the score count itself is kept).
+  match->SetGoalScored(false);
+  shootoutSnapGoals[0] = match->GetScore(0);
+  shootoutSnapGoals[1] = match->GetScore(1);
+  shootoutPending = true;
+  shootoutResolveTime = 0;
+  ForceSetPiece(e_SetPiece_Penalty, shootoutKicker);
+  // AI taker -> script the shot a beat after the whistle (buffer.startTime was
+  // just set by ForceSetPiece); human taker -> the trace UI drives it (fireTime 0).
+  bool humanKicks = match->GetTeam(shootoutKicker)->GetHumanGamerCount() > 0;
+  shootoutFireTime = humanKicks ? 0 : (buffer.startTime + 2500);
+#ifdef __EMSCRIPTEN__
+  EM_ASM({ try { if (window.gpfShootoutUpdate) window.gpfShootoutUpdate($0, $1, $2, $3, $4); } catch (e) {} },
+         shootoutScore[0], shootoutScore[1], shootoutTaken[0], shootoutTaken[1], shootoutKicker);
+#endif
+}
+
+bool Referee::ShootoutDecided() {
+  int a = shootoutScore[0], b = shootoutScore[1];
+  int ta = shootoutTaken[0], tb = shootoutTaken[1];
+  // sudden death: both have taken an equal number of kicks (>=5) -> decided the
+  // moment they differ.
+  if (ta >= 5 && tb >= 5) return (ta == tb) && (a != b);
+  // best-of-five: decided once a lead can't be caught with the kicks remaining.
+  int ra = (5 - ta > 0) ? 5 - ta : 0; // team 0's remaining kicks in the first five
+  int rb = (5 - tb > 0) ? 5 - tb : 0;
+  if (a > b + rb) return true;
+  if (b > a + ra) return true;
+  return false;
+}
+
+void Referee::ShootoutHumanKickStruck() {
+  // the human traced their kick (gpf_penalty_shoot -> EndPenalty); judge the
+  // result once the ball has reached the goal / been saved.
+  if (shootoutActive) shootoutResolveTime = match->GetActualTime_ms() + 4500;
+}
+
+void Referee::ProcessShootout() {
+  if (!shootoutActive) return;
+  unsigned long now = match->GetActualTime_ms();
+
+  // AI kick: fire the scripted penalty once (mostly on target, sometimes wide/high
+  // so the keeper can save/it can miss), then end the set piece so the keeper reacts.
+  if (shootoutFireTime != 0 && now >= shootoutFireTime) {
+    shootoutFireTime = 0;
+    signed int oppSide = match->GetTeam(1 - shootoutKicker)->GetSide();
+    Vector3 from = match->GetBall()->Predict(0).Get2D();
+    Vector3 aimSpot = Vector3(pitchHalfW * oppSide, random(-4.2f, 4.2f), random(0.3f, 2.7f));
+    Vector3 vel = (aimSpot - from).GetNormalized(Vector3(oppSide, 0, 0)) * (23.0f + random(0.0f, 4.0f));
+    match->GetBall()->Touch(vel);
+    match->GetBall()->SetRotation(0, 0, 0, 1);
+    if (match->IsInSetPiece()) {
+      buffer.active = false;
+      match->StopSetPiece();
+      match->GetTeam(0)->GetController()->PrepareSetPiece(e_SetPiece_None);
+      match->GetTeam(1)->GetController()->PrepareSetPiece(e_SetPiece_None);
+      afterSetPieceRelaxTime_ms = 400;
+    }
+    shootoutResolveTime = now + 4500; // judge after the ball settles
+  }
+
+  // resolve the current kick: a goal shows up as the kicking team's score rising.
+  if (shootoutPending && shootoutResolveTime != 0 && now >= shootoutResolveTime) {
+    shootoutResolveTime = 0;
+    shootoutPending = false;
+    bool scored = match->GetScore(shootoutKicker) > shootoutSnapGoals[shootoutKicker];
+    if (scored) shootoutScore[shootoutKicker]++;
+    shootoutTaken[shootoutKicker]++;
+    gpfRadioEvent(scored ? "penGoal" : "penMiss");
+#ifdef __EMSCRIPTEN__
+    if (humanKeeperTeam >= 0) {
+      humanKeeperTeam = -1;
+      EM_ASM({ try { if (window.gpfKeeperDone) window.gpfKeeperDone(); } catch (e) {} });
+    }
+    EM_ASM({ try { if (window.gpfShootoutUpdate) window.gpfShootoutUpdate($0, $1, $2, $3, $4); } catch (e) {} },
+           shootoutScore[0], shootoutScore[1], shootoutTaken[0], shootoutTaken[1], shootoutKicker);
+#else
+    if (humanKeeperTeam >= 0) humanKeeperTeam = -1;
+#endif
+    if (ShootoutDecided()) {
+      shootoutActive = false;
+#ifdef __EMSCRIPTEN__
+      EM_ASM({ try { if (window.gpfShootoutEnd) window.gpfShootoutEnd($0, $1); } catch (e) {} },
+             shootoutScore[0], shootoutScore[1]);
+#endif
+      match->GameOver();
+      return;
+    }
+    shootoutKicker = 1 - shootoutKicker; // the other team is up next
+    ShootoutNextKick();
+  }
+}
+
 void Referee::RestartAfterCeremony() {
   // the initial kickoff's prepareTime already fired before the ceremony, so
   // re-arm the countdown from now: PrepareSetPiece runs again (players reform to
@@ -503,6 +645,8 @@ void Referee::EndPenalty() {
 #ifdef __EMSCRIPTEN__
   EM_ASM({ try { if (window.gpfPenaltyDone) window.gpfPenaltyDone(); } catch (e) {} });
 #endif
+  // in a shootout this was the human's kick -> schedule the result judgement
+  ShootoutHumanKickStruck();
 }
 
 void Referee::AlterSetPiecePrepareTime(unsigned long newTime_ms) {

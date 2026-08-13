@@ -109,6 +109,17 @@ class Referee {
     // reform into their natural positions, then the whistle blows a beat later.
     void RestartAfterCeremony();
 
+    // ---- penalty shootout (drawn match after extra time) --------------------
+    // A real alternating shootout: 5 kicks each then sudden death. The human
+    // takes with the trace UI and keeps with the dive arrows; AI kicks are
+    // scripted (like the keeper drill) so nothing can hang. Started from the
+    // referee when the Penalties phase is reached still level.
+    bool IsShootoutActive() { return shootoutActive; }
+    int GetShootoutScore(int team) { return (team >= 0 && team < 2) ? shootoutScore[team] : 0; }
+    int GetShootoutTaken(int team) { return (team >= 0 && team < 2) ? shootoutTaken[team] : 0; }
+    // called by EndPenalty when the HUMAN has struck their shootout kick
+    void ShootoutHumanKickStruck();
+
   protected:
     Match *match;
 
@@ -136,6 +147,19 @@ class Referee {
     int humanOffsideKickTeam; // in-match offside free kick the human takes; -1 = none
     int humanPenaltyTeam;     // in-match penalty the human takes (trace-to-shoot); -1 = none
 
+    // ---- penalty shootout state (0/false = not shooting out) ----
+    bool shootoutActive;
+    int shootoutKicker;                // team about to take the current kick (0 or 1)
+    int shootoutTaken[2];              // kicks taken so far by each team
+    int shootoutScore[2];              // shootout goals per team
+    int shootoutSnapGoals[2];          // match GoalCount snapshot before the live kick
+    unsigned long shootoutFireTime;    // AI kick: fire the scripted shot at this time (0 = idle)
+    unsigned long shootoutResolveTime; // judge the live kick's result at this time (0 = idle)
+    bool shootoutPending;              // a kick is set up / in flight, result not yet counted
+    void StartShootout();       // enter the shootout (called from Process when level at Penalties)
+    void ShootoutNextKick();    // set up the next penalty (alternating team)
+    void ProcessShootout();     // per-tick shootout driver (fire AI shots, judge results, end)
+    bool ShootoutDecided();     // true once one team can no longer be caught
 };
 
 #endif

@@ -23,6 +23,7 @@ import { initReplay } from "./replay";
 import { initMatches } from "./matches";
 import { initFriendly } from "./friendly";
 import { initLoading } from "./loading";
+import { initShootout } from "./shootout";
 import {
   type RadioEvent,
   audioPeak,
@@ -181,6 +182,7 @@ initTouch();
 initMatches();
 initFriendly();
 initLoading();
+initShootout();
 initReplay();
 
 // The match gallery was removed — purge any match videos previously recorded to
