@@ -39,20 +39,22 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_quality(int level) {
   // Keep the picture SHARP at every quality — the resolution drop (blur) barely
   // helped and looked bad, so all levels render at near-full resolution. Speed is
   // won by the render-RATE cap below (render less often), not by blurring.
-  static const float scales[5] = {0.60f, 0.72f, 0.84f, 0.92f, 1.0f};
+  static const float scales[5] = {0.85f, 0.90f, 0.94f, 0.97f, 1.0f};
   blunted::Renderer3D *renderer = GetGraphicsSystem() ? GetGraphicsSystem()->GetRenderer3D() : 0;
   if (renderer) renderer->SetRenderScale(scales[level]);
   // Render-rate cap (ms/frame): the lower the quality, the less often we render,
   // so the scheduler spends far more time on the 10ms sim and the game keeps
-  // real-time speed instead of slow motion. This is now the MAIN speed lever
-  // (sharpness is kept), so the low modes render notably less often.
-  static const int gfxFrame[5] = {120, 75, 45, 26, 16}; // ~8 / 13 / 22 / 38 / 60 fps
+  // real-time speed instead of slow motion. This is the MAIN speed lever
+  // (sharpness is kept), so even ULTRA now caps the render rate — rendering
+  // full-res at 60fps on a modest machine starves the sim, so ultra renders at
+  // ~38fps to leave the sim real-time. Drop a level for more speed (still sharp).
+  static const int gfxFrame[5] = {150, 95, 60, 38, 26}; // ~7 / 11 / 17 / 26 / 38 fps
   gpf_apply_render_frametime(gfxFrame[level]);
   // Max time a render START may be DEFERRED while the sim catches up (~3 frame
   // periods). This bounds admission latency, not final present time (the render +
   // swap add more), but it guarantees the canvas can't be starved indefinitely on
   // a saturated machine.
-  static const int gfxDefer[5] = {360, 225, 135, 78, 48};
+  static const int gfxDefer[5] = {450, 285, 180, 114, 78};
   gpf_apply_render_defer(gfxDefer[level]);
   boost::shared_ptr<GameTask> gt = GetGameTask();
   Match *m = gt ? gt->GetMatch() : 0;

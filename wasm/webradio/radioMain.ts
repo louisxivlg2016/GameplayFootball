@@ -193,7 +193,9 @@ const applySavedQuality = (): void => {
   let level = 4;
   try { level = parseInt(localStorage.getItem("gpf-quality") ?? "4", 10); } catch { /* private mode */ }
   if (!Number.isFinite(level) || level < 0 || level > 4) level = 4;
-  if (level === 4) return;
+  // Apply for EVERY level, including ultra (4): the render-rate cap that keeps the
+  // sim real-time (no slow motion) lives in gpf_set_quality, so skipping it at the
+  // default left ultra rendering uncapped and the game ran in slow motion.
   const M = (window as unknown as { Module?: { _gpf_set_quality?: (l: number) => void } }).Module;
   if (M?._gpf_set_quality) M._gpf_set_quality(level);
   else window.setTimeout(applySavedQuality, 2000); // wasm not up yet — retry
