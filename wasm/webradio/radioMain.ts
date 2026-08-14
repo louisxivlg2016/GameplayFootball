@@ -24,6 +24,7 @@ import { initMatches } from "./matches";
 import { initFriendly } from "./friendly";
 import { initLoading } from "./loading";
 import { initShootout } from "./shootout";
+import { initNetplay } from "./netplay";
 import {
   type RadioEvent,
   audioPeak,
@@ -183,6 +184,7 @@ initMatches();
 initFriendly();
 initLoading();
 initShootout();
+initNetplay();
 initReplay();
 
 // The match gallery was removed — purge any match videos previously recorded to

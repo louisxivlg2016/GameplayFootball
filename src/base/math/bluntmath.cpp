@@ -70,6 +70,14 @@ namespace blunted {
     rng.engine().seed(static_cast<unsigned int>(std::time(0)));
   }
 
+  // Online multiplayer determinism: seed BOTH RNGs from a shared value so two
+  // peers running the same wasm produce the identical random sequence (and, if
+  // the sim is deterministic, the identical match). Called via gpf_set_rng_seed.
+  void set_random_seeds(unsigned int s) {
+    rng.engine().seed(s);
+    fastrandseed = s ? s : 1u;
+  }
+
   inline real boostrandom() {
     return rng();
   }

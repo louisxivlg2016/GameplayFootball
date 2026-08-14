@@ -29,6 +29,7 @@ namespace blunted {
   signed int signSide(real n); // returns -1 or 1
   bool is_odd(int n);
   void randomseed();
+  void set_random_seeds(unsigned int s); // online-MP determinism: seed both RNGs
   real random(real min, real max);
 
   inline void fastrandomseed() {

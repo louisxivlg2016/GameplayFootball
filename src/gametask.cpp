@@ -85,6 +85,43 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_speed_scale(float s) {
   gpf_speedScale = (s < 0.5f) ? 0.5f : (s > 1.8f ? 1.8f : s);
 }
 
+// ---- online multiplayer (experimental) : determinism plumbing --------------
+// Two peers seed the RNG identically, then compare a checksum of the sim state
+// keyed by the sim clock. If the checksums stay equal, the wasm sim is
+// deterministic in lockstep and real net play is feasible.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_rng_seed(unsigned int seed) {
+  blunted::set_random_seeds(seed);
+}
+
+// The deterministic step key: the sim clock (advances 10ms per sim step), so the
+// state at "frame F" is comparable across peers regardless of their frame rate.
+extern "C" EMSCRIPTEN_KEEPALIVE int gpf_sim_frame() {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  return m ? (int)m->GetActualTime_ms() : -1;
+}
+
+// FNV-1a hash of the ball + every active player's position (quantised to ~1.5cm
+// so identical sims match exactly while a real divergence shows up fast).
+extern "C" EMSCRIPTEN_KEEPALIVE unsigned int gpf_state_checksum() {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !m->GetBall()) return 0;
+  unsigned int h = 2166136261u;
+  Vector3 b = m->GetBall()->Predict(0);
+  for (int c = 0; c < 3; c++) { int q = (int)(b.coords[c] * 64.0f); h = (h ^ (unsigned int)q) * 16777619u; }
+  for (int t = 0; t < 2; t++) {
+    std::vector<Player*> pl;
+    m->GetTeam(t)->GetActivePlayers(pl);
+    for (unsigned int i = 0; i < pl.size(); i++) {
+      if (!pl[i]) continue;
+      Vector3 p = pl[i]->GetPosition();
+      for (int c = 0; c < 3; c++) { int q = (int)(p.coords[c] * 64.0f); h = (h ^ (unsigned int)q) * 16777619u; }
+    }
+  }
+  return h;
+}
+
 // selected UI language for the in-match native menus (gpf_i18n.hpp / GPF_TR). The
 // web pushes it on boot + on every language change; "en" = English (default).
 std::string gpf_ui_lang = "en";
