@@ -80,10 +80,10 @@ export const MARKET: Target[] = [
   { id: "BERNARDO", label: "Bernardo Silva", pos: "MF", nat: "Portugal", flag: "🇵🇹", age: 32, price: 750, tier: "Star" },
 
   // ---- attaquants ----
+  { id: "MBAPPE", label: "Kylian Mbappé", pos: "FW", nat: "France", flag: "🇫🇷", age: 27, price: 2800, tier: "Légende" },
   { id: "MESSI", label: "Lionel Messi", pos: "FW", nat: "Argentine", flag: "🇦🇷", age: 39, price: 2200, tier: "Légende" },
   { id: "C.RONALDO", label: "Cristiano Ronaldo", pos: "FW", nat: "Portugal", flag: "🇵🇹", age: 41, price: 2000, tier: "Légende" },
   { id: "NEYMAR", label: "Neymar Jr", pos: "FW", nat: "Brésil", flag: "🇧🇷", age: 34, price: 1500, tier: "Légende" },
-  { id: "MBAPPE", label: "Kylian Mbappé", pos: "FW", nat: "France", flag: "🇫🇷", age: 27, price: 2400, tier: "Superstar" },
   { id: "HAALAND", label: "Erling Haaland", pos: "FW", nat: "Norvège", flag: "🇳🇴", age: 26, price: 2400, tier: "Superstar" },
   { id: "YAMAL", label: "Lamine Yamal", pos: "FW", nat: "Espagne", flag: "🇪🇸", age: 19, price: 2300, tier: "Superstar" },
   { id: "VINICIUS", label: "Vinícius Júnior", pos: "FW", nat: "Brésil", flag: "🇧🇷", age: 26, price: 2000, tier: "Superstar" },
