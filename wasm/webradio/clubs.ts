@@ -9,6 +9,7 @@ import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads } from "./squads";
 import { CLUB_SQUADS } from "./clubsquads";
+import { clubSquad } from "./transfers";
 import { teamLineup } from "./lineup";
 import { L, onLangChange } from "./i18n";
 
@@ -131,6 +132,19 @@ export function hideClubs(): void {
   document.body.classList.remove("gpf-clubs-open");
 }
 
+/** Every club that has a real squad, for the transfer market's club picker. */
+export function allClubsWithSquads(): Array<{ name: string; code: string; color: string; country: string }> {
+  const out: Array<{ name: string; code: string; color: string; country: string }> = [];
+  for (const lg of LEAGUES) {
+    for (const c of lg.clubs) {
+      if ((CLUB_SQUADS[c.code] ?? []).length) {
+        out.push({ name: c.name, code: c.code, color: c.color, country: lg.country });
+      }
+    }
+  }
+  return out;
+}
+
 let homePick: Club | null = null;
 function updateClubStatus(): void {
   const s = root?.querySelector<HTMLElement>(".club-status");
@@ -141,7 +155,7 @@ async function doPlayClubs(home: Club, away: Club, homeNames: string[]): Promise
   // the CHOSEN home XI + the away club squad, with kit colours
   applyMatchSquads(
     { color: home.color, names: homeNames },
-    { color: away.color, names: CLUB_SQUADS[away.code] || [] },
+    { color: away.color, names: clubSquad(away.code) },
   );
   hideClubs();
   startNativeMatch();
@@ -159,7 +173,7 @@ function randomClubOpponent(home: Club): Club {
 
 function launchClubs(home: Club, away: Club): void {
   // pick your XI first (your club is home), then play
-  const squad = CLUB_SQUADS[home.code];
+  const squad = clubSquad(home.code); // includes the players you bought
   hideClubs();
   const play = (names: string[]): void => { void doPlayClubs(home, away, names); };
   if (squad && squad.length) teamLineup(home.name, squad, home.name, play);

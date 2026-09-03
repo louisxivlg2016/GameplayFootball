@@ -18,6 +18,7 @@ import { showSettings } from "./settings";
 import { showMatches } from "./matches";
 import { showDefi, hideDefi } from "./defi";
 import { openNetplay } from "./netplay";
+import { showMarket } from "./market";
 import { setAnthemOverride } from "./anthem";
 import { resumeMenuMusic } from "./menu";
 import { clearScoreFlags } from "./scoreflags";
@@ -379,7 +380,9 @@ export function initHomeMenu(): void {
   const sidebar = root.querySelector(".menu-sidebar")!;
   sidebar.append(
     iconBtn("⌂", "Accueil", true), iconBtn("◎", "Clubs", false, showClubs),
-    iconBtn("◔", "Sélections", false, showNational), iconBtn("◌", "Défis", false, showDefi),
+    iconBtn("◔", "Sélections", false, showNational),
+    imgBtn("/menu-assets/cards/defis-button.png", "Défis", showDefi),
+    imgBtn("/menu-assets/cards/coin.png", "Mercato", showMarket),
     imgBtn("/menu-assets/settings-button.png", "Réglages", showSettings),
   );
 
