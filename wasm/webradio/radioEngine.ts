@@ -588,7 +588,7 @@ const radioDebug = {
 (globalThis as Record<string, unknown>).__radioDebug = radioDebug;
 
 function playQueuedFlow(): void {
-  if (!queuedFlow || playerBusy || !enabled) return;
+  if (!queuedFlow || playerBusy || !enabled || evtQueue.length) return;
   // stale lines are dropped: too old, or the ball has changed hands since
   const fresh = Date.now() - queuedFlow.at < 2500 &&
                 (queuedFlow.ctx === "" || queuedFlow.ctx === flowCtx);
@@ -686,9 +686,14 @@ async function playGoalClip(fallbackText?: string): Promise<void> {
 }
 
 function takeMic(priority: number): number | null {
-  if (priority >= 2) {
+  if (priority >= 3) {
     stopCurrent();
     queuedFlow = null; // a shout supersedes any pre-baked chatter
+    evtQueue = [];     // ...and any event line still queued behind it
+  } else if (priority === 2 && playerBusy) {
+    // only reached when the queue let this through, or the mic went busy in the
+    // meantime — wait rather than chop the sentence in half
+    return null;
   } else if (playerBusy) {
     // legitimately busy with a recent line — let it finish. But if the mic has
     // been held far too long with no progress, it's wedged (a lost onended):
@@ -1031,6 +1036,7 @@ export function radioReset(): void {
   playerBusy = false;
   playerBusyAt = 0;
   queuedFlow = null;
+  evtQueue = [];
   pendingText = null;
   predictFails = 0;
   playerGen++; // orphan any in-flight clip that resolves late
@@ -1053,7 +1059,7 @@ export function radioHasQueued(): boolean {
 
 /** Is the commentator free to take a play-by-play line right now? */
 export function radioIdle(): boolean {
-  if (!enabled) return false;
+  if (!enabled || evtQueue.length) return false;
   const language = ensureVoiceForCurrentLanguage();
   return (piperReadyForLanguage(language) || speechFallbackAvailable()) && !playerBusy;
 }
@@ -1125,7 +1131,41 @@ export function toggleRadio(): boolean {
   return enabled;
 }
 
+// ---- event line queue ------------------------------------------------------
+// A referee/structural call (foul, shot, save, corner…) used to grab the mic the
+// instant it arrived, chopping the sentence in progress in half. Those lines now
+// WAIT for the commentator to finish — he only gets cut off for something that
+// truly can't wait (a goal shout, priority 3). A line held longer than
+// EVT_HOLD_MS is dropped: by then it describes something that's over.
+interface PendingEvent { text: string; priority: number; fx?: VoiceFx; at: number }
+const EVT_HOLD_MS = 5000;
+let evtQueue: PendingEvent[] = [];
+
+/** True while a referee/structural line is waiting for the mic. */
+export function radioEventPending(): boolean { return evtQueue.length > 0; }
+
+function pumpEvents(): void {
+  if (!evtQueue.length) return;
+  const now = Date.now();
+  evtQueue = evtQueue.filter((e) => now - e.at < EVT_HOLD_MS);
+  if (!evtQueue.length || !enabled) return;
+  if (playerBusy) return;              // still talking — let him finish
+  const e = evtQueue.shift();
+  if (e) sayNow(e.text, e.priority, e.fx);
+}
+setInterval(pumpEvents, 100);
+
 function say(text: string, priority = 1, fx?: VoiceFx): void {
+  if (!enabled) return;
+  // hold a normal event line until the current sentence is over (see above)
+  if (priority === 2 && (playerBusy || evtQueue.length)) {
+    evtQueue.push({ text, priority, fx, at: Date.now() });
+    return;
+  }
+  sayNow(text, priority, fx);
+}
+
+function sayNow(text: string, priority = 1, fx?: VoiceFx): void {
   if (!enabled) return;
   const language = ensureVoiceForCurrentLanguage();
   const usingPiper = !!getPiperVoiceId(language);
@@ -1191,6 +1231,7 @@ export type RadioEvent =
   | "penGoal"
   | "penMiss"
   | "owngoal"
+  | "drillgoal"
   | "addedtime";
 
 // Referee decisions and structural moments are announced even while the mic is
@@ -1198,7 +1239,7 @@ export type RadioEvent =
 const SPEAK_THROUGH_STOPPAGE = new Set<RadioEvent>([
   "foul", "penalty", "yellow", "red", "offside", "corner", "goalkick", "throwin",
   "goal", "owngoal", "addedtime", "opening", "kickoff", "halftime", "fulltime", "extratime",
-  "shootout", "penGoal", "penMiss",
+  "shootout", "penGoal", "penMiss", "drillgoal",
 ]);
 
 /** True when this goal levelled the score. Prefers the score the engine sent with
@@ -1326,6 +1367,10 @@ export function radio(
       break;
     case "fulltime":
       say(copy.fulltime(score), 2);
+      break;
+    case "drillgoal":
+      // training drill: nobody's net to credit, just call the goal
+      say(copy.penGoal, 2, EXCITED);
       break;
     case "shootout":
       say(copy.shootout, 2);

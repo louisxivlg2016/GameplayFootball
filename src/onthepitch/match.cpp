@@ -1504,6 +1504,12 @@ void Match::Process() {
           if (!GetReferee() || (!GetReferee()->IsShootoutActive() && !GetReferee()->IsDrillActive())) {
             gpfRadioEvent(ownGoal ? "owngoal" : "goal", scorer.c_str(), GetLastGoalTeamID(),
                           matchData->GetGoalCount(0), matchData->GetGoalCount(1));
+          } else if (GetReferee()->IsDrillActive()) {
+            // A TRAINING drill has no sides to credit, so the own-goal test above is
+            // meaningless there (it used to announce a scored penalty as an own goal).
+            // Staying silent left the drill with no commentary at all, though — so
+            // call the goal itself, with no team attached.
+            gpfRadioEvent("drillgoal");
           }
         }
 
