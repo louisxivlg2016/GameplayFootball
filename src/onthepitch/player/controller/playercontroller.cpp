@@ -389,7 +389,15 @@ void PlayerController::_InterfereCommand(PlayerCommandQueue &commandQueue, bool 
 void PlayerController::_SlidingCommand(PlayerCommandQueue &commandQueue) {
   if (team->GetHumanGamerCount() != 0) return;
   if (match->GetBallRetainer() != 0) return;
-  if (CouldWinABallDuelLikeliness() < 0.7f) return;
+#ifdef __EMSCRIPTEN__
+  // Cynical sides lunge in on balls they are NOT favourite to win, and from
+  // further out — more tackles, and more fouls as a natural consequence.
+  extern float gpf_natAggression[2];
+  const float aggr = gpf_natAggression[team->GetID() & 1];
+#else
+  const float aggr = 1.0f;
+#endif
+  if (CouldWinABallDuelLikeliness() < 0.7f / aggr) return;
 
   if (!teamHasBestPossession && possessionAmount < 0.6f && match->GetDesignatedPossessionPlayer() != player && oppTeamHasPossession) {
 
@@ -398,7 +406,8 @@ void PlayerController::_SlidingCommand(PlayerCommandQueue &commandQueue) {
     Vector3 oppPos = _oppPlayer->GetPosition() + _oppPlayer->GetMovement() * 0.2;
 
     float ballDist = (playerPos - ballPos).GetLength();
-    if ((ballDist > 0.7f && ballDist < 1.6f && oppTimeNeededToGetToBall > 260) || (ballDist > 0.6f && ballDist < 1.8f && _oppPlayer->GetCurrentFunctionType() == e_FunctionType_Shot && _oppPlayer->TouchPending())) {
+    const float reach = 1.6f * aggr, reachShot = 1.8f * aggr;
+    if ((ballDist > 0.7f && ballDist < reach && oppTimeNeededToGetToBall > 260) || (ballDist > 0.6f && ballDist < reachShot && _oppPlayer->GetCurrentFunctionType() == e_FunctionType_Shot && _oppPlayer->TouchPending())) {
 
       // no opp in the way?
       PlayerCommand command;

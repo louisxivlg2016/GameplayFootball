@@ -134,6 +134,52 @@ function arm(): void {
   if (hint) { hint.textContent = "Trace la trajectoire du tir au doigt"; hint.style.opacity = "1"; }
 }
 
+// ---- 10-second set-piece countdown ----------------------------------------
+// A throw-in / corner / free kick you take must not stall the match: show a
+// visible 10s clock at the TOP and, if it runs out, play the ball automatically
+// (a simple forward pass) so the game always restarts.
+let cdEl: HTMLElement | null = null;
+let cdTimer: number | null = null;
+let cdLeft = 0;
+
+function ensureCountdownEl(): HTMLElement {
+  if (cdEl) return cdEl;
+  const d = document.createElement("div");
+  d.id = "gpf-sp-countdown";
+  d.style.cssText = [
+    "position:fixed", "top:14px", "left:50%", "transform:translateX(-50%)",
+    "z-index:2147483300", "display:none", "pointer-events:none",
+    "background:rgba(8,12,18,.82)", "color:#fff", "border-radius:999px",
+    "padding:7px 18px", "font:800 20px/1 system-ui,sans-serif",
+    "box-shadow:0 3px 12px rgba(0,0,0,.5)", "letter-spacing:1px",
+  ].join(";");
+  document.body.appendChild(d);
+  cdEl = d;
+  return d;
+}
+
+function stopCountdown(): void {
+  if (cdTimer !== null) { clearInterval(cdTimer); cdTimer = null; }
+  if (cdEl) cdEl.style.display = "none";
+}
+
+function startCountdown(onTimeout: () => void): void {
+  stopCountdown();
+  const el = ensureCountdownEl();
+  cdLeft = 10;
+  const paint = (): void => {
+    el.textContent = `⏱ ${cdLeft}`;
+    el.style.color = cdLeft <= 3 ? "#ff6b6b" : "#fff";
+    el.style.display = "block";
+  };
+  paint();
+  cdTimer = window.setInterval(() => {
+    cdLeft--;
+    if (cdLeft <= 0) { stopCountdown(); onTimeout(); return; }
+    paint();
+  }, 1000);
+}
+
 // in-match offside free kick: same trace, but it PASSES toward where you draw
 function armPass(): void {
   mode = "pass";
@@ -144,6 +190,14 @@ function armPass(): void {
   document.body.classList.add("gpf-aim-active");
   if (canvas) { canvas.style.display = "block"; canvas.style.pointerEvents = "auto"; }
   if (hint) { hint.textContent = "Trace un trait vers un coéquipier pour passer"; hint.style.opacity = "1"; }
+  // you have 10s to take it — otherwise the ball is played forward automatically
+  startCountdown(() => {
+    if (!armed) return;
+    const M = (window as unknown as { Module?: DrillModule }).Module;
+    M?._gpf_freekick_pass?.(0, 0.35, 0.55); // straight ahead, medium weight
+    disarm();
+    setPillsHidden(false);
+  });
 }
 
 // in-match penalty the human takes: trace the shot toward the goal
@@ -159,6 +213,7 @@ function armPenalty(): void {
 }
 
 function disarm(): void {
+  stopCountdown();
   armed = false;
   dragging = false;
   pts = [];

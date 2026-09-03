@@ -188,6 +188,12 @@ class Match {
     unsigned long GetActualTime_ms() const { return actualTime_ms; }
 
     void GameOver();
+    bool IsGameOver() const { return gameOver; }
+    // Stoppage (added) time for the current half, in match-clock ms. Real football
+    // plays a few minutes past 45:00/90:00; the engine had none, so the ref blew up
+    // exactly on the minute. Announced on the radio when the regulation time passes.
+    unsigned long GetAddedTime_ms() const { return addedTime_ms; }
+    unsigned long GetRegulationEnd_ms() const;
 
     void GetCameraParams(float &zoom, float &height, float &fov, float &angleFactor);
     void SetCameraParams(float zoom, float height, float fov, float angleFactor);
@@ -195,6 +201,11 @@ class Match {
     void UpdateIngameCamera();
 
     boost::intrusive_ptr<Camera> GetCamera() { return camera; }
+    // Live camera yaw on the pitch plane. The set-piece aim needs it: the human
+    // draws a line ON SCREEN, so "right" must be the camera's right, not a fixed
+    // world axis (the corner camera looks down the corner->goal diagonal, which
+    // flips per corner — that made the traced pass go the wrong way).
+    Quaternion GetCameraNodeOrientation() const { return cameraNodeOrientation; }
     boost::shared_ptr<AnimCollection> GetAnims() { return anims; }
 
     void Get();
@@ -403,6 +414,8 @@ class Match {
     Vector3 previousBallPos;
 
     float matchDurationFactor;
+    unsigned long addedTime_ms;   // stoppage time granted for this half
+    bool addedTimeAnnounced;      // radio announced it already
 
     std::map < Animation*, std::vector<Vector3> > animPositionCache;
 

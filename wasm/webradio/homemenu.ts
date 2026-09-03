@@ -85,8 +85,16 @@ const CSS = `
 #gpf-home .menu-hero-legends .legend-card:nth-child(2){ transform:translateX(-2px) translateY(-18px) scale(1.12); z-index:3; }
 #gpf-home .menu-hero-legends .legend-card:nth-child(3){ transform:translateX(2px) translateY(0) scale(1.08); z-index:2; }
 #gpf-home .menu-hero-legends .legend-card:nth-child(4){ transform:translateX(-16px) translateY(8px) scale(1.04); z-index:1; }
-#gpf-home .menu-main-actions { width:100%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+#gpf-home .menu-main-actions { width:100%; display:grid; grid-template-columns:repeat(4,minmax(0,1fr));
   gap:12px; z-index:2; margin-top:auto; margin-bottom:0; transform:translateY(200px); }
+#gpf-home .menu-mode-button.ref-card { border-radius:16px; overflow:hidden;
+  background:linear-gradient(160deg,#12303f,#0b1c26); box-shadow:0 16px 20px rgba(0,0,0,.34); }
+#gpf-home .ref-card-inner { display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:6px; width:100%; height:100%; padding:10px; box-sizing:border-box; }
+#gpf-home .ref-card-emoji { font-size:46px; line-height:1; filter:drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
+#gpf-home .ref-card-title { font-weight:900; font-size:19px; letter-spacing:1px; color:#eafff5; text-transform:uppercase; }
+#gpf-home .ref-card-sub { font-size:11px; font-weight:700; color:#8fb6c6; text-align:center; }
+#gpf-home .menu-mode-button.ref-card::after { content:"🟨🟥"; position:absolute; top:8px; right:10px; font-size:13px; opacity:.85; }
 #gpf-home .menu-mode-button { pointer-events:auto; cursor:pointer; min-height:148px; padding:0; position:relative;
   display:grid; place-items:center; text-align:left; color:#fff; background:transparent; border:0; overflow:hidden;
   font-family:inherit; }
@@ -126,7 +134,26 @@ let driveTimer: number | null = null;
 // native menu hook firing during that (up to 45s) wait would wipe the score
 // flags just set for the match. Cleared once the match is actually live.
 let launching = false;
-export function beginMatchLaunch(): void { launching = true; }
+// Referee mode is a PER-MATCH choice now: the "Arbitre" card sets this true just
+// before launching, every other launch path leaves it false. Reset on return home.
+let refNextMatch = false;
+export function setRefNextMatch(on: boolean): void { refNextMatch = on; }
+export function beginMatchLaunch(): void {
+  launching = true;
+  // A NORMAL match launch must clear any leftover drill flag: drillSession is only
+  // reset by gpfDrillDone, so a drill abandoned mid-way would leave it true and
+  // isDrillSession() would then MUTE the radio for every later match (radioMain
+  // ties setRadioStoppage to it). Drill launches have a pending flag set, keep those.
+  if (!pendingDrill && !pendingKeeper) drillSession = false;
+  // re-assert the launch-time choices right before the match is built (the native
+  // controller setup is read at match start; the Module may not have existed when
+  // the menu first applied a saved preference).
+  const M2 = (window as unknown as { Module?: { _gpf_set_two_players?: (n: number) => void; _gpf_set_referee_mode?: (n: number) => void } }).Module;
+  M2?._gpf_set_two_players?.(refNextMatch ? 0 : (localStorage.getItem("gpf-two-players") === "1" ? 1 : 0));
+  M2?._gpf_set_referee_mode?.(refNextMatch ? 1 : 0);
+  // the referee overlay (refmode.ts) watches this flag to show/hide its control bar
+  localStorage.setItem("gpf-referee-active", refNextMatch ? "1" : "0");
+}
 
 /** Tap Enter on the native menu via the C++ SDL hook (synthetic DOM key events
  *  don't reach emscripten/SDL, so we push a real SDL Enter from C++). */
@@ -144,7 +171,7 @@ function pressEnter(): void {
  *  still fires once the match actually starts (onMatchStarted), whichever way
  *  the match was started. */
 export function startNativeMatch(): void {
-  launching = true; // protect the score flags until the match is truly live
+  beginMatchLaunch(); // protect the score flags + re-assert 2-player choice
   hide();
   hideLineup();
   if (!isDrillSession()) showLoading(); // cover the asset-load wait (not for training drills)
@@ -239,6 +266,9 @@ export function hide(): void { root?.classList.add("hidden"); }
 export function show(): void {
   root?.classList.remove("hidden"); resumeMenuMusic(); clearScoreFlags();
   setAnthemOverride(null, null); // don't leak a picked team name into a plain match
+  refNextMatch = false; // back at the menu: the next match is a normal one unless the Arbitre card says otherwise
+  // end any online-lockstep session so the next (offline) match doesn't stall
+  (window as unknown as { Module?: { _gpf_net_stop?: () => void } }).Module?._gpf_net_stop?.();
 }
 
 function iconBtn(icon: string, label: string, active: boolean, onClick?: () => void): HTMLElement {
@@ -278,6 +308,22 @@ function card(img: string, label: string, onClick: () => void): HTMLButtonElemen
   return b;
 }
 
+// The referee card has no PNG art — build it from an emoji + label so it sits
+// alongside the image cards as a first-class "mode" button.
+function refCard(onClick: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.className = "menu-mode-button ref-card";
+  b.title = L("Arbitre");
+  b.innerHTML =
+    `<span class="ref-card-inner">` +
+    `<span class="ref-card-emoji">🧑‍⚖️</span>` +
+    `<span class="ref-card-title" data-i18n="Arbitre">${L("Arbitre")}</span>` +
+    `<span class="ref-card-sub" data-i18n="Tu diriges le match">${L("Tu diriges le match")}</span>` +
+    `</span>`;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
 export function initHomeMenu(): void {
   const style = document.createElement("style");
   style.id = "gpf-home-style"; style.textContent = CSS;
@@ -310,13 +356,22 @@ export function initHomeMenu(): void {
 
   const actions = root.querySelector(".menu-main-actions")!;
   actions.append(
-    card("/menu-assets/play-button.png", "Match amical", showFriendly),
-    card("/menu-assets/training-button.png", "Entraînement", showTraining),
-    card("/menu-assets/worldcup-button.png", "Coupe du monde", startNativeMatch),
+    card("/menu-assets/play-button.png", "Match amical", () => { refNextMatch = false; showFriendly(); }),
+    refCard(() => { refNextMatch = true; showFriendly(); }), // play AS the referee (same team-pick flow, then AI-vs-AI)
+    card("/menu-assets/training-button.png", "Entraînement", () => { refNextMatch = false; showTraining(); }),
+    card("/menu-assets/worldcup-button.png", "Coupe du monde", () => { refNextMatch = false; startNativeMatch(); }),
   );
 
   const strip = root.querySelector(".home-settings-strip")!;
-  let players = 1;
+  // Same-screen local 2-player: player 1 uses the arrows + W/A/S/D, player 2 uses
+  // I/J/K/L (+ U/O/H/Y…) on the SAME keyboard. The native side creates a second
+  // keyboard device and, when this is on, puts it on the opposing team.
+  const setTwoPlayers = (on: boolean): void => {
+    const M2 = (window as unknown as { Module?: { _gpf_set_two_players?: (n: number) => void } }).Module;
+    M2?._gpf_set_two_players?.(on ? 1 : 0);
+  };
+  let players = localStorage.getItem("gpf-two-players") === "1" ? 2 : 1;
+  setTwoPlayers(players === 2);
   const opt = document.createElement("button");
   opt.className = "menu-option";
   const render = (): void => {
@@ -329,7 +384,12 @@ export function initHomeMenu(): void {
       `</span>`;
   };
   render();
-  opt.addEventListener("click", () => { players = players === 1 ? 2 : 1; render(); });
+  opt.addEventListener("click", () => {
+    players = players === 1 ? 2 : 1;
+    localStorage.setItem("gpf-two-players", players === 2 ? "1" : "0");
+    setTwoPlayers(players === 2);
+    render();
+  });
   strip.append(opt);
 
   document.body.appendChild(root);

@@ -16,7 +16,7 @@ using namespace blunted;
 class HIDKeyboard : public IHIDevice {
 
   public:
-    HIDKeyboard();
+    HIDKeyboard(int slot = 0); // slot 0 = player 1 mapping, slot 1 = player 2 mapping
     virtual ~HIDKeyboard();
 
     virtual void LoadConfig();
@@ -41,6 +41,7 @@ class HIDKeyboard : public IHIDevice {
     }
 
   protected:
+    int slot; // which key-mapping this keyboard uses (0 = P1, 1 = P2)
     bool functionButtonState[e_ButtonFunction_Size];
     bool previousFunctionButtonState[e_ButtonFunction_Size];
 

@@ -29,7 +29,8 @@ for f in play-button.png training-button.png worldcup-button.png settings-button
   cp "web/src/assets/$f" "$D/menu-assets/" 2>/dev/null || true
 done
 cp -r web/src/assets/training "$D/menu-assets/training" 2>/dev/null || true
-cp web/src/assets/audio/goal-but-but.mp3 "$D/radio/goal-but-but.mp3"
+cp web/src/assets/audio/goal-shout-v5.mp3 "$D/radio/goal-shout-v5.mp3"
+cp web/src/assets/audio/match-intro.mp3 "$D/radio/match-intro.mp3"
 
 # menu music: the menu-theme-*.mp4 are VIDEO (~11MB each) but only the audio is
 # used. Extract audio-only mp3 (~1MB) named by theme key (no extension; served as
@@ -75,6 +76,7 @@ cp wasm/sw.js "$D/sw.js"
 # vercel.json + serverless function are kept in git under wasm/vercel-assets/
 cp wasm/vercel-assets/vercel.json "$D/vercel.json"
 cp wasm/vercel-assets/img-proxy.js "$D/api/img-proxy.js"
+cp wasm/vercel-assets/talk.js "$D/api/talk.js"       # "talk to a player" AI relay
 mkdir -p "$D/.vercel"; cp .vercel/project.json "$D/.vercel/project.json"
 
 echo ">> deploying ($(du -sh "$D" | cut -f1))"

@@ -49,8 +49,34 @@ ControllerSelectPage::ControllerSelectPage(Gui2WindowManager *windowManager, con
       side.side = sides.at(i).side;
     } else {
       side.side = 0;
+#ifdef __EMSCRIPTEN__
+      // Web build: controllers are [keyboard1, keyboard2] (+ any gamepads). The
+      // primary keyboard is always player 1 (team 0). The secondary keyboard is
+      // player 2 on the OPPOSING team (team 1) only when 2-player is enabled.
+      // In referee mode NOBODY is assigned: both teams are AI and the human only
+      // officiates from the HTML overlay.
+      extern bool gpf_twoPlayers;
+      extern bool gpf_refereeMode;
+      extern bool gpf_onlineActive;
+      extern int gpf_onlineRole;
+      if (gpf_onlineActive) {
+        // Online: controllers[2]=local net device (my team), [3]=remote (opponent).
+        // Host (role 0) plays team 0 (side -1); joiner plays team 1 (side +1).
+        if (i == 2) side.side = (gpf_onlineRole == 0) ? -1 : 1;
+        else if (i == 3) side.side = (gpf_onlineRole == 0) ? 1 : -1;
+        else side.side = 0;
+      } else if (gpf_refereeMode) {
+        side.side = 0;                              // referee mode: AI vs AI
+      } else if (controllers.at(i)->GetDeviceType() == e_HIDeviceType_Keyboard && i < 2) {
+        if (i == 0) side.side = -1;                 // player 1 = primary keyboard
+        else if (gpf_twoPlayers) side.side = 1;     // player 2 = secondary keyboard
+      } else {
+        if (i == 1) side.side = -1;                 // a real gamepad: legacy auto-p1
+      }
+#else
       if (i == 0 && controllers.size() < 2) side.side = -1; // autoselect 1st player == team 0 (side -1)
       else if (i == 1) side.side = -1; // if more than 1 controller, we're likely to have a gamepad on id > 0, so pick this one as auto p1 instead
+#endif
     }
     side.controllerImage = new Gui2Image(windowManager, "image_controller" + int_to_str(i), 0, 0, 14, 10);
     this->AddView(side.controllerImage);
@@ -120,6 +146,7 @@ void ControllerSelectPage::ProcessKeyboardEvent(KeyboardEvent *event) {
 void ControllerSelectPage::ProcessJoystickEvent(JoystickEvent *event) {
   const std::vector<IHIDevice*> &controllers = GetControllers();
   for (unsigned int i = 1; i < controllers.size(); i++) {
+    if (controllers.at(i)->GetDeviceType() != e_HIDeviceType_Gamepad) continue; // skip the P2 keyboard
     if (delay.at(i) < EnvironmentManager::GetInstance().GetTime_ms() - 250) {
       HIDGamepad *gamepad = static_cast<HIDGamepad*>(controllers.at(i));
       if (gamepad->GetButtonValue(e_ButtonFunction_Left) > 0.5) {

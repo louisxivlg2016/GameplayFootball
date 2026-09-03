@@ -178,8 +178,15 @@ void HumanController::RequestCommand(PlayerCommandQueue &commandQueue) {
 
       } else if (actionButton == e_ButtonFunction_Shot) {
 
+        // gpf: high ball (corner/cross) -> jumping header at goal. the shot anims have
+        // no jumping header, all header_jump anims live under the "shortpass" type, so
+        // we issue a shortpass command flagged as a header shot (see humanoid.cpp).
+        int headerTouchTime_ms = clamp(CastPlayer()->GetTimeNeededToGetToBall_ms(), 0, 700);
+        float headerBallHeight = match->GetBall()->Predict(headerTouchTime_ms).coords[2];
+        bool isHeader = headerBallHeight > 1.35f;
+
         PlayerCommand command;
-        command.desiredFunctionType = e_FunctionType_Shot;
+        command.desiredFunctionType = isHeader ? e_FunctionType_ShortPass : e_FunctionType_Shot;
         command.useDesiredMovement = false;
         command.useDesiredLookAt = false;
         command.desiredVelocityFloat = inputVelocityFloat; // this is so we can use sprint/dribble buttons as shot modifiers
@@ -188,6 +195,12 @@ void HumanController::RequestCommand(PlayerCommandQueue &commandQueue) {
         if (GetHIDevice()->GetDeviceType() == e_HIDeviceType_Keyboard) command.touchInfo.autoDirectionBias = 1.0f;
         command.touchInfo.desiredDirection = AI_GetShotDirection(CastPlayer(), command.touchInfo.inputDirection, command.touchInfo.autoDirectionBias);
         command.touchInfo.desiredPower = clamp(pow(gaugeFactor, 0.6f), 0.01f, 1.0f);
+        if (isHeader) {
+          command.touchInfo.headerShot = true;
+          command.touchInfo.inputPower = 1.0f;
+          command.touchInfo.autoPowerBias = 0.0f;
+          command.touchInfo.desiredPower = clamp(pow(gaugeFactor, 0.6f) * 1.4f, 0.4f, 1.0f);
+        }
 
         commandQueue.push_back(command);
 

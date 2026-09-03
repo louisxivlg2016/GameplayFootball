@@ -14,7 +14,7 @@ import {
 } from "../traits";
 import { PITCH, attackSign } from "../levels";
 import { useStore } from "../store";
-import { radioFlow, radioLanguage, teamName } from "../radio";
+import { radioFlow, radioHasQueued, radioIdle, radioLanguage, teamName } from "../radio";
 import { refState } from "./referee";
 
 let gap = 0; // breathing time between lines, counts only while the mic is idle
@@ -22,9 +22,22 @@ let lastKind = "";
 // seconds since the last line: when a situation PERSISTS (same kind), the
 // commentator re-describes it after this long instead of going quiet
 let sinceLine = 0;
-const STALE = 3.5;
-// last sentence spoken: never say the exact same words twice in a row
-let lastText = "";
+const STALE = 3.0;
+
+// Variety by TEMPLATE, not by finished sentence. The old check compared the
+// full string, but a carrier keeps his name for a whole dribble, so the same
+// template ("X keeps it moving") produced the same words and slipped through —
+// the repetition the commentator was accused of. Tracking the phrase FUNCTIONS
+// (and the loose-ball strings) that were used recently makes him rotate through
+// the whole pool before ever reusing a turn of phrase, in every language.
+const RECENT = 3;
+const recentFns: Array<(...a: string[]) => string> = [];
+const recentStrs: string[] = [];
+
+function remember<T>(list: T[], item: T): void {
+  list.push(item);
+  while (list.length > RECENT) list.shift();
+}
 
 function vary(
   main: (...args: string[]) => string,
@@ -32,25 +45,24 @@ function vary(
   ...args: string[]
 ): string {
   const pool = [main, ...(alts ?? [])];
-  for (let i = 0; i < 4; i++) {
-    const t = pool[Math.floor(Math.random() * pool.length)]!(...args);
-    if (t !== lastText) return t;
-  }
-  return pool[0]!(...args);
+  const fresh = pool.filter((fn) => !recentFns.includes(fn));
+  const choice = fresh.length ? fresh : pool;
+  const pick = choice[Math.floor(Math.random() * choice.length)]!;
+  remember(recentFns, pick);
+  return pick(...args);
 }
 
 function varyStr(main: string, alts: string[] | undefined): string {
   const pool = [main, ...(alts ?? [])];
-  for (let i = 0; i < 4; i++) {
-    const t = pool[Math.floor(Math.random() * pool.length)]!;
-    if (t !== lastText) return t;
-  }
-  return main;
+  const fresh = pool.filter((s) => !recentStrs.includes(s));
+  const choice = fresh.length ? fresh : pool;
+  const pick = choice[Math.floor(Math.random() * choice.length)]!;
+  remember(recentStrs, pick);
+  return pick;
 }
 
 function speak(text: string): void {
   radioFlow(text);
-  lastText = text;
   sinceLine = 0;
 }
 let commentaryGen = -1;
@@ -74,9 +86,17 @@ export function commentarySystem(world: World, dt: number): void {
   sinceLine += dt;
   gap -= dt;
   if (gap > 0) return;
-  // radioFlow pre-synthesizes while the mic is busy, chaining without dead air.
-  // a short breath keeps the commentator nearly constant without overlapping
-  gap = openingBurst ? 0.3 + Math.random() * 0.35 : 0.45 + Math.random() * 0.6;
+  // Keep talking almost non-stop: radioFlow bakes the next line while the
+  // current one plays, so the voice chains with no dead air. But once a line is
+  // already queued and ready, don't keep re-synthesizing a third — that just
+  // floods the TTS worker and makes it stutter. Hold with a tiny breath until
+  // the mic frees, then immediately line up the next.
+  if (!radioIdle() && radioHasQueued()) {
+    gap = 0.12;
+    return;
+  }
+  // barely a breath between lines — the commentator is on the ball constantly
+  gap = openingBurst ? 0.12 + Math.random() * 0.18 : 0.18 + Math.random() * 0.32;
   openingBurst = refState.clock < 14;
 
   const ball = world.queryFirst(IsBall);

@@ -265,13 +265,56 @@ const en: RadioPack = {
   run: (name, team) => `${name} drives forward for ${team}.`,
   danger: (name) => `${name} is getting close to the box.`,
   build: (name, team) => `${team} build from the back with ${name}.`,
-  carry: (name, team) => `${name} is on the ball for ${team}.`,  looseAlt: ["Nobody owns this ball!", "The ball breaks free in midfield!"],
-  keeperAlt: [(name, team) => `${name} gathers it and looks up for ${team}.`, (name, team) => `Calm from ${name}, ${team} restart from the back.`],
-  duelAlt: [(name, oppName) => `${oppName} snaps at the heels of ${name}!`, (name, oppName) => `Tight battle — ${name} shields it from ${oppName}.`],
-  runAlt: [(name, team) => `${name} turns on the pace for ${team}!`, (name, team) => `Space opens and ${name} attacks it!`],
-  dangerAlt: [(name) => `${name} within shooting range now!`, (name) => `Careful here — ${name} edges toward the area!`],
-  buildAlt: [(name, team) => `${name} starts the move for ${team}.`, (name, team) => `Patient stuff from ${team}, ${name} on the ball deep.`],
-  carryAlt: [(name, team) => `${name} keeps it moving for ${team}.`, (name, team) => `Possession for ${team} — ${name} probing.`, (name, team) => `${name} looks for an option.`],
+  carry: (name, team) => `${name} is on the ball for ${team}.`,
+  looseAlt: [
+    "Nobody owns this ball!",
+    "The ball breaks free in midfield!",
+    "Loose in the middle — anyone's ball!",
+    "It's a scramble for the second ball!",
+    "The ball's spilled — who wants it?",
+  ],
+  keeperAlt: [
+    (name, team) => `${name} gathers it and looks up for ${team}.`,
+    (name, team) => `Calm from ${name}, ${team} restart from the back.`,
+    (name) => `${name} claims it and slows the game down.`,
+    (name, team) => `Safe in the gloves of ${name}, ${team} will build again.`,
+    (name) => `${name} holds it, taking the sting out of play.`,
+  ],
+  duelAlt: [
+    (name, oppName) => `${oppName} snaps at the heels of ${name}!`,
+    (name, oppName) => `Tight battle — ${name} shields it from ${oppName}.`,
+    (name, oppName) => `${oppName} won't give ${name} a moment's peace!`,
+    (name, oppName) => `Shoulder to shoulder, ${name} holds off ${oppName}.`,
+    (name, oppName) => `${name} rides the challenge from ${oppName}!`,
+  ],
+  runAlt: [
+    (name, team) => `${name} turns on the pace for ${team}!`,
+    (name, team) => `Space opens and ${name} attacks it!`,
+    (name, team) => `${name} eats up the ground for ${team}!`,
+    (name) => `What a surge from ${name}!`,
+    (name, team) => `${name} breaks away on the counter for ${team}!`,
+  ],
+  dangerAlt: [
+    (name) => `${name} within shooting range now!`,
+    (name) => `Careful here — ${name} edges toward the area!`,
+    (name) => `This is dangerous, ${name} closing on goal!`,
+    (name) => `${name} is in a shooting position!`,
+    (name) => `Warning signs for the defence as ${name} arrives!`,
+  ],
+  buildAlt: [
+    (name, team) => `${name} starts the move for ${team}.`,
+    (name, team) => `Patient stuff from ${team}, ${name} on the ball deep.`,
+    (name, team) => `${team} take control, ${name} dictating from deep.`,
+    (name) => `${name} slows it down and lets his side breathe.`,
+    (name, team) => `A patient reset from ${team} through ${name}.`,
+  ],
+  carryAlt: [
+    (name, team) => `${name} keeps it moving for ${team}.`,
+    (name, team) => `Possession for ${team} — ${name} probing.`,
+    (name) => `${name} looks for an option.`,
+    (name, team) => `${name} carries it forward for ${team}.`,
+    (name, team) => `It all runs through ${name} for ${team}.`,
+  ],
 };
 
 const fr: RadioPack = {
@@ -320,13 +363,56 @@ const fr: RadioPack = {
   run: (name, team) => `${name} accélère pour ${team}.`,
   danger: (name) => `${name} approche de la surface.`,
   build: (name, team) => `${team} repartent de derrière avec ${name}.`,
-  carry: (name, team) => `${name} a le ballon pour ${team}.`,  looseAlt: ["Personne ne contrôle ce ballon !", "Le ballon traîne au milieu, il est à prendre !"],
-  keeperAlt: [(name, team) => `${name} s'en saisit et relance pour ${team}.`, (name, team) => `Ballon capté, ${team} repartent de derrière avec ${name}.`],
-  duelAlt: [(name, oppName) => `${oppName} vient mordre les chevilles de ${name} !`, (name, oppName) => `Gros duel — ${name} protège son ballon devant ${oppName}.`],
-  runAlt: [(name, team) => `${name} met le turbo pour ${team} !`, (name, team) => `L'espace est là et ${name} s'y engouffre !`],
-  dangerAlt: [(name) => `${name} entre dans la zone de vérité !`, (name) => `Attention, ${name} arrive aux abords de la surface !`],
-  buildAlt: [(name, team) => `${name} lance la construction pour ${team}.`, (name, team) => `${team} font tourner, ${name} à la baguette derrière.`],
-  carryAlt: [(name, team) => `${name} fait avancer le jeu pour ${team}.`, (name, team) => `Possession ${team}, ${name} cherche la faille.`, (name, team) => `${name} lève la tête et cherche une solution.`],
+  carry: (name, team) => `${name} a le ballon pour ${team}.`,
+  looseAlt: [
+    "Personne ne contrôle ce ballon !",
+    "Le ballon traîne au milieu, il est à prendre !",
+    "Ballon à la lutte, tout le monde le veut !",
+    "Le cuir file en zone neutre, à qui saura le saisir !",
+    "Deuxième ballon à récupérer !",
+  ],
+  keeperAlt: [
+    (name, team) => `${name} s'en saisit et relance pour ${team}.`,
+    (name, team) => `Ballon capté, ${team} repartent de derrière avec ${name}.`,
+    (name, team) => `${name} tient bon dans ses gants et temporise pour ${team}.`,
+    (name, team) => `Le portier ${name} garde précieusement le cuir avant de relancer ${team}.`,
+    (name) => `${name} calme le jeu, ballon en main.`,
+  ],
+  duelAlt: [
+    (name, oppName) => `${oppName} vient mordre les chevilles de ${name} !`,
+    (name, oppName) => `Gros duel — ${name} protège son ballon devant ${oppName}.`,
+    (name, oppName) => `Ça frotte ! ${name} résiste au retour de ${oppName}.`,
+    (name, oppName) => `${oppName} ne lâche pas ${name} d'une semelle !`,
+    (name, oppName) => `Épaule contre épaule, ${name} tient tête à ${oppName}.`,
+  ],
+  runAlt: [
+    (name, team) => `${name} met le turbo pour ${team} !`,
+    (name, team) => `L'espace est là et ${name} s'y engouffre !`,
+    (name, team) => `${name} avale les mètres pour ${team} !`,
+    (name) => `Quelle chevauchée de ${name} !`,
+    (name, team) => `${name} part en contre pour ${team} !`,
+  ],
+  dangerAlt: [
+    (name) => `${name} entre dans la zone de vérité !`,
+    (name) => `Attention, ${name} arrive aux abords de la surface !`,
+    (name) => `Ça sent le but, ${name} se rapproche des cages !`,
+    (name) => `Position de frappe pour ${name} !`,
+    (name) => `${name} est en danger de mort pour la défense !`,
+  ],
+  buildAlt: [
+    (name, team) => `${name} lance la construction pour ${team}.`,
+    (name, team) => `${team} font tourner, ${name} à la baguette derrière.`,
+    (name, team) => `${team} prennent le jeu à leur compte, ${name} oriente.`,
+    (name) => `${name} temporise et fait respirer son équipe.`,
+    (name, team) => `Relance patiente de ${team} par ${name}.`,
+  ],
+  carryAlt: [
+    (name, team) => `${name} fait avancer le jeu pour ${team}.`,
+    (name, team) => `Possession ${team}, ${name} cherche la faille.`,
+    (name) => `${name} lève la tête et cherche une solution.`,
+    (name, team) => `${name} conduit le ballon pour ${team}.`,
+    (name, team) => `Le jeu passe par ${name} pour ${team}.`,
+  ],
 };
 
 const es: RadioPack = {
@@ -377,7 +463,7 @@ const es: RadioPack = {
   runAlt: [(name, team) => `¡${name} pisa el acelerador para ${team}!`, (name, team) => `¡Se abre el espacio y ${name} lo ataca!`],
   dangerAlt: [(name) => `¡${name} ya está en zona de disparo!`, (name) => `¡Cuidado, ${name} se acerca al área!`],
   buildAlt: [(name, team) => `${name} inicia la jugada para ${team}.`, (name, team) => `${team} tocan con paciencia, ${name} desde atrás.`],
-  carryAlt: [(name, team) => `${name} mueve el balón para ${team}.`, (name, team) => `Posesión de ${team}, ${name} busca el hueco.`, (name, team) => `${name} levanta la cabeza y busca opción.`],
+  carryAlt: [(name, team) => `${name} mueve el balón para ${team}.`, (name, team) => `Posesión de ${team}, ${name} busca el hueco.`, (name, team) => `${name} levanta la cabeza y busca opción.`, (name, team) => `${name} conduce para ${team}.`, (name) => `El juego pasa por ${name}.`],
 };
 
 const pt: RadioPack = {
@@ -428,7 +514,7 @@ const pt: RadioPack = {
   runAlt: [(name, team) => `${name} acelera pelo ${team}!`, (name, team) => `Abriu espaço e ${name} ataca!`],
   dangerAlt: [(name) => `${name} chega na zona de perigo!`, (name) => `Atenção: ${name} se aproxima da área!`],
   buildAlt: [(name, team) => `${name} arma a jogada para o ${team}.`, (name, team) => `O ${team} troca passes, ${name} organiza atrás.`],
-  carryAlt: [(name, team) => `${name} conduz para o ${team}.`, (name, team) => `Posse do ${team}, ${name} procura o espaço.`, (name, team) => `${name} levanta a cabeça procurando opção.`],
+  carryAlt: [(name, team) => `${name} conduz para o ${team}.`, (name, team) => `Posse do ${team}, ${name} procura o espaço.`, (name, team) => `${name} levanta a cabeça procurando opção.`, (name, team) => `${name} avança com a bola para o ${team}.`, (name) => `O jogo passa pelos pés de ${name}.`],
 };
 
 const de: RadioPack = {
@@ -479,7 +565,7 @@ const de: RadioPack = {
   runAlt: [(name, team) => `${name} zieht das Tempo an für ${team}!`, (name, team) => `Da ist Platz — und ${name} stößt hinein!`],
   dangerAlt: [(name) => `${name} kommt in Schussposition!`, (name) => `Vorsicht, ${name} nähert sich dem Strafraum!`],
   buildAlt: [(name, team) => `${name} leitet den Angriff für ${team} ein.`, (name, team) => `${team} lassen den Ball laufen, ${name} dirigiert hinten.`],
-  carryAlt: [(name, team) => `${name} treibt den Ball für ${team} nach vorn.`, (name, team) => `Ballbesitz ${team} — ${name} sucht die Lücke.`, (name, team) => `${name} hebt den Kopf und sucht die Anspielstation.`],
+  carryAlt: [(name, team) => `${name} treibt den Ball für ${team} nach vorn.`, (name, team) => `Ballbesitz ${team} — ${name} sucht die Lücke.`, (name, team) => `${name} hebt den Kopf und sucht die Anspielstation.`, (name, team) => `${name} kurbelt das Spiel für ${team} an.`, (name) => `Alles läuft über ${name}.`],
 };
 
 const nb: RadioPack = {
@@ -581,7 +667,7 @@ const it: RadioPack = {
   runAlt: [(name, team) => `${name} cambia passo per ${team}!`, (name, team) => `Si apre lo spazio e ${name} lo attacca!`],
   dangerAlt: [(name) => `${name} entra nella zona calda!`, (name) => `Attenzione, ${name} si avvicina all'area!`],
   buildAlt: [(name, team) => `${name} avvia la manovra per ${team}.`, (name, team) => `${team} fanno girare palla, ${name} dietro a dirigere.`],
-  carryAlt: [(name, team) => `${name} porta palla per ${team}.`, (name, team) => `Possesso ${team}, ${name} cerca il varco.`, (name, team) => `${name} alza la testa e cerca l'appoggio.`],
+  carryAlt: [(name, team) => `${name} porta palla per ${team}.`, (name, team) => `Possesso ${team}, ${name} cerca il varco.`, (name, team) => `${name} alza la testa e cerca l'appoggio.`, (name, team) => `${name} fa avanzare il gioco per ${team}.`, (name) => `Il gioco passa dai piedi di ${name}.`],
 };
 
 const ga: RadioPack = {

@@ -88,6 +88,11 @@ Referee::~Referee() {
 void Referee::Process() {
   //printf("%i", match->GetMatchState());
 
+  // Final whistle (full time, or the shootout just decided it): nothing may
+  // restart. Without this the set-piece/kickoff machinery kept running for a
+  // moment and the match visibly played on after it was already over.
+  if (match->IsGameOver()) return;
+
   // training drill: once an attempt is over, re-force the same set piece,
   // drillReps times, then end the drill (normal play resumes) and notify the page.
   if (drillType != e_SetPiece_None && drillWaitUntil != 0 &&
@@ -143,10 +148,13 @@ void Referee::Process() {
 
     // some phase is over :[
 
-    if (((match->GetMatchPhase() == e_MatchPhase_1stHalf && match->GetMatchTime_ms() > 2700000) ||
-         (match->GetMatchPhase() == e_MatchPhase_2ndHalf && match->GetMatchTime_ms() > 5400000) ||
-         (match->GetMatchPhase() == e_MatchPhase_1stExtraTime && match->GetMatchTime_ms() > 6300000) ||
-         (match->GetMatchPhase() == e_MatchPhase_2ndExtraTime && match->GetMatchTime_ms() > 7200000)) &&
+    // a half now runs to regulation time PLUS the stoppage time granted for it,
+    // so the announced "3 minutes of added time" is actually played.
+    const unsigned long added = match->GetAddedTime_ms();
+    if (((match->GetMatchPhase() == e_MatchPhase_1stHalf && match->GetMatchTime_ms() > 2700000 + added) ||
+         (match->GetMatchPhase() == e_MatchPhase_2ndHalf && match->GetMatchTime_ms() > 5400000 + added) ||
+         (match->GetMatchPhase() == e_MatchPhase_1stExtraTime && match->GetMatchTime_ms() > 6300000 + added) ||
+         (match->GetMatchPhase() == e_MatchPhase_2ndExtraTime && match->GetMatchTime_ms() > 7200000 + added)) &&
         ballPos.coords[0] < 10 && ballPos.coords[0] > -10) {
 
       foul.advantage = false;
@@ -194,6 +202,20 @@ void Referee::Process() {
         signed int lastSide = -1;
         Team *lastTouchTeam = match->GetLastTouchTeam();
         if (lastTouchTeam == 0) lastTouchTeam = match->GetTeam(0);
+        // A defender who merely GRAZED the ball on its way out concedes a corner —
+        // the engine only counts a full geometric collision, so a light deflection
+        // was wrongly rewarded with a goal kick.
+        {
+          extern int gpf_grazeTeam;
+          extern unsigned long gpf_grazeTime_ms;
+          if (gpf_grazeTeam >= 0 && match->GetActualTime_ms() - gpf_grazeTime_ms < 1500) {
+            Team *gt = match->GetTeam(gpf_grazeTeam);
+            if (gt && ((ballPos.coords[0] > 0 && gt->GetSide() > 0) ||
+                       (ballPos.coords[0] < 0 && gt->GetSide() < 0))) {
+              lastTouchTeam = gt; // defending side touched it last -> corner
+            }
+          }
+        }
         lastSide = lastTouchTeam->GetSide();
 
         if (match->IsGoalScored()) {
@@ -225,6 +247,12 @@ void Referee::Process() {
         }
 
         buffer.active = true;
+#ifdef __EMSCRIPTEN__
+        { // new restart -> the referee must whistle for it again
+          extern bool gpf_refereeMode, gpf_refWhistleGiven, gpf_refAwaitingWhistle;
+          if (gpf_refereeMode) { gpf_refWhistleGiven = false; gpf_refAwaitingWhistle = false; }
+        }
+#endif
         // browser radio (kickoff-after-goal is covered by the "goal" event)
         if (buffer.desiredSetPiece == e_SetPiece_Corner) {
           gpfRadioEvent("corner", "", buffer.teamID);
@@ -320,6 +348,20 @@ void Referee::Process() {
         PrepareSetPiece(buffer.desiredSetPiece);
       }
 
+#ifdef __EMSCRIPTEN__
+      // REFEREE MODE: hold the restart until the human referee whistles. We only
+      // push back startTime (never prepareTime), so the players still walk to
+      // their positions and simply wait for the whistle, like the real thing.
+      {
+        extern bool gpf_refereeMode, gpf_refAwaitingWhistle, gpf_refWhistleGiven;
+        if (gpf_refereeMode && !match->IsCeremonyActive()) {
+          if (!gpf_refWhistleGiven && buffer.startTime <= match->GetActualTime_ms()) {
+            gpf_refAwaitingWhistle = true;
+            buffer.startTime = match->GetActualTime_ms() + 10; // keep waiting
+          }
+        }
+      }
+#endif
       if (buffer.startTime == match->GetActualTime_ms()) {
         // blow whistle and wait for set piece taker to touch the ball
         whistle[1]->SetGain(0.3 * GetConfiguration()->GetReal("audio_volume", 0.5));
@@ -408,6 +450,11 @@ void Referee::PrepareSetPiece(e_SetPiece setPiece) {
   match->GetTeam(1)->GetController()->PrepareSetPiece(setPiece, buffer.teamID);
 
   buffer.taker = match->GetTeam(buffer.teamID)->GetController()->GetPieceTaker();
+}
+
+void Referee::BlowWhistle() {
+  whistle[1]->SetGain(0.3 * GetConfiguration()->GetReal("audio_volume", 0.5));
+  whistle[1]->Poke(e_SystemType_Audio);
 }
 
 void Referee::ForceSetPiece(e_SetPiece setPiece, int teamID) {
@@ -570,6 +617,11 @@ void Referee::ProcessShootout() {
 #endif
     if (ShootoutDecided()) {
       shootoutActive = false;
+      // The shootout is over: kill play RIGHT NOW. Otherwise the in-play restart
+      // logic below resumes for a beat and you get a stray second of football
+      // after the winning penalty.
+      match->StopPlay();
+      if (match->IsInSetPiece()) match->StopSetPiece();
 #ifdef __EMSCRIPTEN__
       EM_ASM({ try { if (window.gpfShootoutEnd) window.gpfShootoutEnd($0, $1); } catch (e) {} },
              shootoutScore[0], shootoutScore[1]);

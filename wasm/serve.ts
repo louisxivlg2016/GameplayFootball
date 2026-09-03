@@ -18,7 +18,7 @@ const port = Number(Bun.argv[3] ?? 8080);
 const WEB = join(import.meta.dir, "..", "web");
 const ORT_DIR = join(WEB, "node_modules/onnxruntime-web/dist");
 const PIPER_DIR = join(WEB, "node_modules/@diffusionstudio/piper-wasm/build");
-const GOAL_CLIP = join(WEB, "src/assets/audio/goal-but-but.mp3");
+const GOAL_CLIP = join(WEB, "src/assets/audio/goal-shout-v5.mp3");
 const AUDIO_DIR = join(WEB, "src/assets/audio"); // localized menu-theme-*.mp4 live here
 const ASSETS_DIR = join(WEB, "src/assets"); // menu card PNGs (play/training/worldcup)
 const CAPTAINS_DIR = join(import.meta.dir, "captains"); // full-body captain figures (wasm-side asset)
@@ -94,6 +94,19 @@ Bun.serve({
     const path = decodeURIComponent(url.pathname);
 
     // --- radio + TTS routes ---
+    // remote diagnosis: the page posts a radio-state snapshot every few seconds
+    // (localhost only, see radioMain) — appended here so the dev can read the
+    // USER's live radio state instead of guessing. Plain text, one JSON per line.
+    if (path === "/radio-diag" && req.method === "POST") {
+      try {
+        const body = await req.text();
+        const line = `${new Date().toISOString()} ${body.slice(0, 2000)}\n`;
+        const f = join(import.meta.dir, "radio-diag.log");
+        const prev = (await Bun.file(f).exists()) ? await Bun.file(f).text() : "";
+        await Bun.write(f, (prev.length > 400_000 ? prev.slice(-200_000) : prev) + line);
+      } catch { /* diagnostics must never break the page */ }
+      return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*" } });
+    }
     if (path === "/radio.js") return js(await radioJs());
     if (path === "/tts/worker.js") return js(await workerJs());
     // narrow voice-rerouting service worker (must be same-origin, root scope)
@@ -105,7 +118,9 @@ Bun.serve({
       if (!/^[\w./-]+$/.test(name) || name.includes("..")) return new Response("bad", { status: 400 });
       return serveAbs(join(VOICES_DIR, name));
     }
-    if (path === "/radio/goal-but-but.mp3") return serveAbs(GOAL_CLIP);
+    if (path === "/radio/goal-shout-v5.mp3") return serveAbs(GOAL_CLIP);
+    // kickoff music the user supplied — played when a match starts
+    if (path === "/radio/match-intro.mp3") return serveAbs(join(AUDIO_DIR, "match-intro.mp3"));
     // localized menu theme music: /menu-music/<lang> -> menu-theme-<lang>.mp4
     if (path.startsWith("/menu-music/")) {
       const lang = path.slice("/menu-music/".length);
@@ -147,6 +162,41 @@ Bun.serve({
     // image proxy: COEP require-corp blocks cross-origin images without CORP, so
     // fetch the remote menu images (Unsplash pitch, Wikimedia player photos)
     // server-side and re-serve them with our isolation headers.
+    // "talk to a player" AI relay (mirrors wasm/vercel-assets/talk.js). Needs
+    // ANTHROPIC_API_KEY in the env; without it, returns nokey so the game falls
+    // back to its built-in emotional replies.
+    if (path === "/api/talk") {
+      if (req.method !== "POST") return new Response("POST only", { status: 405, headers: ISO });
+      const key = process.env.ANTHROPIC_API_KEY;
+      if (!key) return Response.json({ reply: null, nokey: true }, { headers: ISO });
+      let data: { name?: string; message?: string; history?: { role: string; text: string }[] } = {};
+      try { data = await req.json(); } catch { /* empty */ }
+      const name = String(data.name || "Le joueur").slice(0, 40);
+      const message = String(data.message || "").slice(0, 300);
+      const history = Array.isArray(data.history) ? data.history.slice(-8) : [];
+      const system =
+        `Tu es ${name}, footballeur professionnel, sur le terrain PENDANT un match. ` +
+        `L'ARBITRE vient te parler. Réponds toujours EN FRANÇAIS, en 1 à 2 phrases courtes, ` +
+        `comme un vrai joueur qui parle à l'arbitre : tu contestes les fautes et cartons, tu ` +
+        `plaides ta cause, tu peux t'énerver si on t'insulte ou te provoque, te calmer si ` +
+        `l'arbitre est correct, et obéir aux ordres raisonnables. Donne UNIQUEMENT ta réplique, sans narration.`;
+      const messages = history.map((h) => ({ role: h.role === "ref" ? "user" : "assistant", content: String(h.text || "").slice(0, 300) }));
+      messages.push({ role: "user", content: message });
+      try {
+        const r = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+          body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 120, system, messages }),
+        });
+        if (!r.ok) return Response.json({ reply: null, error: "upstream " + r.status }, { headers: ISO });
+        const j = await r.json() as { content?: { text?: string }[] };
+        const reply = j?.content?.[0]?.text?.trim() || null;
+        return Response.json({ reply }, { headers: ISO });
+      } catch (e) {
+        return Response.json({ reply: null, error: String(e) }, { headers: ISO });
+      }
+    }
+
     if (path === "/img-proxy") {
       const u = url.searchParams.get("u") || "";
       if (!/^https:\/\/(images\.unsplash\.com|upload\.wikimedia\.org|flagcdn\.com)\//.test(u)) {

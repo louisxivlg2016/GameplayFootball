@@ -43,6 +43,16 @@ export interface RadioPack {
   danger: (name: string) => string;
   build: (name: string, team: string) => string;
   carry: (name: string, team: string) => string;
+  /** the commentator's read on the match, said while play is stopped */
+  pundit?: (score: [number, number], home: string, away: string) => string;
+  /** own goal: pity the poor guy who put it into his own net */
+  ownGoal?: (player?: string) => string;
+  /** the goal just levelled the score */
+  equaliser?: string;
+  /** fourth official board: N minutes of stoppage time */
+  addedTime?: (mins: string) => string;
+  /** spoken a few seconds AFTER the goal shout — the commentator reacts to the goal */
+  goalFollowup?: (player?: string, team?: string, score?: [number, number]) => string;
   /** alternate phrasings so the commentator never parrots himself */
   looseAlt?: string[];
   keeperAlt?: Array<(name: string, team: string) => string>;
@@ -148,11 +158,11 @@ export function getPiperVoiceId(language: AppLanguage): string | null {
 export function getGoalCall(language: AppLanguage, team?: string): string {
   switch (language) {
     case "fr":
-      return team ? `But ! But pour ${team} !` : "But !";
+      return team ? `But ! But ! Buuut ! But pour ${team} !` : "But ! But ! Buuut !";
     case "en":
-      return team ? `Goal! Goal for ${team}!` : "Goal!";
+      return team ? `Goal! Goal! Goaaal! Goal for ${team}!` : "Goal! Goal! Goaaal!";
     case "es":
-      return team ? `¡Gol! ¡Gol de ${team}!` : "¡Gol!";
+      return team ? `¡Gol! ¡Gol! ¡Goool! ¡Gol de ${team}!` : "¡Gol! ¡Gol! ¡Goool!";
     case "pt":
       return team ? `Gol! Gol do ${team}!` : "Gol!";
     case "de":
@@ -210,10 +220,33 @@ const en: RadioPack = {
   rejoin: "Match radio is back on air!",
   opening: "Welcome everyone! We are about to watch a thrilling match!",
   kickoff: (team) => `${team} get us underway!`,
-  foul: (team) => (team ? `Foul. Free kick for ${team}.` : "Foul given."),
+  foul: (team) => {
+    const op = ["Ouch, that one hurt!", "No need for that at all.", "The referee saw it clearly, that's a foul.", "A nasty challenge, he didn't play the ball.", "That was dangerous!"];
+    const o = op[Math.floor(Math.random() * op.length)];
+    return team ? `Foul! ${o} Free kick for ${team}!` : `Foul! ${o}`;
+  },
   yellow: (player) => (player ? `Yellow card for ${player}!` : "Yellow card!"),
   red: (player) => (player ? `Red card for ${player}!` : "Red card!"),
-  penalty: (team) => (team ? `Penalty for ${team}!` : "Penalty!"),
+  penalty: (team) => (team ? `Penalty! Penalty for ${team}! The referee points to the spot, no hesitation!` : "Penalty! It's a penalty!"),
+  ownGoal: (p) => (p ? "Oh dear! An own goal! " + p + " is so unlucky!" : "Oh dear! An own goal! What rotten luck!"),
+  equaliser: "Equaliser!! We are all square!",
+  addedTime: (m) => m + " minutes of added time are announced.",
+  pundit: (sc, home, away) => {
+    const d = sc[0] - sc[1];
+    const lines = d === 0
+      ? ["A very tight game, neither side is giving an inch.", "Still " + sc[0] + " apiece, it will take a moment of quality.", "Nobody has taken control here."]
+      : (Math.abs(d) >= 2
+        ? [(d > 0 ? home : away) + " are running away with it.", (d > 0 ? away : home) + " are in real trouble.", "This is swinging firmly towards " + (d > 0 ? home : away) + "."]
+        : [(d > 0 ? home : away) + " lead, but this is far from over.", "One goal in it, anything can happen.", (d > 0 ? away : home) + " are pushing for the leveller."]);
+    return lines[Math.floor(Math.random() * lines.length)];
+  },
+  goalFollowup: (player, team, score) => {
+    const who = player ? `What a goal from ${player}!` : "What a wonderful goal!";
+    const sc = score ? ` It's ${score[0]} to ${score[1]}.` : "";
+    const col = ["The stadium is on fire!", "The fans are going wild!", "A goal to remember!", "The keeper had no chance!"];
+    const c = col[Math.floor(Math.random() * col.length)];
+    return `${who} ${c}${sc}`;
+  },
   offside: "Offside is given!",
   corner: (team) => `${team} win a corner.`,
   goalkick: "Goal kick. The keeper will restart.",
@@ -306,10 +339,33 @@ const fr: RadioPack = {
   rejoin: "La radio du match est de retour à l'antenne !",
   opening: "Bienvenue à toutes et à tous ! Aujourd'hui, nous allons assister à un match passionnant !",
   kickoff: (team) => `${team} donnent le coup d'envoi !`,
-  foul: (team) => (team ? `Faute. Coup franc pour ${team}.` : "Faute sifflée."),
+  foul: (team) => {
+    const op = ["Aïe, ça fait mal celle-là !", "Franchement, il n'y avait pas besoin de faire ça.", "L'arbitre a bien vu, c'est faute et c'est mérité.", "Quel vilain geste, il n'a pas joué le ballon.", "Oh là là, c'était dangereux ce tacle !", "Il a pris l'homme, aucun doute là-dessus."];
+    const o = op[Math.floor(Math.random() * op.length)];
+    return team ? `Faute ! ${o} Coup franc pour ${team} !` : `Faute ! ${o}`;
+  },
   yellow: (player) => (player ? `Carton jaune pour ${player} !` : "Carton jaune !"),
   red: (player) => (player ? `Carton rouge pour ${player} !` : "Carton rouge !"),
-  penalty: (team) => (team ? `Penalty pour ${team} !` : "Penalty !"),
+  penalty: (team) => (team ? `Penalty ! Penalty pour ${team} ! L'arbitre montre le point de penalty, aucune hésitation !` : "Penalty ! C'est penalty !"),
+  ownGoal: (p) => (p ? "Oh la la ! Contre son camp ! " + p + " n’a vraiment pas de chance !" : "Oh la la ! But contre son camp ! Quelle malchance !"),
+  equaliser: "Égalisation !! Tout est à refaire !",
+  addedTime: (m) => m + " minutes de temps additionnel sont annoncées.",
+  pundit: (sc, home, away) => {
+    const d = sc[0] - sc[1];
+    const lines = d === 0
+      ? ["Match très serré, aucune des deux équipes ne lâche.", "Toujours " + sc[0] + " partout, ça se joue à un détail.", "Personne ne prend le dessus, c'est un vrai bras de fer."]
+      : (Math.abs(d) >= 2
+        ? [(d > 0 ? home : away) + " déroule, l'écart devient lourd.", (d > 0 ? away : home) + " est en grande difficulté.", "Le match bascule nettement pour " + (d > 0 ? home : away) + "."]
+        : [(d > 0 ? home : away) + " mène, mais rien n'est fait.", "Un seul but d'écart, tout reste possible.", (d > 0 ? away : home) + " pousse pour revenir."]);
+    return lines[Math.floor(Math.random() * lines.length)];
+  },
+  goalFollowup: (player, team, score) => {
+    const who = player ? `Quel but de ${player} !` : "Quel but magnifique !";
+    const sc = score ? ` Le score est de ${score[0]} à ${score[1]}.` : "";
+    const col = ["Le stade est en feu !", "Les supporters explosent de joie !", "Un but qui restera dans les mémoires !", "Le gardien n'a rien pu faire !", "Quelle finition, c'est superbe !"];
+    const c = col[Math.floor(Math.random() * col.length)];
+    return `${who} ${c}${sc}`;
+  },
   offside: "Hors-jeu signalé !",
   corner: (team) => `Corner pour ${team}.`,
   goalkick: "Six mètres. Le gardien va relancer.",
@@ -404,10 +460,33 @@ const es: RadioPack = {
   rejoin: "¡La radio del partido vuelve al aire!",
   opening: "¡Bienvenidos a todos! ¡Hoy vamos a vivir un partido apasionante!",
   kickoff: (team) => `¡${team} pone el balón en juego!`,
-  foul: (team) => (team ? `Falta. Tiro libre para ${team}.` : "Falta señalada."),
+  foul: (team) => {
+    const op = ["¡Uy, esa dolió!", "No hacía falta eso.", "El árbitro lo vio claro, es falta.", "¡Qué entrada tan fea, no jugó el balón!", "¡Eso fue peligroso!"];
+    const o = op[Math.floor(Math.random() * op.length)];
+    return team ? `¡Falta! ${o} ¡Tiro libre para ${team}!` : `¡Falta! ${o}`;
+  },
   yellow: (player) => (player ? `¡Tarjeta amarilla para ${player}!` : "¡Tarjeta amarilla!"),
   red: (player) => (player ? `¡Tarjeta roja para ${player}!` : "¡Tarjeta roja!"),
-  penalty: (team) => (team ? `¡Penalti para ${team}!` : "¡Penalti!"),
+  penalty: (team) => (team ? `¡Penalti! ¡Penalti para ${team}! ¡El árbitro señala el punto, sin dudarlo!` : "¡Penalti! ¡Es penalti!"),
+  ownGoal: (p) => (p ? "¡Ay! ¡Gol en propia puerta! ¡" + p + " no tiene ninguna suerte!" : "¡Ay! ¡Gol en propia puerta! ¡Qué mala suerte!"),
+  equaliser: "¡Empate!! ¡Todo vuelve a empezar!",
+  addedTime: (m) => "Se anuncian " + m + " minutos de descuento.",
+  pundit: (sc, home, away) => {
+    const d = sc[0] - sc[1];
+    const lines = d === 0
+      ? ["Partido muy igualado, ninguno cede.", "Siguen " + sc[0] + " a " + sc[1] + ", se decide por detalles.", "Nadie logra imponerse."]
+      : (Math.abs(d) >= 2
+        ? [(d > 0 ? home : away) + " domina con claridad.", (d > 0 ? away : home) + " está en serios apuros.", "El partido se inclina para " + (d > 0 ? home : away) + "."]
+        : [(d > 0 ? home : away) + " manda, pero no está cerrado.", "Un solo gol de diferencia, todo puede pasar.", (d > 0 ? away : home) + " empuja para empatar."]);
+    return lines[Math.floor(Math.random() * lines.length)];
+  },
+  goalFollowup: (player, team, score) => {
+    const who = player ? `¡Qué gol de ${player}!` : "¡Qué golazo!";
+    const sc = score ? ` El marcador es ${score[0]} a ${score[1]}.` : "";
+    const col = ["¡El estadio está en llamas!", "¡La afición enloquece!", "¡Un gol para el recuerdo!", "¡El portero no pudo hacer nada!"];
+    const c = col[Math.floor(Math.random() * col.length)];
+    return `${who} ${c}${sc}`;
+  },
   offside: "¡Fuera de juego!",
   corner: (team) => `Corner para ${team}.`,
   goalkick: "Saque de puerta. Va a salir el portero.",
@@ -452,6 +531,10 @@ const es: RadioPack = {
 };
 
 const pt: RadioPack = {
+  ownGoal: (p) => (p ? "Oh não! Golo na própria baliza! " + p + " não tem sorte nenhuma!" : "Oh não! Golo na própria baliza! Que azar!"),
+  equaliser: "Empate!! Está tudo em aberto!",
+  addedTime: (m) => "São anunciados " + m + " minutos de compensação.",
+  goalFollowup: (player, team, score) => (player ? "Que golo de " + player + "!" : "Que belo golo!") + " O estádio está ao rubro!" + (score ? " O resultado é " + score[0] + " a " + score[1] + "." : ""),
   rejoin: "A radio do jogo está de volta ao ar!",
   opening: "Bem-vindos a todos! Hoje vamos acompanhar uma partida emocionante!",
   kickoff: (team) => `${team} dão a saída!`,
@@ -503,6 +586,10 @@ const pt: RadioPack = {
 };
 
 const de: RadioPack = {
+  ownGoal: (p) => (p ? "Oje! Ein Eigentor! " + p + " hat wirklich kein Glück!" : "Oje! Ein Eigentor! So ein Pech!"),
+  equaliser: "Ausgleich!! Alles wieder offen!",
+  addedTime: (m) => "Es gibt " + m + " Minuten Nachspielzeit.",
+  goalFollowup: (player, team, score) => (player ? "Was für ein Tor von " + player + "!" : "Was für ein Tor!") + " Das Stadion bebt!" + (score ? " Es steht " + score[0] + " zu " + score[1] + "." : ""),
   rejoin: "Das Spielradio ist wieder auf Sendung!",
   opening: "Willkommen an alle! Heute erwartet uns ein packendes Spiel!",
   kickoff: (team) => `${team} stoßen an!`,
@@ -554,6 +641,10 @@ const de: RadioPack = {
 };
 
 const nb: RadioPack = {
+  ownGoal: (p) => (p ? "Å nei! Selvmål! " + p + " er så uheldig!" : "Å nei! Selvmål! For et uhell!"),
+  equaliser: "Utligning!! Alt er åpent igjen!",
+  addedTime: (m) => "Det blir " + m + " minutter tilleggstid.",
+  goalFollowup: (player, team, score) => (player ? "For et mål av " + player + "!" : "For et mål!") + " Stadion koker!" + (score ? " Det står " + score[0] + " til " + score[1] + "." : ""),
   rejoin: "Kampradioen er tilbake på lufta!",
   opening: "Velkommen alle sammen! I dag får vi en spennende kamp!",
   kickoff: (team) => `${team} sparker i gang kampen!`,
@@ -605,6 +696,10 @@ const nb: RadioPack = {
 };
 
 const it: RadioPack = {
+  ownGoal: (p) => (p ? "Oh no! Autogol! " + p + " è davvero sfortunato!" : "Oh no! Autogol! Che sfortuna!"),
+  equaliser: "Pareggio!! Tutto da rifare!",
+  addedTime: (m) => "Sono annunciati " + m + " minuti di recupero.",
+  goalFollowup: (player, team, score) => (player ? "Che gol di " + player + "!" : "Che gran gol!") + " Lo stadio esplode!" + (score ? " Il punteggio è " + score[0] + " a " + score[1] + "." : ""),
   rejoin: "La radio della partita è tornata in onda!",
   opening: "Benvenuti a tutti! Oggi assisteremo a una partita emozionante!",
   kickoff: (team) => `${team} battono il calcio d'inizio!`,
@@ -656,6 +751,10 @@ const it: RadioPack = {
 };
 
 const ga: RadioPack = {
+  ownGoal: (p) => (p ? "Ó bhó! Cúl isteach ina líon féin! Níl an t-ádh le " + p + "!" : "Ó bhó! Cúl isteach ina líon féin! Mí-ádh mór!"),
+  equaliser: "Cothrom!! Tá gach rud oscailte arís!",
+  addedTime: (m) => "Fógraítear " + m + " nóiméad breise.",
+  goalFollowup: (player, team, score) => (player ? "A leithéid de chúl ó " + player + "!" : "A leithéid de chúl!") + " Tá an staid trí thine!" + (score ? " Tá sé " + score[0] + " in aghaidh " + score[1] + "." : ""),
   rejoin: "Tá raidió an chluiche ar ais ar an aer!",
   opening: "Fáilte romhaibh go léir! Tá cluiche iontach romhainn inniu!",
   kickoff: (team) => `Tosaíonn ${team} an cluiche!`,
@@ -707,6 +806,10 @@ const ga: RadioPack = {
 };
 
 const nl: RadioPack = {
+  ownGoal: (p) => (p ? "Oei! Een eigen doelpunt! " + p + " heeft echt geen geluk!" : "Oei! Een eigen doelpunt! Wat een pech!"),
+  equaliser: "Gelijkmaker!! Alles weer open!",
+  addedTime: (m) => "Er zijn " + m + " minuten blessuretijd.",
+  goalFollowup: (player, team, score) => (player ? "Wat een goal van " + player + "!" : "Wat een goal!") + " Het stadion ontploft!" + (score ? " De stand is " + score[0] + " tegen " + score[1] + "." : ""),
   rejoin: "De wedstrijdradio is weer in de lucht!",
   opening: "Welkom allemaal! Vandaag krijgen we een spannende wedstrijd!",
   kickoff: (team) => `${team} trappen af!`,
@@ -758,6 +861,10 @@ const nl: RadioPack = {
 };
 
 const hr: RadioPack = {
+  ownGoal: (p) => (p ? "Ajme! Autogol! " + p + " nema baš sreće!" : "Ajme! Autogol! Kakva nesreća!"),
+  equaliser: "Izjednačenje!! Sve je opet otvoreno!",
+  addedTime: (m) => "Najavljuje se " + m + " minuta sudačke nadoknade.",
+  goalFollowup: (player, team, score) => (player ? "Kakav gol " + player + "!" : "Kakav gol!") + " Stadion gori!" + (score ? " Rezultat je " + score[0] + " prema " + score[1] + "." : ""),
   rejoin: "Radio prijenos utakmice opet je u eteru!",
   opening: "Dobro došli svima! Danas nas čeka sjajna utakmica!",
   kickoff: (team) => `${team} izvode početni udarac!`,
@@ -809,6 +916,10 @@ const hr: RadioPack = {
 };
 
 const pl: RadioPack = {
+  ownGoal: (p) => (p ? "O nie! Gol samobójczy! " + p + " ma straszliwego pecha!" : "O nie! Gol samobójczy! Co za pech!"),
+  equaliser: "Wyrównanie!! Wszystko od nowa!",
+  addedTime: (m) => "Doliczono " + m + " minut doliczonego czasu gry.",
+  goalFollowup: (player, team, score) => (player ? "Co za gol " + player + "!" : "Co za gol!") + " Stadion szaleje!" + (score ? " Wynik to " + score[0] + " do " + score[1] + "." : ""),
   rejoin: "Radio meczowe wraca na antenę!",
   opening: "Witamy wszystkich! Przed nami pasjonujący mecz!",
   kickoff: (team) => `${team} rozpoczynają spotkanie!`,
@@ -860,6 +971,10 @@ const pl: RadioPack = {
 };
 
 const tr: RadioPack = {
+  ownGoal: (p) => (p ? "Eyvah! Kendi kalesine attı! " + p + " çok şanssız!" : "Eyvah! Kendi kalesine gol! Ne talihsizlik!"),
+  equaliser: "Beraberlik!! Her şey yeniden başlıyor!",
+  addedTime: (m) => "" + m + " dakika uzatma veriliyor.",
+  goalFollowup: (player, team, score) => (player ? "Ne gol ama, " + player + "!" : "Ne gol ama!") + " Stat yerinden oynuyor!" + (score ? " Skor " + score[0] + " - " + score[1] + "." : ""),
   rejoin: "Mac radyosu yeniden yayında!",
   opening: "Herkese hoş geldiniz! Bugün heyecan dolu bir maç bizi bekliyor!",
   kickoff: (team) => `${team} maça başlıyor!`,
@@ -911,6 +1026,10 @@ const tr: RadioPack = {
 };
 
 const ru: RadioPack = {
+  ownGoal: (p) => (p ? "Ох! Автогол! " + p + " такой невезучий!" : "Ох! Автогол! Какое невезение!"),
+  equaliser: "Ничья!! Всё начинается заново!",
+  addedTime: (m) => "Добавлено " + m + " минут компенсированного времени.",
+  goalFollowup: (player, team, score) => (player ? "Какой гол от " + player + "!" : "Какой гол!") + " Стадион взрывается!" + (score ? " Счёт " + score[0] + " - " + score[1] + "." : ""),
   rejoin: "Радио матча снова в эфире!",
   opening: "Добро пожаловать! Сегодня нас ждет захватывающий матч!",
   kickoff: (team) => `${team} начинают матч!`,
@@ -962,6 +1081,10 @@ const ru: RadioPack = {
 };
 
 const uk: RadioPack = {
+  ownGoal: (p) => (p ? "Ох! Автогол! " + p + " такий невдаха!" : "Ох! Автогол! Яке невезіння!"),
+  equaliser: "Нічия!! Все починається знову!",
+  addedTime: (m) => "Додано " + m + " хвилин компенсованого часу.",
+  goalFollowup: (player, team, score) => (player ? "Який гол від " + player + "!" : "Який гол!") + " Стадіон вибухає!" + (score ? " Рахунок " + score[0] + " - " + score[1] + "." : ""),
   rejoin: "Радіо матчу знову в ефірі!",
   opening: "Вітаємо всіх! Сьогодні на нас чекає захопливий матч!",
   kickoff: (team) => `${team} розпочинають гру!`,
@@ -1013,6 +1136,10 @@ const uk: RadioPack = {
 };
 
 const ar: RadioPack = {
+  ownGoal: (p) => (p ? "يا للأسف! هدف في مرماه! " + p + " سيئ الحظ حقًا!" : "يا للأسف! هدف في المرمى الخطأ! يا له من سوء حظ!"),
+  equaliser: "التعادل!! كل شيء يبدأ من جديد!",
+  addedTime: (m) => "تم الإعلان عن " + m + " دقائق وقت بدل ضائع.",
+  goalFollowup: (player, team, score) => (player ? "يا له من هدف من " + player + "!" : "يا له من هدف!") + " الملعب يشتعل!" + (score ? " النتيجة " + score[0] + " - " + score[1] + "." : ""),
   rejoin: "راديو المباراة عاد إلى البث!",
   opening: "أهلا بكم جميعا! نحن على موعد مع مباراة مثيرة اليوم!",
   kickoff: (team) => `${team} يبدأون المباراة!`,
@@ -1064,6 +1191,10 @@ const ar: RadioPack = {
 };
 
 const hi: RadioPack = {
+  ownGoal: (p) => (p ? "अरे! आत्मघाती गोल! " + p + " कितना बदकिस्मत है!" : "अरे! आत्मघाती गोल! कैसी बदकिस्मती!"),
+  equaliser: "बराबरी!! सब कुछ फिर से खुला है!",
+  addedTime: (m) => "" + m + " मिनट का अतिरिक्त समय घोषित किया गया है।",
+  goalFollowup: (player, team, score) => (player ? player + " का क्या गोल है!" : "क्या शानदार गोल!") + " स्टेडियम गूंज उठा!" + (score ? " स्कोर " + score[0] + " - " + score[1] + " है।" : ""),
   rejoin: "मैच रेडियो फिर से ऑन एयर है!",
   opening: "सभी का स्वागत है! आज हम एक रोमांचक मैच देखने वाले हैं!",
   kickoff: (team) => `${team} मैच की शुरुआत कर रहे हैं!`,
@@ -1115,6 +1246,10 @@ const hi: RadioPack = {
 };
 
 const id: RadioPack = {
+  ownGoal: (p) => (p ? "Aduh! Gol bunuh diri! " + p + " sungguh sial!" : "Aduh! Gol bunuh diri! Sungguh sial!"),
+  equaliser: "Imbang!! Semua terbuka lagi!",
+  addedTime: (m) => "Diumumkan " + m + " menit waktu tambahan.",
+  goalFollowup: (player, team, score) => (player ? "Gol yang luar biasa dari " + player + "!" : "Gol yang luar biasa!") + " Stadion bergemuruh!" + (score ? " Skornya " + score[0] + " - " + score[1] + "." : ""),
   rejoin: "Radio pertandingan kembali mengudara!",
   opening: "Selamat datang semuanya! Hari ini kita akan menyaksikan laga yang seru!",
   kickoff: (team) => `${team} memulai pertandingan!`,
@@ -1166,6 +1301,10 @@ const id: RadioPack = {
 };
 
 const vi: RadioPack = {
+  ownGoal: (p) => (p ? "Ôi trời! Phản lưới nhà! " + p + " thật xui xẻo!" : "Ôi trời! Phản lưới nhà! Thật là xui!"),
+  equaliser: "Gỡ hòa!! Mọi thứ lại mở ra!",
+  addedTime: (m) => "Có " + m + " phút bù giờ.",
+  goalFollowup: (player, team, score) => (player ? "Bàn thắng tuyệt vời của " + player + "!" : "Một bàn thắng tuyệt vời!") + " Cả sân vận động bùng nổ!" + (score ? " Tỉ số là " + score[0] + " - " + score[1] + "." : ""),
   rejoin: "Radio trận đấu đã trở lại!",
   opening: "Chào mừng tất cả mọi người! Hôm nay chúng ta sẽ có một trận đấu hấp dẫn!",
   kickoff: (team) => `${team} giao bóng!`,
@@ -1217,6 +1356,10 @@ const vi: RadioPack = {
 };
 
 const th: RadioPack = {
+  ownGoal: (p) => (p ? "โอ๊ะ! ทำเข้าประตูตัวเอง! " + p + " โชคร้ายจริง ๆ!" : "โอ๊ะ! ทำเข้าประตูตัวเอง! โชคร้ายเหลือเกิน!"),
+  equaliser: "ตีเสมอ!! ทุกอย่างเริ่มใหม่!",
+  addedTime: (m) => "มีการทดเวลาบาดเจ็บ " + m + " นาที",
+  goalFollowup: (player, team, score) => (player ? "ประตูที่ยอดเยี่ยมจาก " + player + "!" : "ประตูที่ยอดเยี่ยม!") + " สนามลุกเป็นไฟ!" + (score ? " สกอร์คือ " + score[0] + " - " + score[1] : ""),
   rejoin: "วิทยุการแข่งขันกลับมาออกอากาศแล้ว!",
   opening: "ยินดีต้อนรับทุกคน! วันนี้เรากำลังจะได้ชมเกมที่น่าตื่นเต้น!",
   kickoff: (team) => `${team} เริ่มเขี่ยลูกแล้ว!`,
@@ -1268,6 +1411,10 @@ const th: RadioPack = {
 };
 
 const ja: RadioPack = {
+  ownGoal: (p) => (p ? "ああ！オウンゴール！" + p + " は本当についていない！" : "ああ！オウンゴール！なんという不運！"),
+  equaliser: "同点!! 振り出しに戻りました!",
+  addedTime: (m) => "アディショナルタイムは " + m + " 分です。",
+  goalFollowup: (player, team, score) => (player ? player + " の素晴らしいゴール！" : "素晴らしいゴール！") + " スタジアムが沸いています！" + (score ? " スコアは " + score[0] + " 対 " + score[1] + " です。" : ""),
   rejoin: "試合ラジオが放送に戻りました!",
   opening: "みなさんようこそ! 今日は熱い試合になりそうです!",
   kickoff: (team) => `${team} がキックオフです!`,
@@ -1319,6 +1466,10 @@ const ja: RadioPack = {
 };
 
 const ko: RadioPack = {
+  ownGoal: (p) => (p ? "아이고! 자책골! " + p + " 선수 정말 운이 없네요!" : "아이고! 자책골! 정말 불운합니다!"),
+  equaliser: "동점!! 모든 것이 원점입니다!",
+  addedTime: (m) => "추가 시간 " + m + "분이 주어집니다.",
+  goalFollowup: (player, team, score) => (player ? player + " 선수의 멋진 골!" : "멋진 골!") + " 경기장이 뜨겁습니다!" + (score ? " 스코어는 " + score[0] + " 대 " + score[1] + "입니다." : ""),
   rejoin: "경기 라디오가 다시 방송됩니다!",
   opening: "여러분 환영합니다! 오늘은 정말 흥미로운 경기가 기다리고 있습니다!",
   kickoff: (team) => `${team} 이 킥오프합니다!`,
@@ -1370,6 +1521,10 @@ const ko: RadioPack = {
 };
 
 const zhCN: RadioPack = {
+  ownGoal: (p) => (p ? "哎呀！乌龙球！" + p + " 太倒霉了！" : "哎呀！乌龙球！真是倒霉！"),
+  equaliser: "扳平!! 一切重新开始!",
+  addedTime: (m) => "本场比赛补时 " + m + " 分钟。",
+  goalFollowup: (player, team, score) => (player ? player + " 的精彩进球！" : "精彩的进球！") + " 全场沸腾了！" + (score ? " 比分是 " + score[0] + " 比 " + score[1] + "。" : ""),
   rejoin: "比赛广播重新回到空中!",
   opening: "欢迎各位! 今天我们将看到一场精彩的比赛!",
   kickoff: (team) => `${team} 开球了!`,
@@ -1421,6 +1576,10 @@ const zhCN: RadioPack = {
 };
 
 const zhTW: RadioPack = {
+  ownGoal: (p) => (p ? "哎呀！烏龍球！" + p + " 太倒楣了！" : "哎呀！烏龍球！真是倒楣！"),
+  equaliser: "扳平!! 一切重新開始!",
+  addedTime: (m) => "本場比賽補時 " + m + " 分鐘。",
+  goalFollowup: (player, team, score) => (player ? player + " 的精彩進球！" : "精彩的進球！") + " 全場沸騰了！" + (score ? " 比分是 " + score[0] + " 比 " + score[1] + "。" : ""),
   rejoin: "比賽廣播重新回到空中!",
   opening: "歡迎各位! 今天我們將看到一場精彩的比賽!",
   kickoff: (team) => `${team} 開球了!`,
@@ -1473,6 +1632,10 @@ const zhTW: RadioPack = {
 
 
 const ro: RadioPack = {
+  ownGoal: (p) => (p ? "Vai! Autogol! " + p + " chiar nu are noroc!" : "Vai! Autogol! Ce ghinion!"),
+  equaliser: "Egalare!! Totul se ia de la capăt!",
+  addedTime: (m) => "Se anunță " + m + " minute de prelungiri.",
+  goalFollowup: (player, team, score) => (player ? "Ce gol al lui " + player + "!" : "Ce gol!") + " Stadionul e în delir!" + (score ? " Scorul este " + score[0] + " la " + score[1] + "." : ""),
   rejoin: "Radioul meciului e din nou in emisie!",
   opening: "Bun venit tuturor! Urmeaza un meci pe cinste!",
   kickoff: (team) => `${team} pun mingea in joc!`,

@@ -11,6 +11,7 @@ import {
   radioHasQueued,
   radioIdle,
   radioLanguage,
+  setFlowContext,
   teamName,
 } from "./radioEngine";
 
@@ -82,6 +83,14 @@ function speak(text: string): void {
   sinceLine = 0;
 }
 
+// Who the commentary is currently about. A line baked for a situation that has
+// already moved on (the ball changed hands while the mic was busy) is dropped by
+// the engine instead of being said late — see setFlowContext/playQueuedFlow.
+function ctxOf(s: MatchSnapshot): string {
+  return s.loose || !s.carrier ? "loose" : s.carrier;
+}
+let prevCtx = "";
+
 let commentaryGen = -1;
 let openingBurst = false;
 
@@ -101,6 +110,20 @@ export function commentaryTick(dt: number): void {
 
   sinceLine += dt;
   gap -= dt;
+
+  // the ball changed hands (or came loose): react NOW instead of finishing the
+  // breathing pause — otherwise the commentator is always a beat behind the play
+  const ctx = ctxOf(s);
+  if (ctx !== prevCtx) {
+    prevCtx = ctx;
+    if (sinceLine > 0.6) {   // don't machine-gun on scrappy midfield exchanges
+      gap = 0;
+      lastKind = "";
+      sinceLine = STALE + 1;
+    }
+  }
+  setFlowContext(ctx);
+
   if (gap > 0) return;
   // Keep talking almost non-stop: radioFlow bakes the next line while the
   // current one plays. But once a line is queued and ready, don't synthesize a

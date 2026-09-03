@@ -50,6 +50,8 @@ class Referee {
     // Training drills: force a specific set piece (penalty/corner/free kick) for
     // teamID near the opponent goal, instead of normal play. (wasm menu drills)
     void ForceSetPiece(e_SetPiece setPiece, int teamID);
+  // Referee mode: blow the whistle on demand (the sound is otherwise private).
+  void BlowWhistle();
     // Start a drill session: force the set piece and re-force it `reps` times
     // (one per attempt), then end. Used by the wasm training menu.
     void StartDrill(e_SetPiece setPiece, int teamID, int reps);

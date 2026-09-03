@@ -127,19 +127,44 @@ void Team::InitPlayers(boost::intrusive_ptr<Node> fullbodyNode, std::map<Vector3
   boost::intrusive_ptr<Resource<Surface> > natKit;
 #endif
 
+#ifdef __EMSCRIPTEN__
+  // The squad lists (squads.ts) are written striker-LAST, but the DB formations
+  // are NOT consistent: on some teams slot 10 is the centre-forward, on others
+  // it is the right midfielder (slot 9 being the CF). Assigning names by slot
+  // number therefore parked the star striker out on the wing on half the teams.
+  // So we remap: build the order the NAMES should follow, putting the last
+  // outfield name on whichever slot actually is the centre-forward.
+  std::vector<int> nameSlot; // nameSlot[slot] = index into gpf_natNames
+  {
+    int n = (signed int)teamData->GetPlayerNum();
+    for (int i = 0; i < n; i++) nameSlot.push_back(i);
+    if (!gpf_natNames[GetID()].empty() && n > 10) {
+      int cf = -1, rm = -1;
+      for (int i = 0; i < 11 && i < n; i++) {
+        e_PlayerRole r = teamData->GetFormationEntry(i).role;
+        if (r == e_PlayerRole_CF && cf < 0) cf = i;
+        if ((r == e_PlayerRole_RM || r == e_PlayerRole_LM) && i >= 9 && rm < 0) rm = i;
+      }
+      // our list's striker is the 11th name (index 10); send it to the real CF
+      if (cf >= 0 && cf != 10 && rm >= 0) { nameSlot[cf] = 10; nameSlot[rm] = cf; }
+    }
+  }
+#endif
+
   // load all players in the team, even the players who sit on the bench. aww.
   for (int i = 0; i < (signed int)teamData->GetPlayerNum(); i++) {
     PlayerData *playerData = teamData->GetPlayerData(i);
 #ifdef __EMSCRIPTEN__
     // real-squad names picked in the HTML menu (shirt order); before the player
     // builds its floating name caption from GetLastName().
-    if (!gpf_natNames[GetID()].empty() && i < (signed int)gpf_natNames[GetID()].size()) {
-      playerData->SetLastName(gpf_natNames[GetID()][i]);
+    const int src = (i < (signed int)nameSlot.size()) ? nameSlot[i] : i;
+    if (!gpf_natNames[GetID()].empty() && src < (signed int)gpf_natNames[GetID()].size()) {
+      playerData->SetLastName(gpf_natNames[GetID()][src]);
     }
     // real skin tone per player (shirt order); set before the humanoid Activates
     // and fetches skin0<N>.png. 1..4 = skin01..skin04; 0 = keep the DB skin.
-    if (!gpf_natSkins[GetID()].empty() && i < (signed int)gpf_natSkins[GetID()].size()) {
-      int sc = gpf_natSkins[GetID()][i];
+    if (!gpf_natSkins[GetID()].empty() && src < (signed int)gpf_natSkins[GetID()].size()) {
+      int sc = gpf_natSkins[GetID()][src];
       if (sc >= 1 && sc <= 4) playerData->SetSkinColor(sc);
     }
 #endif

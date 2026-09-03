@@ -227,7 +227,10 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
       audio.preload = "auto";
       audio.setAttribute("playsinline", "true");
       audio.playbackRate = fx?.rate ?? 1;
-      audio.volume = audioMuted() ? 0 : Math.max(0.4, Math.min(1, (fx?.volume ?? 1) * 0.95));
+      // a raw <audio> element tops out at 1.0 — run it wide open so the
+      // commentator is as loud as the element allows (worker-side gain does the
+      // rest). Excited lines still ceiling out; muting zeroes it.
+      audio.volume = audioMuted() ? 0 : 1;
       audio.onended = (): void => {
         if (currentAudioEl !== audio) return;
         clearCurrentAudioElement();
@@ -571,7 +574,7 @@ function warmupPiper(language: AppLanguage = currentLanguage()): void {
   piperLoadStartedAt = Date.now();
   try {
     // pre-bundled by serve.ts — the dev HTML bundler can't bundle worker URLs
-    piperWorker = new Worker("/tts/worker.js?v=3", { type: "module" });
+    piperWorker = new Worker("/tts/worker.js?v=4", { type: "module" });
   } catch (err) {
     console.info("[radio] worker failed:", err);
     piperState = "failed";
@@ -751,6 +754,13 @@ export function radioReset(): void {
     warmupPiper(language); // engine died/never started — bring it back for this match
   }
   dispatchRadioState();
+}
+
+/** A pre-synthesized line is already baked and waiting to chain next. Lets the
+ *  commentary loop keep exactly ONE line in reserve instead of re-synthesizing a
+ *  fresh one every tick while the current line plays (which floods the worker). */
+export function radioHasQueued(): boolean {
+  return queuedFlow !== null;
 }
 
 /** Is the commentator free to take a play-by-play line right now? */

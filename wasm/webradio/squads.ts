@@ -17,7 +17,7 @@ const mod = (): NativeModule | undefined =>
 
 // GK, then 10 outfield (roughly by shirt). Recognisable current-era names.
 export const SQUADS: Record<string, string[]> = {
-  France: ["MAIGNAN", "KOUNDE", "SALIBA", "UPAMECANO", "T.HERNANDEZ", "TCHOUAMENI", "RABIOT", "DIGNE", "DEMBELE", "MBAPPE", "OLISE", "AREOLA", "KONATE", "L.HERNANDEZ", "CAMAVINGA", "ZAIRE.EMERY", "M.THURAM", "BARCOLA", "DOUE"],
+  France: ["MAIGNAN", "KOUNDE", "SALIBA", "UPAMECANO", "T.HERNANDEZ", "TCHOUAMENI", "RABIOT", "DIGNE", "DEMBELE", "OLISE", "MBAPPE", "AREOLA", "KONATE", "L.HERNANDEZ", "CAMAVINGA", "ZAIRE.EMERY", "M.THURAM", "BARCOLA", "DOUE"],
   Allemagne: ["NEUER", "KIMMICH", "RUDIGER", "TAH", "RAUM", "ANDRICH", "GUNDOGAN", "MUSIALA", "WIRTZ", "SANE", "HAVERTZ", "TER.STEGEN", "SCHLOTTERBECK", "ANTON", "GROSS", "GORETZKA", "FULLKRUG", "ADEYEMI"],
   Espagne: ["SIMON", "CARVAJAL", "LE.NORMAND", "LAPORTE", "CUCURELLA", "RODRI", "PEDRI", "OLMO", "YAMAL", "MORATA", "N.WILLIAMS", "R.SANCHEZ", "VIVIAN", "G.MARTIN", "F.LOPEZ", "MERINO", "F.TORRES", "OYARZABAL"],
   Italie: ["DONNARUMMA", "DI.LORENZO", "BASTONI", "CALAFIORI", "DIMARCO", "BARELLA", "JORGINHO", "TONALI", "CHIESA", "RETEGUI", "SCAMACCA", "VICARIO", "DARMIAN", "MANCINI", "UDOGIE", "FRATTESI", "RASPADORI", "ORSOLINI"],
@@ -155,7 +155,7 @@ export const SKINS: Record<string, number[]> = {
   "Mexique":       [2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 2, 3, 2, 2],
   "Canada":        [1, 4, 2, 1, 4, 3, 4, 3, 4, 4, 3, 2, 3, 4],
   "Costa Rica":    [2, 2, 3, 1, 2, 2, 2, 2, 1, 3, 3, 2, 3, 2],
-  "Japon":         [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+  "Japon":         [3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
   "Corée du Sud":  [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
   "Australie":     [1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 2, 3, 1],
   "Arabie Saoudite":[3, 2, 3, 2, 2, 3, 2, 4, 3, 2, 3, 3, 2, 3],
@@ -167,14 +167,29 @@ export function skinsFor(nation: string): number[] | undefined { return SKINS[na
 // DEFI: apply an EXPLICIT squad (era-accurate names) + colour per side, so a
 // 2006 challenge fields the 2006 XI, not the current one. `skins` (optional) is
 // the per-player skin tone list, shirt-ordered like `names`.
+// How cynical a side is: 1.0 = normal, higher = dives into more tackles (and
+// gives away more fouls as a result). Argentina and Italy are the classic
+// tactical-foul sides, so they lunge in far more often.
+export const AGGRESSION: Record<string, number> = {
+  Argentine: 1.7,
+  Italie: 1.6,
+  Uruguay: 1.45,
+  Mexique: 1.3,
+  Croatie: 1.25,
+};
+export function aggressionFor(nation?: string): number {
+  if (!nation) return 1;
+  return AGGRESSION[nation] ?? 1;
+}
+
 export function applyMatchSquads(
-  home: { color: string; names: string[]; skins?: number[]; strength?: number },
-  away: { color: string; names: string[]; skins?: number[]; strength?: number },
+  home: { color: string; names: string[]; skins?: number[]; strength?: number; aggression?: number },
+  away: { color: string; names: string[]; skins?: number[]; strength?: number; aggression?: number },
 ): void {
   const m = mod();
   if (!m) return;
   m._gpf_clear_team_overrides?.(); // resets per-team strength back to 1.0
-  const one = (team: number, color: string, names: string[], skins?: number[], strength?: number): void => {
+  const one = (team: number, color: string, names: string[], skins?: number[], strength?: number, aggression?: number): void => {
     const [r, g, b] = hexToRgb(color);
     m._gpf_set_team_color?.(team, r, g, b);
     if (names.length && m.ccall) m.ccall("gpf_set_team_names", null, ["number", "string"], [team, names.join("|")]);
@@ -182,9 +197,12 @@ export function applyMatchSquads(
     // realistic-strength mode: OVR-derived multiplier (undefined -> 1.0, no effect)
     if (strength != null && strength !== 1 && m.ccall)
       m.ccall("gpf_set_team_strength", null, ["number", "number"], [team, strength]);
+    // cynical sides tackle far more (and foul more)
+    if (aggression != null && aggression > 1 && m.ccall)
+      m.ccall("gpf_set_team_aggression", null, ["number", "number"], [team, aggression]);
   };
-  one(0, home.color, home.names, home.skins, home.strength);
-  one(1, away.color, away.names, away.skins, away.strength);
+  one(0, home.color, home.names, home.skins, home.strength, home.aggression);
+  one(1, away.color, away.names, away.skins, away.strength, away.aggression);
 }
 
 // Clubs: recolour kits to the club colour, but keep DB names (no real rosters).

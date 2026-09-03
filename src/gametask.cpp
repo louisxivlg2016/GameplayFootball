@@ -16,7 +16,19 @@
 #include <emscripten.h>
 #include "onthepitch/player/controller/icontroller.hpp"
 #include "onthepitch/player/player.hpp"
+#include "onthepitch/player/playerofficial.hpp"
+#include "onthepitch/officials.hpp"
 #include "onthepitch/team.hpp"
+#include "onthepitch/humangamer.hpp"
+
+#include <map>
+#include <cstdio>
+#include <cstring>
+#include "onthepitch/ball.hpp"
+#include <cmath>
+#include "hid/hidnet.hpp"
+#include "managers/usereventmanager.hpp"
+#include "utils.hpp"
 #include "hid/keyboard.hpp"
 #include "systems/graphics/rendering/interface_renderer3d.hpp"
 
@@ -76,6 +88,14 @@ std::vector<int> gpf_natSkins[2];
 // scales each side by its nation's OVR so weaker nations genuinely play worse and
 // stronger ones play better. Read in Player::GetStat. 1.0 = no effect (mode off).
 float gpf_natStrength[2] = {1.0f, 1.0f};
+// Per-team AGGRESSION (1.0 = normal). Some sides are famously cynical: they dive
+// into tackles they shouldn't, which means more challenges AND more fouls. Read
+// in PlayerController::_SlidingCommand.
+float gpf_natAggression[2] = {1.0f, 1.0f};
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_team_aggression(int team, float a) {
+  if (team < 0 || team > 1) return;
+  gpf_natAggression[team] = (a < 1.0f) ? 1.0f : (a > 2.5f ? 2.5f : a);
+}
 
 // global player-speed slider (SETTINGS > "Vitesse des joueurs"): multiplies every
 // player's max sprint velocity equally (playerbase.cpp GetMaxVelocity). 1.0 =
@@ -83,6 +103,15 @@ float gpf_natStrength[2] = {1.0f, 1.0f};
 float gpf_speedScale = 1.0f;
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_speed_scale(float s) {
   gpf_speedScale = (s < 0.5f) ? 0.5f : (s > 1.8f ? 1.8f : s);
+}
+
+// same-screen local 2-player: when true, the second keyboard device (created in
+// main.cpp for the web build) is auto-assigned to the OPPOSING team at match
+// start (controllerselect.cpp reads this flag), so two people play 1-vs-1 on one
+// keyboard. Set from the HTML "2 JOUEURS" toggle before launching a match.
+bool gpf_twoPlayers = false;
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_two_players(int on) {
+  gpf_twoPlayers = (on != 0);
 }
 
 // ---- online multiplayer (experimental) : determinism plumbing --------------
@@ -174,6 +203,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_clear_team_overrides() {
   gpf_natSkins[0].clear();
   gpf_natSkins[1].clear();
   gpf_natStrength[0] = gpf_natStrength[1] = 1.0f;
+  gpf_natAggression[0] = gpf_natAggression[1] = 1.0f;
 }
 
 // Generic engine-config bridge for the HTML SETTINGS panel: read/write any
@@ -228,6 +258,290 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_replay(int windowMs) {
   if (m) m->StartReplay(windowMs > 0 ? (unsigned long)windowMs : 3000);
 }
 
+// ---- REFEREE MODE (play AS the referee) ------------------------------------
+// When on, the match starts AI-vs-AI (no human gamer — controllerselect.cpp reads
+// this) and the human only issues decisions from the HTML referee overlay.
+// First-person referee steering (camera-relative), set from the keyboard in JS.
+// Read by refereecontroller.cpp to walk the ref body; x = right, y = forward.
+float gpf_refMoveX = 0.0f;
+float gpf_refMoveY = 0.0f;
+
+// Manual first-person LOOK (mouse/touch drag). yaw = world heading the camera faces
+// (radians), pitch = camera X-tilt (radians, ~0.47pi = just below level). Until the
+// human first drags, gpf_refCamManual stays false and the camera auto-faces the ball.
+float gpf_refCamYaw = 0.0f;
+float gpf_refCamPitch = 0.47f * pi;
+bool gpf_refCamManual = false;
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_look(float yaw, float pitch) {
+  gpf_refCamYaw = yaw;
+  gpf_refCamPitch = pitch;
+  gpf_refCamManual = true;
+}
+
+// The player the referee is currently talking to (elizacontroller.cpp makes him
+// face the ref and obey). gpf_talkOrder: 0 = stand & face, 1 = recule, 2 = approche.
+PlayerBase *gpf_talkPlayer = 0;
+int gpf_talkOrder = 0;
+// Whistle freeze: when true, every outfield player stands still (elizacontroller.cpp)
+// so the match looks stopped — but the REFEREE keeps moving and the player being
+// talked to still reacts. Toggled by the whistle. Better than Match::Pause, which
+// froze the ref too and stopped talked-player animation.
+bool gpf_freezePlayers = false;
+// Hold the players still from JS. Used by online multiplayer: the two machines
+// finish loading at different times (a PC is ready long before a tablet), so the
+// first one in would be playing alone. Both freeze until BOTH report ready.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_freeze(int on) {
+  gpf_freezePlayers = (on != 0);
+}
+
+bool gpf_refereeMode = false;
+// Referee mode: YOU blow the whistle. Every restart (kick-off, penalty, free
+// kick, corner…) is held until the human referee whistles, exactly like a real
+// match. `awaiting` is true while a restart is waiting for it.
+// A player is DOWN INJURED. He drops with a heavy trip animation, stays on the
+// deck (re-tripped every couple of seconds so he doesn't just get up), and the
+// referee must physically WALK OVER to him before he can decide anything.
+PlayerBase *gpf_injuredPlayer = 0;
+int gpf_injuredTick = 0;
+bool gpf_refAwaitingWhistle = false;
+bool gpf_refWhistleGiven = false;
+extern "C" EMSCRIPTEN_KEEPALIVE int gpf_ref_awaiting_whistle() {
+  return gpf_refAwaitingWhistle ? 1 : 0;
+}
+
+// Put a random outfield player of `team` on the ground, injured. Returns his name.
+extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_ref_injure(int team) {
+  static std::string name; name.clear();
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || team < 0 || team > 1) return name.c_str();
+  Team *t = m->GetTeam(team);
+  if (!t) return name.c_str();
+  std::vector<Player*> active, outfield;
+  t->GetActivePlayers(active);
+  for (unsigned int i = 0; i < active.size(); i++) {
+    Player *pl = active[i];
+    if (pl && t->GetFormationEntry(pl->GetID()).role != e_PlayerRole_GK) outfield.push_back(pl);
+  }
+  if (outfield.empty()) return name.c_str();
+  Player *victim = outfield[(int)(m->GetActualTime_ms() % outfield.size())];
+  gpf_injuredPlayer = victim;
+  gpf_injuredTick = 0;
+  victim->TripMe(victim->GetDirectionVec(), 3); // 3 = heavy fall
+  if (victim->GetPlayerData()) name = victim->GetPlayerData()->GetLastName();
+  return name.c_str();
+}
+
+// Metres between the referee and the injured player (-1 when nobody is down).
+// The page uses it to make you WALK to him before the decision box opens.
+extern "C" EMSCRIPTEN_KEEPALIVE float gpf_ref_injured_dist() {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !gpf_injuredPlayer || !m->GetOfficials() || !m->GetOfficials()->GetReferee()) return -1.0f;
+  Vector3 refPos = m->GetOfficials()->GetReferee()->GetPosition();
+  return (gpf_injuredPlayer->GetPosition() - refPos).GetLength();
+}
+
+// Decision taken: 0 = he's fine, gets up and plays on; 1 = carried off.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_injury_resolve(int sendOff) {
+  if (!gpf_injuredPlayer) return;
+  Player *p = static_cast<Player*>(gpf_injuredPlayer);
+  gpf_injuredPlayer = 0;
+  if (sendOff) p->SendOff();
+}
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_referee_mode(int on) {
+  gpf_refereeMode = (on != 0);
+  gpf_refMoveX = 0.0f; gpf_refMoveY = 0.0f;
+  gpf_refCamManual = false; gpf_refCamPitch = 0.47f * pi;
+  gpf_talkPlayer = 0; gpf_talkOrder = 0;
+  gpf_freezePlayers = false;
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_walk(float x, float y) {
+  gpf_refMoveX = (x < -1.f) ? -1.f : (x > 1.f ? 1.f : x);
+  gpf_refMoveY = (y < -1.f) ? -1.f : (y > 1.f ? 1.f : y);
+}
+
+// Blow the whistle and TOGGLE a hard freeze: first whistle FREEZES the whole match
+// (players stop dead — Match::Pause halts Process), the next whistle resumes it.
+// (StopPlay only marked the ball out of play, which made players walk to restart
+// positions — hence "they moved when stopped". Pause is a true stop.)
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_whistle() {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m) return;
+  if (m->GetReferee()) m->GetReferee()->BlowWhistle();
+  // A restart is waiting on you -> this whistle STARTS it (kick-off, penalty…).
+  // Otherwise the whistle stops/resumes play as before.
+  if (gpf_refAwaitingWhistle) {
+    gpf_refWhistleGiven = true;
+    gpf_refAwaitingWhistle = false;
+    gpf_freezePlayers = false; // play is on
+  } else {
+    gpf_freezePlayers = !gpf_freezePlayers; // freeze/unfreeze the outfield players
+  }
+}
+
+// Award a set piece to a team. type = e_SetPiece (1=KickOff,2=GoalKick,3=FreeKick,
+// 4=Corner,5=ThrowIn,6=Penalty); team 0/1.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_setpiece(int type, int team) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (m && m->GetReferee() && team >= 0 && team <= 1) m->GetReferee()->ForceSetPiece((e_SetPiece)type, team);
+}
+
+// Show a card to a player. Prefer the player who just committed a foul; otherwise
+// the player currently near the ball on `team` (team<0 = whoever holds the ball).
+// color 1=yellow, 3=red (a red auto-sends-off once its effective time passes).
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_card(int team, int color) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m) return;
+  Player *p = 0;
+  if (gpf_talkPlayer) p = static_cast<Player*>(gpf_talkPlayer);  // the player you tapped/selected
+  else if (m->GetReferee() && m->GetReferee()->GetCurrentFoulPlayer()) p = m->GetReferee()->GetCurrentFoulPlayer();
+  else if (team >= 0 && team <= 1) { Team *t = m->GetTeam(team); if (t) p = t->GetDesignatedTeamPossessionPlayer(); }
+  else p = m->GetDesignatedPossessionPlayer();
+  if (!p) return;
+  unsigned long now = m->GetActualTime_ms();
+  if (color >= 3) p->GiveRedCard(now + 5000); else p->GiveYellowCard(now + 5000);
+}
+
+// Pick the active player nearest to a screen tap (normalized 0..1). Sets it as the
+// selected/talk player and returns its name. "" if the tap hit no player. Uses the
+// same world→screen projection as the floating name captions.
+extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_ref_pick_player(float nx, float ny) {
+  static std::string name; name.clear();
+  gpf_talkPlayer = 0;
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !m->GetCamera()) return name.c_str();
+  std::vector<Player*> players;
+  m->GetActiveTeamPlayers(0, players);
+  m->GetActiveTeamPlayers(1, players);
+  float best = 0.11f; Player *bp = 0; // tap tolerance ~11% of the screen
+  for (unsigned int i = 0; i < players.size(); i++) {
+    Player *p = players[i];
+    if (!p) continue;
+    Vector3 sc = GetProjectedCoord(p->GetGeomPosition() + Vector3(0, 0, 1.1f), m->GetCamera());
+    float px = sc.coords[0] / 100.0f, py = sc.coords[1] / 100.0f;
+    if (px < -0.1f || px > 1.1f || py < -0.1f || py > 1.1f) continue;
+    float d = sqrtf((px - nx) * (px - nx) + (py - ny) * (py - ny));
+    if (d < best) { best = d; bp = p; }
+  }
+  if (bp) { gpf_talkPlayer = bp; if (bp->GetPlayerData()) name = bp->GetPlayerData()->GetLastName(); }
+  return name.c_str();
+}
+
+// Screen position (normalized 0..1, as "nx,ny") of the player the LOCAL human is
+// currently controlling, so the UI can float a "Toi" marker over him. Online: the
+// gamer whose device is gpf_localNetDev (each machine's own local device drives its
+// owner's team, so this shows "Toi" correctly on both screens). Otherwise the first
+// human gamer found (solo/keyboard). Returns "" if none, or if he's off-screen.
+// forward decls — the online-netcode globals are defined further down the file
+extern bool gpf_onlineActive;
+extern HIDNet *gpf_localNetDev;
+extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_my_player_screen() {
+  static std::string out; out.clear();
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !m->GetCamera()) return out.c_str();
+  IHIDevice *want = gpf_onlineActive ? (IHIDevice*)gpf_localNetDev : 0;
+  Player *me = 0;
+  for (int t = 0; t < 2 && !me; t++) {
+    Team *tm = m->GetTeam(t);
+    if (!tm) continue;
+    for (unsigned int i = 0; i < tm->GetHumanGamerCount(); i++) {
+      HumanGamer *hg = tm->GetHumanGamer(i);
+      if (!hg) continue;
+      if (want && hg->GetHIDevice() != want) continue;
+      Player *p = hg->GetSelectedPlayer();
+      if (p) { me = p; break; }
+    }
+  }
+  if (!me) return out.c_str();
+  Vector3 sc = GetProjectedCoord(me->GetGeomPosition() + Vector3(0, 0, 2.3f), m->GetCamera());
+  float px = sc.coords[0] / 100.0f, py = sc.coords[1] / 100.0f;
+  if (px < -0.05f || px > 1.05f || py < -0.05f || py > 1.05f) return out.c_str();
+  char buf[48];
+  snprintf(buf, sizeof(buf), "%.4f,%.4f", px, py);
+  out = buf;
+  return out.c_str();
+}
+
+// Injury: force a random active OUTFIELD player on `team` off the pitch (the engine
+// has no physio system, so an "injury exit" is modelled as a send-off). The GK is
+// never picked so the team keeps a keeper.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_injury_off(int team) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || team < 0 || team > 1) return;
+  Team *t = m->GetTeam(team);
+  if (!t) return;
+  std::vector<Player*> active;
+  t->GetActivePlayers(active);
+  std::vector<Player*> outfield;
+  for (unsigned int i = 0; i < active.size(); i++) {
+    Player *pl = active[i];
+    if (pl && t->GetFormationEntry(pl->GetID()).role != e_PlayerRole_GK) outfield.push_back(pl);
+  }
+  if (outfield.empty()) return;
+  int idx = (int)(m->GetActualTime_ms() % outfield.size()); // cheap pseudo-random pick
+  outfield[idx]->SendOff();
+}
+
+// Referee dialogue: the last name of the active player nearest the referee (the one
+// the ref would talk to when play is stopped). Returned as a C string for JS ccall.
+extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_ref_nearest_name() {
+  static std::string name;
+  name.clear();
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !m->GetOfficials() || !m->GetOfficials()->GetReferee()) return name.c_str();
+  Vector3 refPos = m->GetOfficials()->GetReferee()->GetPosition();
+  std::vector<Player*> players;
+  m->GetActiveTeamPlayers(0, players);
+  m->GetActiveTeamPlayers(1, players);
+  float best = 1e18f; Player *bp = 0;
+  for (unsigned int i = 0; i < players.size(); i++) {
+    Player *p = players[i];
+    if (!p) continue;
+    float d = (p->GetPosition() - refPos).GetLength();
+    if (d < best) { best = d; bp = p; }
+  }
+  if (bp && bp->GetPlayerData()) name = bp->GetPlayerData()->GetLastName();
+  return name.c_str();
+}
+
+// Start talking to the nearest player: he turns to face the ref and stands (the
+// override lives in elizacontroller.cpp). Returns his last name for the bubble.
+extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_ref_talk_begin() {
+  static std::string name; name.clear();
+  gpf_talkPlayer = 0; gpf_talkOrder = 0;
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !m->GetOfficials() || !m->GetOfficials()->GetReferee()) return name.c_str();
+  Vector3 refPos = m->GetOfficials()->GetReferee()->GetPosition();
+  std::vector<Player*> players;
+  m->GetActiveTeamPlayers(0, players);
+  m->GetActiveTeamPlayers(1, players);
+  float best = 1e18f; Player *bp = 0;
+  for (unsigned int i = 0; i < players.size(); i++) {
+    Player *p = players[i];
+    if (!p) continue;
+    float d = (p->GetPosition() - refPos).GetLength();
+    if (d < best) { best = d; bp = p; }
+  }
+  if (bp) { gpf_talkPlayer = bp; if (bp->GetPlayerData()) name = bp->GetPlayerData()->GetLastName(); }
+  return name.c_str();
+}
+
+// Give the talked-to player an order: 0 = stand & face, 1 = recule, 2 = approche.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_talk_order(int order) { gpf_talkOrder = order; }
+
+// Stop talking: the player returns to normal AI play.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_talk_end() { gpf_talkPlayer = 0; gpf_talkOrder = 0; }
+
 // Training drills from the HTML menu: force the live match into a specific set
 // piece (1=KickOff,3=FreeKick,4=Corner,6=Penalty — e_SetPiece values) for team 0.
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {
@@ -243,6 +557,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {
 // velocity (m/s, z = up) aimed at the goal the drill team attacks, launch the
 // ball with Ball::Touch, and spin it about Z so the Magnus effect bends it the
 // way it was drawn.
+static void gpf_creditTouch(Match *m, int teamID); // defined below
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp, float power, float curl) {
   boost::shared_ptr<GameTask> gt = GetGameTask();
   Match *m = gt ? gt->GetMatch() : 0;
@@ -266,6 +581,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp
   // swerve_Y = oppSide * zSpin, and screen-right is world -oppSide*Y, so zSpin =
   // -curl * M gives a screen-right curve regardless of which goal we attack.
   // Engine's own shots use zRot up to ~+-420; 350 is a strong-but-sane full curl.
+  gpf_creditTouch(m, ref->GetDrillTeam()); // training shots count as OUR touch too
   m->GetBall()->SetRotation(0.0f, 0.0f, -c * 350.0f, 1.0f);
   ref->NotifyDrillShotTaken();
 }
@@ -273,6 +589,41 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp
 // In-match offside free kick: the human traced a line toward a team-mate. Pass the
 // ball in that direction (screen-right -> world lateral, screen-up -> loft, chord
 // length -> pace), then end the set piece so play resumes.
+// Record WHO played the ball when the page launches it directly (traced penalty,
+// free kick, corner, throw-in). Without this the engine sees a ball that nobody
+// touched, so a goal from it is judged an OWN GOAL — the user scored a penalty
+// and the radio congratulated the other team.
+// Which team last struck the ball FROM THE PAGE (traced penalty / free kick /
+// corner / throw-in), and when. The own-goal test in Match reads this: a ball we
+// launch ourselves has no real "last touch", so without it a scored penalty was
+// judged an own goal.
+int gpf_lastShotTeam = -1;
+unsigned long gpf_lastShotTime_ms = 0;
+
+static void gpf_creditTouch(Match *m, int teamID) {
+  if (!m || teamID < 0 || teamID > 1) return;
+  Team *t = m->GetTeam(teamID);
+  if (!t) return;
+  // remember it directly — this is what actually settles the own-goal question
+  gpf_lastShotTeam = teamID;
+  gpf_lastShotTime_ms = m->GetActualTime_ms();
+  Player *taker = t->GetController() ? t->GetController()->GetPieceTaker() : 0;
+  if (!taker) taker = t->GetDesignatedTeamPossessionPlayer();
+  if (!taker) {
+    // last resort: whoever of ours stands closest to the ball is the taker
+    Vector3 ball = m->GetBall() ? m->GetBall()->Predict(0).Get2D() : Vector3(0, 0, 0);
+    std::vector<Player*> act;
+    t->GetActivePlayers(act);
+    float best = 1e18f;
+    for (unsigned int i = 0; i < act.size(); i++) {
+      if (!act[i]) continue;
+      float d = (act[i]->GetPosition().Get2D() - ball).GetLength();
+      if (d < best) { best = d; taker = act[i]; }
+    }
+  }
+  if (taker) t->SetLastTouchPlayer(taker, e_TouchType_Intentional_Kicked);
+}
+
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_freekick_pass(float aimRight, float aimUp, float power) {
   boost::shared_ptr<GameTask> gt = GetGameTask();
   Match *m = gt ? gt->GetMatch() : 0;
@@ -293,8 +644,17 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_freekick_pass(float aimRight, float aim
   // kick all "pass to the other team"). Instead, aim the pass at an actual
   // TEAM-MATE: forward (toward the attacked goal) fanned left/right by the trace
   // (`r`), then pick the best team-mate in that lane and drive the ball to him.
-  Vector3 fwd = Vector3((float)oppSide, 0.0f, 0.0f);
-  Vector3 lat = Vector3(fwd.coords[1], -fwd.coords[0], 0.0f); // screen-right perpendicular
+  // Screen-relative aim. The human draws the line ON SCREEN, so "forward" and
+  // "right" must come from the LIVE CAMERA, not a fixed world axis. The corner
+  // camera looks down the corner->goal diagonal (and mirrors between the two
+  // corners), so a fixed axis sent the pass the wrong way there ("it does what I
+  // did on the other side"). Camera identity faces +Y, so rotate that.
+  Vector3 fwd = Vector3(0.0f, 1.0f, 0.0f);
+  fwd.Rotate(m->GetCameraNodeOrientation());
+  fwd.coords[2] = 0.0f;
+  if (fwd.GetLength() < 0.01f) fwd = Vector3((float)oppSide, 0.0f, 0.0f); // degenerate: fall back downfield
+  fwd.Normalize();
+  Vector3 lat = Vector3(fwd.coords[1], -fwd.coords[0], 0.0f); // camera-right perpendicular
   Vector3 desired = (fwd + lat * r).GetNormalized();
 
   std::vector<Player*> mates;
@@ -334,6 +694,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_freekick_pass(float aimRight, float aim
     vel.coords[2] = 2.0f + u * 7.0f;
   }
 
+  // A THROW-IN taker HOLDS the ball (retain animation), so the ball is glued to
+  // his hands and Touch() gets overwritten every frame — the throw never left.
+  // Release the retainer first so the ball actually flies.
+  if (m->GetBallRetainer()) m->SetBallRetainer(0);
+  gpf_creditTouch(m, kickTeam);
   m->GetBall()->Touch(vel);
   ref->EndOffsideKick();
 }
@@ -358,6 +723,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_penalty_shoot(float aimRight, float aim
   float vy = -oppSide * r * 8.0f;       // lateral: screen-right -> correct world side
   float vz = 1.5f + u * 6.0f;           // keep it low-ish (2..7.5 m/s)
 
+  gpf_creditTouch(m, ref->GetPenaltyTeam());
   m->GetBall()->Touch(Vector3(vx, vy, vz));
   m->GetBall()->SetRotation(0.0f, 0.0f, -c * 300.0f, 1.0f);
   ref->EndPenalty();
@@ -548,7 +914,188 @@ void GameTask::GetPhase() {
   if (menuScene) menuScene->Get();
 }
 
+// ============================ ONLINE MULTIPLAYER =============================
+// Deterministic lockstep. Both peers run the identical seeded sim; each captures
+// its local keyboard once per tick, sends it to the peer tagged with a future
+// frame (input delay to hide latency), and feeds the peer's input into a synthetic
+// device. The sim advances a frame only once the remote input for that frame is in.
+HIDNet *gpf_localNetDev = 0;
+HIDNet *gpf_remoteNetDev = 0;
+bool gpf_onlineActive = false;
+int gpf_onlineRole = 0;               // 0 = host (team 0), 1 = joiner (team 1)
+static int gpf_netDelay = 10;         // kept only for the tuning bridge (unused now)
+static long gpf_netFrame = 0;
+struct GpfNetInput { unsigned int mask; float dx; float dy; };
+static GpfNetInput gpf_lastRemote = { 0, 0.f, 0.f };  // peer's newest input, held until the next packet
+
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_net_start(int role) {
+  gpf_onlineActive = true; gpf_onlineRole = role;
+  gpf_netFrame = 0; gpf_lastRemote.mask = 0; gpf_lastRemote.dx = 0.f; gpf_lastRemote.dy = 0.f;
+}
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_net_stop() {
+  gpf_onlineActive = false;
+}
+// Tune the input-delay buffer (frames). Higher = smoother over a laggy link but
+// more input lag. BOTH peers must use the same value. Clamped 4..30.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_net_set_delay(int d) {
+  gpf_netDelay = d < 4 ? 4 : (d > 30 ? 30 : d);
+}
+// Peer's latest input. The frame tag is ignored now — we no longer lockstep on
+// exact frames (each machine runs its own sim at its own speed and the host's
+// periodic snapshot re-aligns them), so we just hold the newest input.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_net_feed(int frame, unsigned int mask, float dx, float dy) {
+  (void)frame;
+  gpf_lastRemote.mask = mask; gpf_lastRemote.dx = dx; gpf_lastRemote.dy = dy;
+}
+// diagnostics
+extern "C" EMSCRIPTEN_KEEPALIVE int gpf_net_frame() { return (int)gpf_netFrame; }
+extern "C" EMSCRIPTEN_KEEPALIVE int gpf_net_remote_count() { return (int)gpf_lastRemote.mask; }
+long gpf_ppCalls = 0;
+extern "C" EMSCRIPTEN_KEEPALIVE int gpf_net_ppcalls() { return (int)gpf_ppCalls; }
+extern "C" EMSCRIPTEN_KEEPALIVE int gpf_net_state() {
+  int s = 0;
+  if (gpf_onlineActive) s |= 1;
+  if (gpf_localNetDev && gpf_remoteNetDev) s |= 2;
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  if (gt && gt->GetMatch()) s |= 4;
+  return s;
+}
+
+// Sample the physical keyboard (player-1 mapping) → 16-bit button mask + direction.
+static GpfNetInput gpf_sampleLocalInput() {
+  GpfNetInput in; in.mask = 0; in.dx = 0; in.dy = 0;
+  for (int i = 0; i < 16; i++) {
+    if (UserEventManager::GetInstance().GetKeyboardState(defaultKeyIDs[i])) in.mask |= (1u << i);
+  }
+  float rx = (((in.mask >> e_ButtonFunction_Right) & 1u) ? 1.f : 0.f) - (((in.mask >> e_ButtonFunction_Left) & 1u) ? 1.f : 0.f);
+  float ry = (((in.mask >> e_ButtonFunction_Up) & 1u) ? 1.f : 0.f) - (((in.mask >> e_ButtonFunction_Down) & 1u) ? 1.f : 0.f);
+  float len = sqrtf(rx * rx + ry * ry);
+  if (len > 0.001f) { in.dx = rx / len; in.dy = ry / len; }
+  return in;
+}
+
+// One online tick. NON-BLOCKING: sample my input, broadcast it to the peer, and
+// drive both synthetic devices (mine live + the peer's latest held input). Each
+// machine runs its own sim at its own speed — the tablet no longer drags the PC
+// down waiting for it. Drift between the two is corrected by the host's periodic
+// position snapshot (gpf_net_snapshot / gpf_net_apply_snapshot).
+static void gpf_net_tick() {
+  if (!gpf_localNetDev || !gpf_remoteNetDev) return;
+  GpfNetInput li = gpf_sampleLocalInput();
+  EM_ASM({ if (typeof window !== "undefined" && window.gpfNetSend) window.gpfNetSend($0, $1, $2, $3); },
+         (int)gpf_netFrame, (int)li.mask, li.dx, li.dy);
+  gpf_localNetDev->Feed(li.mask, li.dx, li.dy);
+  gpf_remoteNetDev->Feed(gpf_lastRemote.mask, gpf_lastRemote.dx, gpf_lastRemote.dy);
+  gpf_netFrame++;
+}
+
+// HOST AUTHORITY — serialize the ball + every active player into a compact string
+// "bx,by,bz;id,x,y,z,dx,dy;id,...". The joiner applies it to snap its sim back in
+// line so the two screens can't drift apart forever. Positions are the logical
+// (feet) positions; dx,dy is the facing direction so players keep their heading.
+extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_net_snapshot() {
+  static std::string out; out.clear();
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m) return out.c_str();
+  char buf[160];
+  Vector3 b = m->GetBall() ? m->GetBall()->GetPositionBuffer() : Vector3(0, 0, 0);
+  snprintf(buf, sizeof(buf), "%.2f,%.2f,%.2f", b.coords[0], b.coords[1], b.coords[2]);
+  out = buf;
+  std::vector<Player*> players;
+  m->GetActiveTeamPlayers(0, players);
+  m->GetActiveTeamPlayers(1, players);
+  for (unsigned int i = 0; i < players.size(); i++) {
+    Player *p = players[i];
+    if (!p) continue;
+    Vector3 pos = p->GetPosition();
+    Vector3 dir = p->GetDirectionVec();
+    snprintf(buf, sizeof(buf), ";%d,%.2f,%.2f,%.2f,%.3f,%.3f",
+             p->GetID(), pos.coords[0], pos.coords[1], pos.coords[2], dir.coords[0], dir.coords[1]);
+    out += buf;
+  }
+  return out.c_str();
+}
+
+// JOINER — apply a host snapshot: teleport the ball and every named player to the
+// host's authoritative position/heading. Called ~every 2s, so the small visual
+// jump is rare and the two screens stay showing the same match.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_net_apply_snapshot(const char *data) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !data) return;
+  float bx, by, bz;
+  if (sscanf(data, "%f,%f,%f", &bx, &by, &bz) == 3 && m->GetBall()) {
+    // Only correct the ball once it has genuinely drifted (> ~2.5 m). Teleporting
+    // it every 0.75s yanked it out from under a player mid-shot.
+    Vector3 cb = m->GetBall()->GetPositionBuffer();
+    float bdx = cb.coords[0] - bx, bdy = cb.coords[1] - by;
+    if (bdx * bdx + bdy * bdy > 6.25f) m->GetBall()->SetPosition(Vector3(bx, by, bz));
+  }
+  std::vector<Player*> players;
+  m->GetActiveTeamPlayers(0, players);
+  m->GetActiveTeamPlayers(1, players);
+  // The players a HUMAN is steering must be left alone unless they are wildly out
+  // of place: ResetPosition restarts the humanoid animation, which CANCELS a shot
+  // being charged. Snapping them every 0.75s made shooting impossible online
+  // ("quand on voulait tirer on ne pouvait pas, ça passait à autre chose").
+  std::vector<Player*> humanControlled;
+  for (int t = 0; t < 2; t++) {
+    Team *tm = m->GetTeam(t);
+    if (!tm) continue;
+    for (unsigned int i = 0; i < tm->GetHumanGamerCount(); i++) {
+      HumanGamer *hg = tm->GetHumanGamer(i);
+      if (hg && hg->GetSelectedPlayer()) humanControlled.push_back(hg->GetSelectedPlayer());
+    }
+  }
+  const char *seg = strchr(data, ';');
+  while (seg) {
+    seg++; // step past ';'
+    int id; float x, y, z, dx, dy;
+    if (sscanf(seg, "%d,%f,%f,%f,%f,%f", &id, &x, &y, &z, &dx, &dy) == 6) {
+      for (unsigned int i = 0; i < players.size(); i++) {
+        if (players[i] && players[i]->GetID() == id) {
+          // Only hard-snap a player who has actually DRIFTED (> ~1.5 m). Players
+          // still roughly in sync are left alone, so the correction stops making
+          // the whole team jump every tick — only the out-of-place ones snap.
+          Vector3 cur = players[i]->GetPosition();
+          float ddx = cur.coords[0] - x, ddy = cur.coords[1] - y;
+          bool human = false;
+          for (unsigned int h = 0; h < humanControlled.size(); h++) {
+            if (humanControlled[h] == players[i]) { human = true; break; }
+          }
+          // 1.5 m for the AI, 8 m for a human-steered player — far enough that his
+          // shot/dribble is never interrupted, close enough that he can't drift off.
+          const float limit = human ? 64.0f : 2.25f;
+          if (ddx * ddx + ddy * ddy > limit) {
+            players[i]->ResetPosition(Vector3(x, y, z), Vector3(x + dx * 2.f, y + dy * 2.f, z));
+          }
+          break;
+        }
+      }
+    }
+    seg = strchr(seg, ';');
+  }
+}
+
 void GameTask::ProcessPhase() {
+
+  gpf_ppCalls++;
+  // Online: broadcast my input + apply the peer's, then sim NORMALLY (no waiting).
+  // The sim never blocks on the network anymore — the host's periodic snapshot
+  // (applied on the joiner) is what keeps the two screens from drifting apart.
+  // keep an injured player DOWN: the humanoid holds the last frame of the fall once he
+  // is actually lying down (see Humanoid::Process), so this only has to keep retrying
+  // until a lay_front/lay_back trip anim was picked (TripMe is a no-op while he's down).
+  if (gpf_injuredPlayer && match) {
+    if (++gpf_injuredTick >= 60) {
+      gpf_injuredTick = 0;
+      static_cast<Player*>(gpf_injuredPlayer)->TripMe(
+          static_cast<Player*>(gpf_injuredPlayer)->GetDirectionVec(), 3);
+    }
+  }
+
+  if (gpf_onlineActive && match) gpf_net_tick();
 
   for (unsigned int i = 0; i < GetControllers().size(); i++) {
     GetControllers().at(i)->Process();

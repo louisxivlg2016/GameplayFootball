@@ -123,6 +123,18 @@ void Humanoid::Process() {
   currentAnim->frameNum++;
   previousAnim->frameNum++;
 
+  // gpf: referee mode — a player who is DOWN INJURED must stay on the deck. Once his
+  // fall anim ends in a lay_front/lay_back state we hold that last frame instead of
+  // letting the engine switch into a stand-up anim.
+  extern PlayerBase *gpf_injuredPlayer;
+  bool gpfStayDown = (gpf_injuredPlayer == player &&
+                      currentAnim->anim->GetVariable("outgoing_special_state").compare("") != 0);
+  if (gpfStayDown && currentAnim->frameNum >= currentAnim->anim->GetFrameCount() - 1) {
+    currentAnim->frameNum = currentAnim->anim->GetFrameCount() - 1;
+  } else {
+    gpfStayDown = false;
+  }
+
   assert(team);
   int teamID = team->GetID();
 
@@ -133,11 +145,11 @@ void Humanoid::Process() {
   }
 */
 
-  if (currentAnim->frameNum == currentAnim->anim->GetFrameCount() - 1 && interruptAnim == e_InterruptAnim_None) {
+  if (currentAnim->frameNum == currentAnim->anim->GetFrameCount() - 1 && interruptAnim == e_InterruptAnim_None && !gpfStayDown) {
     interruptAnim = e_InterruptAnim_Switch;
   }
 
-  bool mayReQueue = allowReQueue;
+  bool mayReQueue = allowReQueue && !gpfStayDown;
 
 
   // already some anim interrupt waiting?
@@ -474,12 +486,19 @@ void Humanoid::Process() {
         // refine/change target, if new target is close enough to old target
 
         //targetPlayer = 0;//currentAnim->originatingCommand.touchInfo.targetPlayer;
+        // gpf: header shot (shot button on a high ball) -> keep aiming at goal, never
+        // re-target a teammate
+        bool headerShot = currentAnim->originatingCommand.touchInfo.headerShot;
+        if (headerShot) {
+          ballDirection = AI_GetShotDirection(CastPlayer(), inputDirection, currentAnim->originatingCommand.touchInfo.autoDirectionBias);
+          targetPlayer = 0;
+        }
         Vector3 tmpBallDirection = ballDirection;
         float tmpBallPower = ballPower;
         Player *tmpTargetPlayer = 0;
         Player *forcedTargetPlayer = 0;
-        AI_GetPass(CastPlayer(), currentAnim->originatingCommand.desiredFunctionType, inputDirection, currentAnim->originatingCommand.touchInfo.inputPower, currentAnim->originatingCommand.touchInfo.autoDirectionBias, currentAnim->originatingCommand.touchInfo.autoPowerBias, tmpBallDirection, tmpBallPower, tmpTargetPlayer, currentAnim->originatingCommand.touchInfo.forcedTargetPlayer);
-        float maxDeviationAngle = 0.15f * pi;
+        if (!headerShot) AI_GetPass(CastPlayer(), currentAnim->originatingCommand.desiredFunctionType, inputDirection, currentAnim->originatingCommand.touchInfo.inputPower, currentAnim->originatingCommand.touchInfo.autoDirectionBias, currentAnim->originatingCommand.touchInfo.autoPowerBias, tmpBallDirection, tmpBallPower, tmpTargetPlayer, currentAnim->originatingCommand.touchInfo.forcedTargetPlayer);
+        float maxDeviationAngle = headerShot ? 0.0f : 0.15f * pi;
         radian angleDiff = tmpBallDirection.Get2D().GetAngle2D(ballDirection.Get2D());
         if (fabs(angleDiff) <= maxDeviationAngle) {
           ballDirection = tmpBallDirection;

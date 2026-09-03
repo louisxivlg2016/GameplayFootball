@@ -18,18 +18,19 @@ let resultEl: HTMLElement | null = null;
 let hideTimer: number | null = null;
 
 const CSS = `
-#gpf-shootout { position:fixed; left:50%; top:12%; transform:translateX(-50%); z-index:2147483200;
-  display:none; min-width:min(420px,86vw); padding:14px 20px 16px; border-radius:14px; color:#fff;
-  font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif; text-align:center; pointer-events:none;
-  background:linear-gradient(180deg,rgba(10,14,20,.92),rgba(6,9,13,.92));
+/* compact widget pinned to the BOTTOM-LEFT so it never blocks the pitch */
+#gpf-shootout { position:fixed; left:12px; bottom:12px; z-index:2147483200;
+  display:none; min-width:0; padding:8px 12px 10px; border-radius:12px; color:#fff;
+  font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif; text-align:left; pointer-events:none;
+  background:linear-gradient(180deg,rgba(10,14,20,.9),rgba(6,9,13,.9));
   box-shadow:0 8px 30px rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.08); }
 #gpf-shootout.show { display:block; }
-#gpf-shootout .so-title { font-size:13px; font-weight:900; letter-spacing:3px; text-transform:uppercase;
-  color:#ffe94a; margin-bottom:6px; }
-#gpf-shootout .so-score { font-size:40px; font-weight:900; line-height:1; letter-spacing:2px; }
-#gpf-shootout .so-rows { margin-top:10px; display:flex; flex-direction:column; gap:6px; align-items:center; }
-#gpf-shootout .so-row { display:flex; gap:5px; align-items:center; justify-content:center; }
-#gpf-shootout .so-dot { width:13px; height:13px; border-radius:50%; box-sizing:border-box;
+#gpf-shootout .so-title { font-size:10px; font-weight:900; letter-spacing:2px; text-transform:uppercase;
+  color:#ffe94a; margin-bottom:3px; }
+#gpf-shootout .so-score { font-size:24px; font-weight:900; line-height:1; letter-spacing:1px; }
+#gpf-shootout .so-rows { margin-top:6px; display:flex; flex-direction:column; gap:4px; align-items:flex-start; }
+#gpf-shootout .so-row { display:flex; gap:4px; align-items:center; justify-content:flex-start; }
+#gpf-shootout .so-dot { width:11px; height:11px; border-radius:50%; box-sizing:border-box;
   border:1px solid rgba(255,255,255,.25); }
 #gpf-shootout .so-dot.g { background:#37d67a; border-color:#37d67a; }
 #gpf-shootout .so-dot.m { background:#e64c4c; border-color:#e64c4c; }

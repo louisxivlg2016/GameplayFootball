@@ -2,6 +2,7 @@
 // this work is public domain. the code is undocumented, scruffy, untested, and should generally not be used for anything important.
 // i do not offer support, so don't ask. to be used for inspiration :)
 
+#include <cstdio>   // snprintf for the added-time announcement
 #include "match.hpp"
 
 #include "../main.hpp"
@@ -72,6 +73,8 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   // matchTime advances by 10*(1/factor) per real 10ms tick and full time is at
   // 90:00 (chEnd_ms 5,400,000), so real in-play minutes = 90*factor.
   matchDurationFactor = (1.0f + GetConfiguration()->GetReal("match_duration", 0.1) * 20.0f) / 90.0f;
+  addedTime_ms = 0;
+  addedTimeAnnounced = false;
   matchDifficulty = GetConfiguration()->GetReal("match_difficulty", 0.8f);
 
   Log(e_Notice, "Match", "Match", "Creating dynamicNode");
@@ -884,6 +887,14 @@ void Match::ResetSituation(const Vector3 &focusPos) {
 */
 }
 
+unsigned long Match::GetRegulationEnd_ms() const {
+  if (matchPhase == e_MatchPhase_1stHalf)      return 2700000;
+  if (matchPhase == e_MatchPhase_2ndHalf)      return 5400000;
+  if (matchPhase == e_MatchPhase_1stExtraTime) return 6300000;
+  if (matchPhase == e_MatchPhase_2ndExtraTime) return 7200000;
+  return 0;
+}
+
 void Match::SetMatchPhase(e_MatchPhase newMatchPhase) {
   matchPhase = newMatchPhase;
   if (matchPhase == e_MatchPhase_2ndHalf)
@@ -892,6 +903,21 @@ void Match::SetMatchPhase(e_MatchPhase newMatchPhase) {
     gpfRadioEvent("extratime");
   else if (matchPhase == e_MatchPhase_Penalties)
     gpfRadioEvent("shootout");
+  // fresh half -> new stoppage time. More goals = more celebrating = more added
+  // time, like the real thing. 1-2 min for a half, 1 min in extra time.
+  addedTimeAnnounced = false;
+  {
+    int goals = GetScore(0) + GetScore(1);
+    if (matchPhase == e_MatchPhase_1stExtraTime || matchPhase == e_MatchPhase_2ndExtraTime) {
+      addedTime_ms = 60000UL;
+    } else if (matchPhase == e_MatchPhase_1stHalf || matchPhase == e_MatchPhase_2ndHalf) {
+      unsigned long mins = 1 + (unsigned long)(goals / 2) + (unsigned long)(rand() % 2);
+      if (mins > 5) mins = 5;
+      addedTime_ms = mins * 60000UL;
+    } else {
+      addedTime_ms = 0;
+    }
+  }
   if (matchPhase == e_MatchPhase_1stHalf)           matchTime_ms = 0;
   else if (matchPhase == e_MatchPhase_2ndHalf)      matchTime_ms = 2700000;
   else if (matchPhase == e_MatchPhase_1stExtraTime) matchTime_ms = 5400000;
@@ -907,6 +933,13 @@ void Match::SetMatchPhase(e_MatchPhase newMatchPhase) {
 signed int Match::GetBestPossessionTeamID() {
   return bestPossessionTeamID;
 }
+
+// Last player to come within a whisker of the ball, and when. A real deflection
+// needs the ball to actually intersect a body part, so a defender who just grazes
+// it got no credit — and the ball going out behind him was given as a goal kick
+// instead of a corner. We remember near-misses and let the referee use them.
+int gpf_grazeTeam = -1;
+unsigned long gpf_grazeTime_ms = 0;
 
 void Match::GameOver() {
   gameOver = true;
@@ -984,6 +1017,7 @@ void Match::UpdateIngameCamera() {
   int camMethod = 1; // 1 == wide, 2 == birds-eye, 3 == tele
 
 #ifdef __EMSCRIPTEN__
+  extern bool gpf_refereeMode; // first-person referee mode (defined in gametask.cpp)
   if (IsCeremonyActive()) {
 
     // anthem ceremony: close camera slowly panning along the active team's row
@@ -998,6 +1032,25 @@ void Match::UpdateIngameCamera() {
     cameraFOV = 24.0f;
     cameraNearCap = 0.5;
     cameraFarCap = 200;
+
+  } else if (gpf_refereeMode) {
+
+    // FIRST-PERSON REFEREE: eye-height camera at the referee's head. The human can
+    // freely turn the view (mouse/touch -> gpf_ref_look); until they do, it auto-faces
+    // the ball. The ref body is walked by the human (refereecontroller.cpp).
+    extern float gpf_refCamYaw; extern float gpf_refCamPitch; extern bool gpf_refCamManual;
+    Vector3 refPos = officials->GetReferee()->GetPosition();
+    Vector3 ballPos = ball->Predict(0).Get2D();
+    float heading = gpf_refCamManual ? gpf_refCamYaw : (ballPos - refPos).GetAngle2D();
+    // eye height, pushed ~0.8m FORWARD along the look direction so the ref's own
+    // head/body (rendered at refPos) sits BEHIND the camera and never clips into view.
+    Vector3 look2d = Vector3(cos(heading), sin(heading), 0);
+    cameraNodePosition = refPos + Vector3(0, 0, 1.72f) + look2d * 0.8f;
+    cameraNodeOrientation.SetAngleAxis(heading + 1.5f * pi, Vector3(0, 0, 1));
+    cameraOrientation.SetAngleAxis(gpf_refCamManual ? gpf_refCamPitch : 0.47f * pi, Vector3(1, 0, 0));
+    cameraFOV = 62.0f;
+    cameraNearCap = 0.3;
+    cameraFarCap = 250;
 
   } else if (GetReferee()->IsHumanOffsideKick()) {
 
@@ -1291,6 +1344,18 @@ void Match::Process() {
     // time
 
     if (IsInPlay() && !IsInSetPiece()) matchTime_ms += 10 * (1.0f / matchDurationFactor);
+#ifdef __EMSCRIPTEN__
+    // crossed 45:00 / 90:00 -> the fourth official raises the board
+    if (!addedTimeAnnounced && addedTime_ms > 0) {
+      unsigned long reg = GetRegulationEnd_ms();
+      if (reg > 0 && matchTime_ms >= reg) {
+        addedTimeAnnounced = true;
+        char mins[8];
+        snprintf(mins, sizeof(mins), "%lu", addedTime_ms / 60000UL);
+        gpfRadioEvent("addedtime", mins);
+      }
+    }
+#endif
     actualTime_ms += 10;
     if (IsGoalScored()) goalScoredTimer += 10; else { goalScoredTimer = 0;
 #ifdef __EMSCRIPTEN__
@@ -1335,10 +1400,21 @@ void Match::Process() {
       } else {
         loose = 1;
       }
+      // Hush the play-by-play for ANY stoppage, not just major set pieces: whenever
+      // the ball is out of play (foul, throw-in/goal-kick setup, goal celebration,
+      // kickoff wait) or the referee has frozen play with the whistle (ref mode).
+      // Referee/structural calls (goal, foul, card…) still speak — they're on the
+      // SPEAK_THROUGH_STOPPAGE list in radioEngine and go through radio(), not the
+      // open-play flow this flag silences.
+      extern bool gpf_freezePlayers;
+      // NOTE: do NOT gate on !IsInPlay() — in this engine inPlay stays false through
+      // normal open play (see the netcode notes), so it would silence the commentator
+      // for the ENTIRE match. Set-piece + the ref-mode whistle freeze are enough.
+      int radioQuiet = (IsInSetPiece() || GetReferee()->IsMajorSetPiece() || gpf_freezePlayers) ? 1 : 0;
       gpfRadioTick(loose, carrierName.c_str(), teamId, keeper, depth, speed,
                    oppName.c_str(), oppDist, GetScore(0), GetScore(1),
                    matchTime_ms / 1000.0, 0, IsGoalScored() ? 1 : 0,
-                   GetReferee()->IsMajorSetPiece() ? 1 : 0);
+                   radioQuiet);
     }
 #endif
 
@@ -1369,6 +1445,19 @@ void Match::Process() {
         // find out who scored
         bool ownGoal = true;
         if (GetLastTouchTeamID(e_TouchType_Intentional_Kicked) == GetLastGoalTeamID() || GetLastTouchTeamID(e_TouchType_Intentional_Nonkicked) == GetLastGoalTeamID()) ownGoal = false;
+#ifdef __EMSCRIPTEN__
+        // A ball the PAGE launched (traced penalty / free kick / corner) has no
+        // regular "last touch", so the test above wrongly called it an own goal.
+        // If we struck it ourselves moments ago, it is simply our goal.
+        {
+          extern int gpf_lastShotTeam;
+          extern unsigned long gpf_lastShotTime_ms;
+          if (gpf_lastShotTeam == GetLastGoalTeamID() &&
+              actualTime_ms - gpf_lastShotTime_ms < 15000UL) {
+            ownGoal = false;
+          }
+        }
+#endif
 
         if (!ownGoal) {
           lastGoalScorer = teams[GetLastGoalTeamID()]->GetLastTouchPlayer();
@@ -1393,8 +1482,29 @@ void Match::Process() {
           std::string scorer = (lastGoalScorer && lastGoalScorer->GetPlayerData())
                                    ? lastGoalScorer->GetPlayerData()->GetLastName()
                                    : std::string();
-          gpfRadioEvent("goal", scorer.c_str(), GetLastGoalTeamID(),
-                        matchData->GetGoalCount(0), matchData->GetGoalCount(1));
+#ifdef __EMSCRIPTEN__
+          { // capture WHY we judged this an own goal (read back via /radio-diag)
+            extern int gpf_lastShotTeam;
+            extern unsigned long gpf_lastShotTime_ms;
+            EM_ASM({
+              try { window.__goalDebug = ({
+                own: !!$0, goalTeam: $1, touchKicked: $2, touchNon: $3,
+                shotTeam: $4, sinceShot: $5, t: Date.now() }); } catch (e) {}
+            }, ownGoal ? 1 : 0, GetLastGoalTeamID(),
+               GetLastTouchTeamID(e_TouchType_Intentional_Kicked),
+               GetLastTouchTeamID(e_TouchType_Intentional_Nonkicked),
+               gpf_lastShotTeam, (int)(actualTime_ms - gpf_lastShotTime_ms));
+          }
+#endif
+          // During a PENALTY SHOOTOUT every converted kick also trips this normal
+          // goal detection. The taker isn't credited there, so it was announced as
+          // an own goal — and because the line is delayed a few seconds it landed
+          // in the middle of the NEXT penalty. The shootout has its own calls
+          // (penGoal / penMiss), so stay quiet here.
+          if (!GetReferee() || (!GetReferee()->IsShootoutActive() && !GetReferee()->IsDrillActive())) {
+            gpfRadioEvent(ownGoal ? "owngoal" : "goal", scorer.c_str(), GetLastGoalTeamID(),
+                          matchData->GetGoalCount(0), matchData->GetGoalCount(1));
+          }
         }
 
       }
@@ -2367,6 +2477,14 @@ void Match::CheckBallCollisions() {
           boundingBoxSizeOffset += 0.2f;
         }
 
+        {
+          // near-miss bookkeeping: horizontal distance from the ball, ignoring height
+          Vector3 pb = players[i]->GetPosition().Get2D() - ball->Predict(0).Get2D();
+          if (pb.GetLength() < 0.5f) {
+            gpf_grazeTeam = players[i]->GetTeam()->GetID();
+            gpf_grazeTime_ms = actualTime_ms;
+          }
+        }
         if (((players[i]->GetPosition() + Vector3(0, 0, 0.8f)) - ball->Predict(0)).GetLength() < 2.5f) { // premature optimization is the root of all evil :D
           players[i]->GetHumanoidNode()->GetObjects(e_ObjectType_Geometry, objectList);
 

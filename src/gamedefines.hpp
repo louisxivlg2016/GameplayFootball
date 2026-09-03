@@ -76,6 +76,12 @@ typedef std::deque<int> DataSet;
 
 const SDL_Keycode defaultKeyIDs[18] = { SDLK_UP, SDLK_RIGHT, SDLK_DOWN, SDLK_LEFT, SDLK_w, SDLK_a, SDLK_s, SDLK_d, SDLK_w, SDLK_a, SDLK_s, SDLK_d, SDLK_q, SDLK_z, SDLK_e, SDLK_c, SDLK_F1, SDLK_RETURN };
 
+// Player 2 on the SAME keyboard (same-screen local 2-player). Movement I/J/K/L,
+// actions clustered around it (U/O/H/Y, N/M, RShift, /). Chosen to avoid every
+// key player 1 uses (arrows + w/a/s/d/q/z/e/c/F1/Return) and to keep the same
+// physical positions on AZERTY. Order matches enum e_ButtonFunction.
+const SDL_Keycode defaultKeyIDs2[18] = { SDLK_i, SDLK_l, SDLK_k, SDLK_j, SDLK_u, SDLK_o, SDLK_h, SDLK_y, SDLK_u, SDLK_o, SDLK_h, SDLK_y, SDLK_n, SDLK_m, SDLK_RSHIFT, SDLK_SLASH, SDLK_F2, SDLK_BACKSPACE };
+
 class Player;
 
 enum e_Side {
@@ -151,6 +157,7 @@ struct TouchInfo {
     targetPlayer = 0;
     forcedTargetPlayer = 0;
     desiredPower = 0;
+    headerShot = false;
   }
 
   Vector3         inputDirection;
@@ -163,6 +170,7 @@ struct TouchInfo {
   float           desiredPower;
   Player          *targetPlayer; // null == do not use
   Player          *forcedTargetPlayer; // null == do not use
+  bool            headerShot; // gpf: shot button on a high ball -> jumping header, aim at goal instead of a teammate
 
 };
 

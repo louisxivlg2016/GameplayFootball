@@ -15,7 +15,10 @@ import {
 
 // ---- standalone shims (the web app's i18n / audio / teams modules don't exist
 // in the wasm build; the C++ engine feeds language + team names in) ----
-const GOAL_CLIP_URL = "/radio/goal-but-but.mp3";
+// v2 = the real recorded "GOAL GOAL GOAL" shout. NOTE: the filename is part of
+// the cache key — reusing the old name served the browser its CACHED copy of the
+// previous clip, so a new sound needs a NEW NAME, not just new bytes.
+const GOAL_CLIP_URL = "/radio/goal-shout-v5.mp3";
 
 let uiLanguage: AppLanguage = "en";
 let muted = false;
@@ -84,6 +87,20 @@ export function radioCtxState(): string {
 
 /** Peak absolute sample amplitude currently at the radio output (-1 if no ctx). */
 export function audioPeak(): number {
+  // Piggyback on this per-frame call (radioMain's rAF loop) for two things that
+  // must NOT depend on setTimeout (background tabs throttle timers to ≥1/min):
+  //  - live diagnostics: expose the mic state so we can see a wedge from outside
+  //  - AUTO-RECOVERY: if the mic has been "busy" >12s with no playback progress,
+  //    the synth/utterance died silently (the reproduced one-line-then-mute bug).
+  //    Free it so the commentary comes back instead of staying dead all match.
+  const g = globalThis as Record<string, unknown>;
+  g.__radioBusy = playerBusy;
+  g.__radioBusyFor = playerBusy ? Date.now() - playerBusyAt : 0;
+  if (playerBusy && Date.now() - playerBusyAt > 12000) {
+    g.__radioUnwedged = ((g.__radioUnwedged as number) ?? 0) + 1;
+    stopCurrent(); // also sets playerBusy = false
+    playQueuedFlow();
+  }
   if (!captureAnalyser) return -1;
   const buf = new Float32Array(captureAnalyser.fftSize);
   captureAnalyser.getFloatTimeDomainData(buf);
@@ -106,14 +123,20 @@ export const RADIO_STATE_EVENT = "gpf-radio-statechange";
  *  playing). The play-by-play loop and events are no-ops while suppressed. */
 export function setRadioSuppressed(s: boolean): void {
   ceremonySuppressed = s;
+  (globalThis as Record<string, unknown>).__radioCeremony = s; // diag: visible from outside
   if (s) hardStopSpeech();
 }
 
-/** Silence the commentary while the ball is out of play / during a drill. */
+/** Silence the OPEN-PLAY chatter while the ball is out of play / during a drill.
+ *  Must NOT hard-stop the line already playing: a goal/foul/penalty is announced
+ *  at the very instant the ball goes dead, so cutting here chopped "But…" down to
+ *  a single "b". Instead we only drop pending/queued chatter; a shout in progress
+ *  finishes, and any real announcement (priority ≥2) still preempts chatter itself
+ *  via takeMic. */
 export function setRadioStoppage(s: boolean): void {
   if (stoppageSuppressed === s) return;
   stoppageSuppressed = s;
-  if (s) hardStopSpeech();
+  if (s) { queuedFlow = null; pendingText = null; }
 }
 
 function hardStopSpeech(): void {
@@ -140,6 +163,7 @@ function dispatchRadioState(): void {
 let radioCtx: AudioContext | null = null;
 let radioOut: GainNode | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
+let currentShoutExtra: AudioBufferSourceNode | null = null; // detuned 2nd layer of a shout
 let currentAudioEl: HTMLAudioElement | null = null;
 let currentAudioUrl: string | null = null;
 let playerBusy = false;
@@ -189,11 +213,17 @@ const VOICE_GAIN: Record<string, number> = {
 };
 
 function speechFallbackAvailable(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.speechSynthesis !== "undefined" &&
-    typeof SpeechSynthesisUtterance !== "undefined"
-  );
+  if (
+    typeof window === "undefined" ||
+    typeof window.speechSynthesis === "undefined" ||
+    typeof SpeechSynthesisUtterance === "undefined"
+  ) return false;
+  // CRITICAL: only usable if the system actually HAS a TTS voice. On a desktop with
+  // no speech engine (common on Linux/PC), speak() is a silent no-op that never
+  // fires onend — which would wedge the mic forever and kill ALL commentary,
+  // including the neural voice once it loads. No voices → treat as unavailable and
+  // just wait for Piper (which works) instead of jamming on a dead fallback.
+  try { return window.speechSynthesis.getVoices().length > 0; } catch { return false; }
 }
 
 function preferredSpeechVoice(language: AppLanguage): SpeechSynthesisVoice | null {
@@ -300,6 +330,8 @@ function stopCurrent(): void {
   } catch {
     /* already stopped */
   }
+  try { currentShoutExtra?.stop(); } catch { /* already stopped */ }
+  currentShoutExtra = null;
   stopSpeechFallback();
   clearCurrentAudioElement();
   currentSource = null;
@@ -311,7 +343,13 @@ let pendingText: string | null = null;
 
 // next play-by-play line, pre-synthesized while the current one plays so the
 // commentary chains without dead air
-let queuedFlow: { blob: Blob; at: number } | null = null;
+let queuedFlow: { blob: Blob; at: number; ctx: string } | null = null;
+// What the play-by-play was about when the line was baked ("loose", or the carrier's
+// name). If the situation has moved on by the time the mic frees, the line is dropped
+// rather than played late — the commentator was lagging behind the action.
+let flowCtx = "";
+/** Called by the commentary loop each time it composes a line. */
+export function setFlowContext(key: string): void { flowCtx = key; }
 let goalClipBytes: Promise<ArrayBuffer | null> | null = null;
 let goalClipBuffer: Promise<AudioBuffer | null> | null = null;
 
@@ -319,6 +357,21 @@ let goalClipBuffer: Promise<AudioBuffer | null> | null = null;
 interface VoiceFx {
   rate?: number;
   volume?: number;
+  shout?: boolean; // run the WebAudio path through a distortion+echo "shout" chain
+}
+
+// A soft-clipping curve for the WaveShaper — turns the calm neural voice into a
+// raspy, distorted SHOUT (the TTS itself can't yell). Amount ~ grit. Memoized.
+let _shoutCurve: Float32Array | null = null;
+function shoutCurve(): Float32Array {
+  if (_shoutCurve) return _shoutCurve;
+  const n = 8192, curve = new Float32Array(n), k = 55;
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / n - 1;
+    curve[i] = ((3 + k) * x * 20 * (Math.PI / 180)) / (Math.PI + k * Math.abs(x));
+  }
+  _shoutCurve = curve;
+  return curve;
 }
 
 async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
@@ -383,16 +436,50 @@ async function playBlob(wav: Blob, gen: number, fx?: VoiceFx): Promise<void> {
     const src = ctx.createBufferSource();
     src.buffer = pcm;
     src.playbackRate.value = fx?.rate ?? 1; // pitch rides up with rate: the shout
-    const gain = ctx.createGain();
     const boost = VOICE_GAIN[requestedVoiceId ?? ""] ?? 1;
-    gain.gain.value = (fx?.volume ?? 1) * 4.2 * boost; // LOUD — compressor catches peaks
-    src.connect(gain);
-    gain.connect(radioOut!);
+    if (fx?.shout) {
+      // SHOUT chain — NO echo (that read as "echo, not a shout"). Heavy distortion
+      // for vocal-strain rasp + a high-shelf presence boost + a second DETUNED copy
+      // layered on top so it thickens into a real crowd-like YELL. A small dry blend
+      // keeps the words ("But ! But !") readable through the grit.
+      const vol = (fx.volume ?? 1) * boost;
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = shoutCurve();
+      shaper.oversample = "4x";
+      const pres = ctx.createBiquadFilter();
+      pres.type = "highshelf"; pres.frequency.value = 2400; pres.gain.value = 3; // gentle presence (less shrill)
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -22; comp.ratio.value = 16; comp.attack.value = 0.001; comp.release.value = 0.12;
+      const wet = ctx.createGain(); wet.gain.value = vol * 3.0; // distorted body
+      const dry = ctx.createGain(); dry.gain.value = vol * 1.3; // intelligibility
+      src.connect(shaper); shaper.connect(wet); wet.connect(pres);
+      src.connect(dry); dry.connect(pres);
+      // second detuned voice (same clip, +55 cents) → "several people shouting"
+      const src2 = ctx.createBufferSource();
+      src2.buffer = pcm; src2.playbackRate.value = fx.rate ?? 1; src2.detune.value = -45; // lower octave-ish body, warmer
+      const shaper2 = ctx.createWaveShaper();
+      shaper2.curve = shoutCurve(); shaper2.oversample = "4x";
+      const wet2 = ctx.createGain(); wet2.gain.value = vol * 1.7;
+      src2.connect(shaper2); shaper2.connect(wet2); wet2.connect(pres);
+      // makeup gain AFTER the compressor so the shout is genuinely louder (the comp
+      // squashes peaks, so raising input alone just hits the ceiling)
+      const makeup = ctx.createGain(); makeup.gain.value = 1.6;
+      pres.connect(comp); comp.connect(makeup); makeup.connect(radioOut!);
+      currentShoutExtra = src2;
+      try { src2.start(); } catch { /* ctx not ready */ }
+    } else {
+      const gain = ctx.createGain();
+      gain.gain.value = (fx?.volume ?? 1) * 4.2 * boost; // LOUD — compressor catches peaks
+      src.connect(gain);
+      gain.connect(radioOut!);
+    }
     currentSource = src;
     src.onended = (): void => {
       // onended also fires when an interrupt stop()s us — only a natural end
       // frees the mic and chains the queued line, else we talk over the shout
       if (currentSource === src) {
+        try { currentShoutExtra?.stop(); } catch { /* already stopped */ }
+        currentShoutExtra = null;
         playerBusy = false;
         currentSource = null;
         playQueuedFlow();
@@ -423,12 +510,24 @@ function playSpeechFallback(text: string, gen: number, language: AppLanguage, fx
   utterance.rate = Math.max(0.8, Math.min(1.25, fx?.rate ?? 1));
   utterance.pitch = 0.82;
   utterance.volume = audioMuted() ? 0 : Math.max(0.35, Math.min(1, fx?.volume ?? 1));
+  // Safety net: some browsers never fire onend (esp. when the utterance is silently
+  // dropped). Free the mic after the line's estimated duration + margin so a stalled
+  // utterance can NEVER permanently wedge the commentary.
+  const estMs = Math.min(9000, 800 + text.length * 65);
+  const guard = window.setTimeout(() => {
+    if (token === speechToken && gen === playerGen && playerBusy) {
+      playerBusy = false;
+      playQueuedFlow();
+    }
+  }, estMs);
   utterance.onend = (): void => {
+    window.clearTimeout(guard);
     if (token !== speechToken || gen !== playerGen) return;
     playerBusy = false;
     playQueuedFlow();
   };
   utterance.onerror = (): void => {
+    window.clearTimeout(guard);
     if (token !== speechToken || gen !== playerGen) return;
     playerBusy = false;
   };
@@ -490,7 +589,9 @@ const radioDebug = {
 
 function playQueuedFlow(): void {
   if (!queuedFlow || playerBusy || !enabled) return;
-  const fresh = Date.now() - queuedFlow.at < 8000; // stale lines are dropped
+  // stale lines are dropped: too old, or the ball has changed hands since
+  const fresh = Date.now() - queuedFlow.at < 2500 &&
+                (queuedFlow.ctx === "" || queuedFlow.ctx === flowCtx);
   const blob = queuedFlow.blob;
   queuedFlow = null;
   if (!fresh) return;
@@ -513,7 +614,10 @@ async function loadGoalClip(ctx: AudioContext): Promise<AudioBuffer | null> {
   return goalClipBuffer;
 }
 
-async function playGoalClip(): Promise<void> {
+async function playGoalClip(fallbackText?: string): Promise<void> {
+  // If the recorded shout can't play (404, decode error, autoplay blocked), fall
+  // back to the spoken call so the goal is never silent.
+  const goalFallback = (): void => { if (fallbackText) say(fallbackText, 3, ROAR); };
   const gen = takeMic(3);
   if (gen === null) return;
   try {
@@ -538,6 +642,7 @@ async function playGoalClip(): Promise<void> {
         if (currentAudioEl !== audio) return;
         clearCurrentAudioElement();
         playerBusy = false;
+        goalFallback();
       };
       await audio.play();
       playerBusyAt = Date.now();
@@ -551,12 +656,13 @@ async function playGoalClip(): Promise<void> {
     const pcm = await loadGoalClip(ctx);
     if (!pcm || gen !== playerGen || !enabled) {
       playerBusy = false;
+      if (!pcm) goalFallback(); // clip missing/undecodable → speak the call instead
       return;
     }
     const src = ctx.createBufferSource();
     src.buffer = pcm;
     const gain = ctx.createGain();
-    gain.gain.value = 4.0;
+    gain.gain.value = 6.5; // loud — the compressor on radioOut catches the peaks
     src.connect(gain).connect(radioOut!);
     currentSource = src;
     src.onended = (): void => {
@@ -575,6 +681,7 @@ async function playGoalClip(): Promise<void> {
   } catch (err) {
     radioDebug.lastError = String(err);
     if (gen === playerGen) playerBusy = false;
+    goalFallback(); // autoplay blocked / play() rejected → speak the call
   }
 }
 
@@ -634,7 +741,9 @@ let workerRespawns = 0;
 // itself, with no "clear site data" needed from the user.
 let warmAttempts = 0;
 let piperLoadStartedAt = 0;
-const PIPER_FALLBACK_DELAY_MS = 12000;
+const PIPER_FALLBACK_DELAY_MS = 1500; // the neural voice takes ~20s to load (63MB
+// model + onnx init) — don't stay silent that whole time. After 1.5s the browser's
+// built-in voice starts commentating; Piper takes over the moment it's ready.
 // A worker whose init HANGS (never posts "ready" nor "error") used to leave the
 // pill on "loading" for the entire match — nothing watched for a silent stall,
 // only for explicit errors. This watchdog treats an over-long load as a failure
@@ -855,9 +964,13 @@ function piperPredict(text: string): Promise<Blob | null> {
     }
     const id = ++sayId;
     let settled = false;
+    const gDiag = globalThis as Record<string, unknown>;
+    gDiag.__piperAsk = ((gDiag.__piperAsk as number) ?? 0) + 1;
     const finish = (wav: Blob | null): void => {
       if (settled) return;
       settled = true;
+      gDiag.__piperDone = ((gDiag.__piperDone as number) ?? 0) + 1;
+      if (!wav) gDiag.__piperNull = ((gDiag.__piperNull as number) ?? 0) + 1;
       sayWaiters.delete(id);
       if (wav) {
         predictFails = 0;
@@ -967,12 +1080,35 @@ export function radioFlow(text: string): void {
     say(text, 1);
     return;
   }
+  const ctx = flowCtx;
   void piperPredict(text).then((blob) => {
     if (blob) {
-      queuedFlow = { blob, at: Date.now() };
+      queuedFlow = { blob, at: Date.now(), ctx };
       playQueuedFlow(); // mic may have freed while we were synthesizing
     }
   });
+}
+
+/** Speak an arbitrary line (a player arguing with the ref, etc.) in the radio
+ *  voice. Unlike radioFlow this speaks THROUGH a stoppage (a dispute happens
+ *  while play is whistled dead) — only the anthem ceremony still silences it.
+ *  Priority 2 so it takes the mic from open-play chatter. */
+export function radioSay(text: string): void {
+  if (!enabled || ceremonySuppressed) return;
+  const t = (text ?? "").trim();
+  if (t) say(t, 2);
+}
+
+/** Punditry DURING a stoppage: while the ball is dead the play-by-play is muted,
+ *  but a real commentator fills the gap with his read on the match. Speaks through
+ *  `stoppageSuppressed` (that flag only silences open-play chatter); still silent
+ *  for the anthem, and only when the mic is genuinely free so it never talks over
+ *  a goal/foul call. */
+export function radioPundit(text: string): void {
+  if (!enabled || ceremonySuppressed) return;
+  if (playerBusy) return;               // never step on a real announcement
+  const t = (text ?? "").trim();
+  if (t) say(t, 1);
 }
 
 export function toggleRadio(): boolean {
@@ -1018,6 +1154,13 @@ function say(text: string, priority = 1, fx?: VoiceFx): void {
 /** The commentator on his feet: louder, barely faster — same man, same voice.
  *  (Bigger rate shifts pitch the voice up enough to sound like a second person.) */
 const SHOUT: VoiceFx = { rate: 1.04, volume: 1.3 };
+// goal / penalty — pitched up + run through the distortion "shout" chain so the
+// calm neural voice actually YELLS. Loud (compressor tames peaks).
+// How long after a goal the commentator adds his line. Short enough that it
+// still lands while the goal is the story (the recorded shout runs ~6s, so this
+// cuts its tail — deliberately: an announcement nobody hears is worse).
+const GOAL_LINE_DELAY_MS = 3800;
+const ROAR: VoiceFx = { rate: 1.05, volume: 3.8, shout: true };
 /** Rising excitement, not quite full scream. */
 const EXCITED: VoiceFx = { rate: 1.02, volume: 1.15 };
 
@@ -1046,7 +1189,32 @@ export type RadioEvent =
   | "shootout"
   | "penTaker"
   | "penGoal"
-  | "penMiss";
+  | "penMiss"
+  | "owngoal"
+  | "addedtime";
+
+// Referee decisions and structural moments are announced even while the mic is
+// hushed for a set-piece stoppage (a foul/penalty is what triggered the hush).
+const SPEAK_THROUGH_STOPPAGE = new Set<RadioEvent>([
+  "foul", "penalty", "yellow", "red", "offside", "corner", "goalkick", "throwin",
+  "goal", "owngoal", "addedtime", "opening", "kickoff", "halftime", "fulltime", "extratime",
+  "shootout", "penGoal", "penMiss",
+]);
+
+/** True when this goal levelled the score. Prefers the score the engine sent with
+ *  the goal, but falls back to the live score the tick keeps (__gpfRadioBridge) so
+ *  a missing/late score can't silently swallow the "Equaliser!" call. */
+function isEqualiser(score?: [number, number]): boolean {
+  if (score && score.length === 2 && score[0] >= 0 && score[1] >= 0) {
+    return score[0] === score[1];
+  }
+  try {
+    const live = (window as unknown as { __gpfRadioBridge?: { score?: [number, number] } })
+      .__gpfRadioBridge?.score;
+    if (live && live.length === 2) return live[0] === live[1];
+  } catch { /* no bridge */ }
+  return false;
+}
 
 export function radio(
   event: RadioEvent,
@@ -1057,7 +1225,12 @@ export function radio(
     target?: string;
   } = {},
 ): void {
-  if (ceremonySuppressed || stoppageSuppressed) return; // no commentary during anthem / stoppages
+  if (ceremonySuppressed) return; // never talk over the anthem ceremony
+  // A foul/penalty/card is the very thing that CAUSES the stoppage — those (and
+  // the other referee/structural calls) must still be announced even though the
+  // mic is hushed for the ensuing set piece. Only the open-play chatter (pass,
+  // shot, possession) stays silenced during a stoppage.
+  if (stoppageSuppressed && !SPEAK_THROUGH_STOPPAGE.has(event)) return;
   const language = ensureVoiceForCurrentLanguage();
   const copy = getRadioPack(language);
   const team = info.team !== undefined ? teamName(info.team, language) : "";
@@ -1073,12 +1246,44 @@ export function radio(
     case "kickoff":
       if (team) say(copy.kickoff(team));
       break;
-    case "goal":
-      if (language === "fr") void playGoalClip();
-      else say(getGoalCall(language, team || undefined), 3, SHOUT);
+    case "goal": {
+      // A REAL recorded goal shout. If the clip can't play, playGoalClip falls back
+      // to the (shout-processed) spoken call so a goal is never silent.
+      void playGoalClip(getGoalCall(language, team || undefined));
+      // …then ONE follow-up line. It deliberately PREEMPTS the tail of the shout
+      // (say priority 2 takes the mic): waiting for the 6s clip to finish pushed
+      // this past 7s, by which point the match has moved on and nobody hears it.
+      const levelled = isEqualiser(score);
+      const gp = player, gt = team, gs = score;
+      const line = levelled && copy.equaliser
+        ? copy.equaliser
+        : (copy.goalFollowup ? copy.goalFollowup(gp || undefined, gt || undefined, gs) : "");
+      if (line) window.setTimeout(() => { if (enabled) say(line, 2, EXCITED); }, GOAL_LINE_DELAY_MS);
+      break;
+    }
+    case "owngoal": {
+      // Still a goal, so play the shout — but the headline is the poor guy who put
+      // it in his own net, so say that while the crowd is still roaring.
+      void playGoalClip(getGoalCall(language, team || undefined));
+      const op = player;
+      const levelled2 = isEqualiser(score);
+      if (copy.ownGoal) {
+        const own = copy.ownGoal(op || undefined);
+        window.setTimeout(() => { if (enabled) say(own, 2, EXCITED); }, GOAL_LINE_DELAY_MS);
+        if (levelled2 && copy.equaliser) {
+          const eq = copy.equaliser;
+          window.setTimeout(() => { if (enabled) say(eq, 2, EXCITED); }, GOAL_LINE_DELAY_MS + 3200);
+        }
+      }
+      break;
+    }
+    case "addedtime":
+      // `player` carries the minute count from the engine
+      if (copy.addedTime && player) say(copy.addedTime(player), 2);
       break;
     case "foul":
-      say(copy.foul(team || undefined), 2);
+      // announce it AND give an opinion + the free kick — spoken with punch
+      say(copy.foul(team || undefined), 2, EXCITED);
       break;
     case "yellow":
       say(copy.yellow(player || undefined), 2);
@@ -1087,7 +1292,7 @@ export function radio(
       say(copy.red(player || undefined), 2);
       break;
     case "penalty":
-      say(copy.penalty(team || undefined), 2, SHOUT);
+      say(copy.penalty(team || undefined), 2, ROAR);
       break;
     case "offside":
       say(copy.offside, 2);

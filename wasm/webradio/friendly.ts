@@ -10,7 +10,7 @@ import { showLoading } from "./loading";
 import { radioEnabled, radioVoicePhase, warmupRadioVoice } from "./radioEngine";
 import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
-import { applyMatchSquads, SQUADS, kitColor, skinsFor } from "./squads";
+import { applyMatchSquads, SQUADS, kitColor, skinsFor, aggressionFor } from "./squads";
 import { teamLineup } from "./lineup";
 import { showSettings } from "./settings";
 import { CONFEDS, flagImg, isoCode, type Nation, type Confed } from "./national";
@@ -22,9 +22,20 @@ const byName = (n: string): Nation | undefined => ALL.find((x) => x.name === n);
 // hand-set OVR for the well-known sides; a stable 76..83 hash for the rest so
 // every nation shows a plausible rating.
 const OVR: Record<string, number> = {
-  France: 85, Argentine: 85, Espagne: 84, Angleterre: 84, "Brésil": 84, Bresil: 84,
-  Portugal: 84, Allemagne: 83, "Pays-Bas": 83, Italie: 82, Belgique: 82, Croatie: 81,
-  Uruguay: 81, Maroc: 80, Suisse: 79, Danemark: 79, Colombie: 80, "États-Unis": 78,
+  // top nations
+  France: 85, Argentine: 82, Espagne: 85, Angleterre: 84, "Brésil": 84, Bresil: 84,
+  Portugal: 84, "Pays-Bas": 83, Allemagne: 83, Belgique: 82, Italie: 82,
+  Croatie: 81, Uruguay: 81, Colombie: 81, Maroc: 81,
+  // strong / good
+  Suisse: 80, Danemark: 80, Mexique: 80, Japon: 80, "Sénégal": 80, Serbie: 80, Autriche: 80,
+  "États-Unis": 79, Ukraine: 79, Pologne: 79, "Nigéria": 79, "Corée du Sud": 79,
+  "Équateur": 79, Turquie: 79, "Norvège": 79,
+  // mid
+  "Écosse": 78, "Côte d'Ivoire": 78, Cameroun: 78, "Égypte": 78, Iran: 78,
+  "Algérie": 78, Canada: 78, "Suède": 78, "Pays de Galles": 78,
+  Ghana: 77, Tunisie: 77, "Pérou": 77, Chili: 77, Mali: 77,
+  // lower
+  Australie: 76, "Arabie Saoudite": 76, Paraguay: 76, "Costa Rica": 75, Qatar: 75,
 };
 function ratingOf(n: Nation): number {
   if (OVR[n.name] != null) return OVR[n.name]!;
@@ -39,7 +50,8 @@ function ratingOf(n: Nation): number {
 // bridge clamps to [0.1, 1.5]. Persisted under the same LS key as the toggle.
 const REALISTIC_LS = "gpf-realistic";
 function realisticOn(): boolean {
-  try { return localStorage.getItem(REALISTIC_LS) === "1"; } catch { return false; }
+  // ON by default now (realistic team strengths) — off only if explicitly turned off.
+  try { return localStorage.getItem(REALISTIC_LS) !== "0"; } catch { return true; }
 }
 function strengthFromOvr(ovr: number): number {
   const s = 1.0 + (ovr - 82) * 0.05; // 82 -> 1.0, 85 -> 1.15, 78 -> 0.80, 76 -> 0.70
@@ -290,8 +302,8 @@ function launch(): void {
     const homeStr = real ? strengthFromOvr(ratingOf(home)) : 1;
     const awayStr = real ? strengthFromOvr(ratingOf(away)) : 1;
     applyMatchSquads(
-      { color: kitColor(home.name, home.color), names: homeNames, skins: homeSkins, strength: homeStr },
-      { color: kitColor(away.name, away.color), names: SQUADS[away.name] || [], skins: skinsFor(away.name), strength: awayStr },
+      { color: kitColor(home.name, home.color), names: homeNames, skins: homeSkins, strength: homeStr, aggression: aggressionFor(home.name) },
+      { color: kitColor(away.name, away.color), names: SQUADS[away.name] || [], skins: skinsFor(away.name), strength: awayStr, aggression: aggressionFor(away.name) },
     );
     void startWithRadioReady();
   };

@@ -40,6 +40,7 @@ class Team {
     int GetActivePlayerCount() const { return activePlayerCount; }
 
     unsigned int GetHumanGamerCount() const { return humanGamers.size(); }
+    HumanGamer *GetHumanGamer(unsigned int i) { return i < humanGamers.size() ? humanGamers[i] : 0; }
     void AddHumanGamer(IHIDevice *hid, e_PlayerColor color);
     void DeleteHumanGamers();
     e_PlayerColor GetPlayerColor(int playerID);

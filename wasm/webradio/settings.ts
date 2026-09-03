@@ -350,7 +350,7 @@ function renderGameplay(): void {
     (v) => `≈ ${durationToMin(v)} min`, (v) => setF("match_duration", v)));
   body.appendChild(persistedRow(L("Vitesse des joueurs"), SPEED_LS, DEF_SPEED,
     (v) => `${Math.round(speedScale(v) * 100)}%`, (v) => M()?._gpf_set_speed_scale?.(speedScale(v))));
-  body.appendChild(toggleRow("Force réaliste des équipes", REALISTIC_LS, false,
+  body.appendChild(toggleRow("Force réaliste des équipes", REALISTIC_LS, true,
     L("Chaque équipe joue à son vrai niveau (selon son OVR) : les nations faibles jouent moins bien, les grandes nations mieux. Désactivé = toutes à niveau égal.")));
   const assistHdr = document.createElement("div");
   assistHdr.className = "set-section"; assistHdr.textContent = L("Assistances");
@@ -364,7 +364,7 @@ function renderGameplay(): void {
     lsSet(MATCH_DIFF_LS, DEF_DIFFICULTY); setF("match_difficulty", DEF_DIFFICULTY);
     lsSet(MATCH_DUR_LS, DEF_DURATION); setF("match_duration", DEF_DURATION);
     lsSet(SPEED_LS, DEF_SPEED); M()?._gpf_set_speed_scale?.(speedScale(DEF_SPEED));
-    try { localStorage.setItem(REALISTIC_LS, "0"); } catch { /* private */ }
+    try { localStorage.setItem(REALISTIC_LS, "1"); } catch { /* private */ }
     for (const [, key, def] of GAMEPLAY) setF(key, def);
     renderGameplay();
   });

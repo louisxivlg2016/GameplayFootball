@@ -50,6 +50,59 @@ ElizaController::~ElizaController() {
 
 void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
 
+  // Referee mode: if the human is currently talking to THIS player, he stops
+  // playing football — he turns to FACE the referee and obeys simple orders
+  // (1 = step back / recule, 2 = come closer / approche). Set from gametask.cpp.
+  extern PlayerBase *gpf_talkPlayer;
+  extern int gpf_talkOrder;
+  extern bool gpf_freezePlayers;
+  extern PlayerBase *gpf_injuredPlayer;
+  // Down injured: he must NOT keep playing — he lies there until the referee has
+  // seen him (gametask re-trips him so he stays on the deck).
+  if (gpf_injuredPlayer == player) {
+    PlayerCommand injured;
+    injured.desiredFunctionType = e_FunctionType_Movement;
+    injured.useDesiredMovement = true;
+    injured.desiredDirection = CastPlayer()->GetDirectionVec();
+    injured.desiredVelocityFloat = idleVelocity;
+    commandQueue.push_back(injured);
+    return;
+  }
+  // Whistle freeze: every player stands still (looks stopped) — except the one the
+  // ref is talking to (handled just below), and the referee itself (not an Eliza).
+  if (gpf_freezePlayers && player != gpf_talkPlayer) {
+    PlayerCommand command;
+    command.desiredFunctionType = e_FunctionType_Movement;
+    command.useDesiredMovement = true;
+    command.desiredDirection = CastPlayer()->GetDirectionVec();
+    command.desiredVelocityFloat = idleVelocity;
+    commandQueue.push_back(command);
+    return;
+  }
+  if (player == gpf_talkPlayer && match->GetOfficials() && match->GetOfficials()->GetReferee()) {
+    Vector3 refPos = match->GetOfficials()->GetReferee()->GetPosition();
+    Vector3 away = CastPlayer()->GetPosition() - refPos; away.coords[2] = 0;
+    float dist = away.GetLength();
+    if (dist > 0.01f) away = away.GetNormalized(); else away = Vector3(1, 0, 0);
+    PlayerCommand command;
+    command.desiredFunctionType = e_FunctionType_Movement;
+    command.useDesiredMovement = true;
+    command.useDesiredLookAt = true;
+    command.desiredLookAt = refPos;                 // look the ref in the eye
+    if (gpf_talkOrder == 1) {                        // recule
+      command.desiredDirection = away;
+      command.desiredVelocityFloat = walkVelocity;
+    } else if (gpf_talkOrder == 2 && dist > 1.6f) {  // approche (stop ~1.6m away)
+      command.desiredDirection = away * -1.0f;
+      command.desiredVelocityFloat = walkVelocity;
+    } else {                                          // stand and face the ref
+      command.desiredDirection = CastPlayer()->GetDirectionVec();
+      command.desiredVelocityFloat = idleVelocity;
+    }
+    commandQueue.push_back(command);
+    return;
+  }
+
   lastSwitchTimeDuration_ms = 0;
   lastSwitchTime_ms = 0;
 

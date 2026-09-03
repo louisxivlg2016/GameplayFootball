@@ -13,6 +13,8 @@
 
 #include "main.hpp"
 
+#include "hid/hidnet.hpp"
+
 #include "base/utils.hpp"
 #include "base/math/bluntmath.hpp"
 
@@ -423,6 +425,21 @@ int main(int argc, const char** argv) {
     HIDGamepad *gamepad = new HIDGamepad(i);
     controllers.push_back(gamepad);
   }
+#ifdef __EMSCRIPTEN__
+  // Web build: a second keyboard device with its own key-mapping (player 2) so
+  // two people can play same-screen on one physical keyboard. It reads the global
+  // SDL key state through its own functionMapping, so it coexists with player 1.
+  HIDKeyboard *keyboard2 = new HIDKeyboard(1);
+  controllers.push_back(keyboard2);
+  // Online multiplayer: two synthetic net devices — one carries the LOCAL player's
+  // input (buffered with delay), the other the REMOTE peer's input. Assigned to the
+  // two teams by role in controllerselect when an online match starts.
+  extern HIDNet *gpf_localNetDev; extern HIDNet *gpf_remoteNetDev;
+  gpf_localNetDev = new HIDNet();
+  gpf_remoteNetDev = new HIDNet();
+  controllers.push_back(gpf_localNetDev);   // index 2
+  controllers.push_back(gpf_remoteNetDev);  // index 3
+#endif
 
 
   // sequences
@@ -439,7 +456,7 @@ int main(int argc, const char** argv) {
   TTF_Font *defaultOutlineFont = TTF_OpenFont(fontfilename.c_str(), 32);
   TTF_SetFontOutline(defaultOutlineFont, 2);
   menuTask = boost::shared_ptr<MenuTask>(new MenuTask(5.0f / 4.0f, 0, defaultFont, defaultOutlineFont));
-  if (controllers.size() > 1) menuTask->SetEventJoyButtons(static_cast<HIDGamepad*>(controllers.at(1))->GetControllerMapping(e_ControllerButton_A), static_cast<HIDGamepad*>(controllers.at(1))->GetControllerMapping(e_ControllerButton_B));
+  if (controllers.size() > 1 && controllers.at(1)->GetDeviceType() == e_HIDeviceType_Gamepad) menuTask->SetEventJoyButtons(static_cast<HIDGamepad*>(controllers.at(1))->GetControllerMapping(e_ControllerButton_A), static_cast<HIDGamepad*>(controllers.at(1))->GetControllerMapping(e_ControllerButton_B));
 
 
   gameSequence = boost::shared_ptr<TaskSequence>(new TaskSequence("game", timeStep_ms, false));

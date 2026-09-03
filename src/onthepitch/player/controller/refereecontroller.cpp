@@ -4,12 +4,23 @@
 
 #include "refereecontroller.hpp"
 
+#include <cmath>
+
 #include "../../AIsupport/AIfunctions.hpp"
 
 #include "../../match.hpp"
 #include "../playerofficial.hpp"
 
 #include "../../../main.hpp"
+
+// First-person referee mode: the human walks the ref. gpf_refMoveX/Y is the
+// camera-relative steering from the keyboard (set via gpf_ref_walk); gpf_refereeMode
+// gates it. Defined in gametask.cpp.
+extern bool gpf_refereeMode;
+extern float gpf_refMoveX;
+extern float gpf_refMoveY;
+extern float gpf_refCamYaw;   // manual look heading (radians)
+extern bool gpf_refCamManual; // true once the human has turned the view
 
 RefereeController::RefereeController(Match *match) : IController(match) {
 }
@@ -60,6 +71,40 @@ void RefereeController::RequestCommand(PlayerCommandQueue &commandQueue) {
   switch (CastPlayer()->GetOfficialType()) {
 
     case e_OfficialType_Referee:
+
+      if (gpf_refereeMode) {
+        // Human-walked first-person referee: steer with the keyboard (camera-relative,
+        // where "forward" = toward the ball since the FP camera watches the ball),
+        // and always look at the ball.
+        Vector3 refPos = CastPlayer()->GetPosition();
+        Vector3 ballPos = match->GetBall()->Predict(0).Get2D();
+        // "forward" follows where the camera looks: the manual heading once the human
+        // has turned the view, otherwise toward the ball (the auto FP camera target).
+        Vector3 fwd;
+        if (gpf_refCamManual) fwd = Vector3(cos(gpf_refCamYaw), sin(gpf_refCamYaw), 0);
+        else { fwd = (ballPos - refPos).Get2D(); if (fwd.GetLength() > 0.01f) fwd = fwd.GetNormalized(); else fwd = Vector3(1, 0, 0); }
+        Vector3 right = Vector3(fwd.coords[1], -fwd.coords[0], 0);
+        Vector3 moveDir = fwd * gpf_refMoveY + right * gpf_refMoveX;
+
+        PlayerCommand command;
+        command.desiredFunctionType = e_FunctionType_Movement;
+        command.useDesiredMovement = true;
+        command.useDesiredLookAt = true;
+        float mag = moveDir.GetLength();
+        if (mag > 0.05f) {
+          Vector3 dir = moveDir.GetNormalized(CastPlayer()->GetDirectionVec());
+          command.desiredDirection = dir;
+          command.desiredLookAt = refPos + dir * 5.0f;   // FACE where you run (players can't strafe)
+          command.desiredVelocityFloat = clamp(mag * sprintVelocity, walkVelocity, sprintVelocity);
+        } else {
+          command.desiredDirection = CastPlayer()->GetDirectionVec();
+          command.desiredLookAt = ballPos;               // idle: watch the ball
+          command.desiredVelocityFloat = idleVelocity;
+        }
+        commandQueue.push_back(command);
+        break;
+      }
+
       if (match->GetReferee()->GetBuffer().active == true &&
           (match->GetReferee()->GetCurrentFoulType() == 2 || match->GetReferee()->GetCurrentFoulType() == 3) &&
           match->GetReferee()->GetBuffer().prepareTime > match->GetActualTime_ms() + 5000) { // FOUL, walk towards offender

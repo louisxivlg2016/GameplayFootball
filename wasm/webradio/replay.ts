@@ -26,6 +26,19 @@ const SLOWMO = 0.6;           // playback speed of the replay
 const ZOOM = 1.7;             // "much closer camera" — center zoom on the replay
 const MAX_REPLAY_MS = 8000;   // hard cap so a replay can never drag on
 const COOLDOWN_MS = 2500;     // ignore new triggers right after a replay
+
+// ---- sim-starvation guard --------------------------------------------------
+// Decoding the replay video can starve the (single-threaded) sim on a modest
+// machine: the user saw the match clock FREEZE for ~20s right after a goal.
+// So we watch the real match clock DURING playback and abort the replay the
+// moment the game stops advancing. Two starved replays and we switch the replay
+// off for the rest of the session — a frozen match is far worse than no replay.
+let starveCount = 0;
+let replayDisabled = false;
+function simClock(): number {
+  try { return (window as unknown as { Module?: { _gpf_sim_frame?: () => number } }).Module?._gpf_sim_frame?.() ?? -1; }
+  catch { return -1; }
+}
 const MIME = pickMime();
 
 // Recording the canvas continuously (MediaRecorder) is heavy on weak hardware, so
@@ -35,7 +48,10 @@ function gpfQuality(): number {
   try { const q = parseInt(localStorage.getItem("gpf-quality") ?? "4", 10); return Number.isFinite(q) ? q : 4; }
   catch { return 4; }
 }
-function captureFps(): number { const q = gpfQuality(); return q <= 1 ? 15 : q === 2 ? 20 : 24; }
+// Potato used to DISABLE the replay entirely — but people lower the graphics
+// exactly when they still want the goal/foul replay. Keep it at every level;
+// just record fewer frames on the low ones so the game stays smooth.
+function captureFps(): number { const q = gpfQuality(); return q <= 0 ? 12 : q === 1 ? 15 : q === 2 ? 20 : 24; }
 
 function pickMime(): string {
   const cands = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
@@ -94,8 +110,7 @@ function rotate(): void {
 }
 
 function startRecording(): void {
-  if (recording || !supported) return;
-  if (gpfQuality() <= 0) return; // potato: no instant replay — keep the game smooth
+  if (recording || !supported || replayDisabled) return;
   const c = document.getElementById(CANVAS_ID) as HTMLCanvasElement | null;
   if (!c || typeof c.captureStream !== "function") { supported = false; return; }
   canvas = c;
@@ -208,18 +223,54 @@ async function playReplay(label: string): Promise<void> {
   // flush the current segment so it ends exactly at the goal/foul, then resume
   const recent: Blob = await flushCurrent();
   const segs: Blob[] = [];
-  if (recentMs < RECENT_MIN_MS && prevBlob) segs.push(prevBlob); // top up with the previous seconds
+  // only top up with the previous segment when the machine can afford it — on low
+  // quality one short segment keeps the interruption brief.
+  if (recentMs < RECENT_MIN_MS && prevBlob && gpfQuality() >= 2) segs.push(prevBlob);
   segs.push(recent);
 
   skipped = false;
   replaying = true;
+  // Encoding the canvas WHILE decoding the replay video starved the sim on weak
+  // machines — the match clock froze for the whole replay. Pause the recorder for
+  // the duration; flushCurrent() above already banked the footage we're showing.
+  const wasRecording = recording;
+  if (wasRecording && rec && rec.state === "recording") {
+    if (rotateTimer !== null) { clearTimeout(rotateTimer); rotateTimer = null; }
+    try { rec.pause(); } catch { /* unsupported: keep going */ }
+  }
   showOverlay(label);
-  const cap = window.setTimeout(stopPlayback, MAX_REPLAY_MS);
+  const cap = window.setTimeout(stopPlayback, gpfQuality() <= 1 ? 4000 : MAX_REPLAY_MS);
+  // watchdog: if the match clock stops advancing while the replay plays, the
+  // replay is starving the game — kill it at once.
+  let lastClock = simClock();
+  let starved = false;
+  const watch = window.setInterval(() => {
+    const now = simClock();
+    if (lastClock >= 0 && now >= 0 && now - lastClock < 150) { // <0.15s of match in 1.2s real
+      starved = true;
+      stopPlayback();
+    }
+    lastClock = now;
+  }, 1200);
   try {
     for (const s of segs) { if (skipped) break; await playOne(s); }
   } catch { /* never let a playback error strand the overlay */ }
+  window.clearInterval(watch);
+  if (starved) {
+    starveCount++;
+    if (starveCount >= 2) {
+      replayDisabled = true; // this machine can't afford it — never freeze the match again
+      stopRecording();
+    }
+  } else if (starveCount > 0) {
+    starveCount--; // it behaved this time
+  }
   window.clearTimeout(cap);
   hideOverlay();
+  if (wasRecording && rec && rec.state === "paused") {
+    try { rec.resume(); } catch { /* */ }
+    if (rotateTimer === null) rotateTimer = window.setTimeout(rotate, SEG_MS);
+  }
   replaying = false;
   lastReplayEnd = performance.now();
 }
@@ -261,7 +312,7 @@ function isLive(): boolean {
 }
 
 function trigger(kind: "goal" | "foul"): void {
-  if (!supported || replaying || !recording || !isLive()) return;
+  if (!supported || replayDisabled || replaying || !recording || !isLive()) return;
   if (performance.now() - lastReplayEnd < COOLDOWN_MS) return;
   const label = kind === "goal" ? "⚽ Ralenti — But" : "🟨 Ralenti — Faute";
   // goals: let the net ripple / celebration read for a beat before cutting to the replay

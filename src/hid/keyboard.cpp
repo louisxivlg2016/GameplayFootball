@@ -8,10 +8,11 @@
 
 #include "../main.hpp"
 
-HIDKeyboard::HIDKeyboard() {
+HIDKeyboard::HIDKeyboard(int slot_) {
 
   deviceType = e_HIDeviceType_Keyboard;
-  identifier = "keyboard";
+  slot = slot_;
+  identifier = (slot == 0) ? "keyboard" : ("keyboard" + int_to_str(slot + 1));
 
   LoadConfig();
 }
@@ -21,18 +22,21 @@ HIDKeyboard::~HIDKeyboard() {
 
 void HIDKeyboard::LoadConfig() {
   boost::mutex::scoped_lock blah(mutex);
+  const std::string prefix = (slot == 1) ? "input_keyboard2_" : "input_keyboard_";
+  const SDL_Keycode *defaults = (slot == 1) ? defaultKeyIDs2 : defaultKeyIDs;
   for (int i = 0; i < e_ButtonFunction_Size; i++) {
     functionButtonState[i] = false;
     previousFunctionButtonState[i] = false;
 
-    functionMapping[i] = (SDL_Keycode)GetConfiguration()->GetInt(("input_keyboard_" + int_to_str(i)).c_str(), (SDL_Keycode)defaultKeyIDs[i]);
+    functionMapping[i] = (SDL_Keycode)GetConfiguration()->GetInt((prefix + int_to_str(i)).c_str(), (SDL_Keycode)defaults[i]);
   }
 }
 
 void HIDKeyboard::SaveConfig() {
   boost::mutex::scoped_lock blah(mutex);
+  const std::string prefix = (slot == 1) ? "input_keyboard2_" : "input_keyboard_";
   for (int i = 0; i < e_ButtonFunction_Size; i++) {
-    GetConfiguration()->SetInt(("input_keyboard_" + int_to_str(i)).c_str(), functionMapping[i]);
+    GetConfiguration()->SetInt((prefix + int_to_str(i)).c_str(), functionMapping[i]);
   }
   GetConfiguration()->SaveFile(GetConfigFilename());
 }
