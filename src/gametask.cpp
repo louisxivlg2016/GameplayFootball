@@ -542,6 +542,16 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_talk_order(int order) { gpf_talkOrd
 // Stop talking: the player returns to normal AI play.
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_talk_end() { gpf_talkPlayer = 0; gpf_talkOrder = 0; }
 
+// Where the ball is right now, in world metres (axis 0=X downfield, 1=Y across,
+// 2=Z up). Used by the headless test scripts to check that a traced set piece
+// actually sent the ball where it was aimed.
+extern "C" EMSCRIPTEN_KEEPALIVE float gpf_ball_pos(int axis) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m || !m->GetBall() || axis < 0 || axis > 2) return 0.0f;
+  return m->GetBall()->Predict(0).coords[axis];
+}
+
 // Training drills from the HTML menu: force the live match into a specific set
 // piece (1=KickOff,3=FreeKick,4=Corner,6=Penalty — e_SetPiece values) for team 0.
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {
@@ -571,18 +581,45 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp
   float u = clamp(aimUp, 0.0f, 1.0f);
   float c = clamp(curl, -1.0f, 1.0f);
 
-  float speed = 20.0f + 15.0f * p;      // forward pace toward goal (m/s)
-  float vx = oppSide * speed;           // toward the attacked goal
-  float vy = -oppSide * r * 9.0f;       // lateral: screen-right -> correct world side
-  float vz = 2.0f + u * 9.0f;           // loft (2..11 m/s)
+  // "Forward" is the line from the BALL to the attacked goal, not the world X
+  // axis. From the penalty spot or a free kick that is the same thing, but from
+  // the CORNER flag the goal is almost sideways: sending the ball down the X axis
+  // there just fires it over the byline, and left/right came out mirrored between the
+  // two corners ("the corner drill is backwards"). Same fix as the in-match
+  // corner in gpf_freekick_pass.
+  Vector3 ballPos = m->GetBall()->Predict(0).Get2D();
+  // a corner is a CROSS: aim into the box (around the penalty spot) rather than
+  // straight down the byline, which is where the goal line itself points from the
+  // corner flag.
+  float aimX = (ref->GetDrillType() == e_SetPiece_Corner) ? (pitchHalfW - 9.0f) : pitchHalfW;
+  Vector3 fwd = Vector3(oppSide * aimX, 0.0f, 0.0f) - ballPos;
+  if (fwd.GetLength() < 0.01f) fwd = Vector3((float)oppSide, 0.0f, 0.0f);
+  fwd.Normalize();
+  Vector3 lat = Vector3(fwd.coords[1], -fwd.coords[0], 0.0f); // perpendicular
+  // ...and make that perpendicular point to the RIGHT OF THE SCREEN, whichever
+  // corner (and whichever end) we are shooting from.
+  float latSign = 1.0f;
+  Vector3 camFwd = Vector3(0.0f, 1.0f, 0.0f);
+  camFwd.Rotate(m->GetCameraNodeOrientation());
+  camFwd.coords[2] = 0.0f;
+  if (camFwd.GetLength() > 0.01f) {
+    camFwd.Normalize();
+    Vector3 camRight = Vector3(camFwd.coords[1], -camFwd.coords[0], 0.0f);
+    if (lat.GetDotProduct(camRight) < 0.0f) { lat = lat * -1.0f; latSign = -1.0f; }
+  }
 
-  m->GetBall()->Touch(Vector3(vx, vy, vz));
+  float speed = 20.0f + 15.0f * p;      // pace toward goal (m/s)
+  Vector3 vel = (fwd + lat * (r * 0.55f)).GetNormalized() * speed;
+  vel.coords[2] = 2.0f + u * 9.0f;      // loft (2..11 m/s)
+
+  m->GetBall()->Touch(vel);
   // Magnus swerve = momentumDir x (-rotVec); a Z spin bends the ball horizontally.
-  // swerve_Y = oppSide * zSpin, and screen-right is world -oppSide*Y, so zSpin =
-  // -curl * M gives a screen-right curve regardless of which goal we attack.
+  // Working it out, swerve = zSpin * perpendicular-CCW(dir), and `lat` above is
+  // perpendicular-CW, so zSpin = -curl * M curves the ball toward `lat` — i.e.
+  // toward the right of the screen — from any corner and either end.
   // Engine's own shots use zRot up to ~+-420; 350 is a strong-but-sane full curl.
   gpf_creditTouch(m, ref->GetDrillTeam()); // training shots count as OUR touch too
-  m->GetBall()->SetRotation(0.0f, 0.0f, -c * 350.0f, 1.0f);
+  m->GetBall()->SetRotation(0.0f, 0.0f, -latSign * c * 350.0f, 1.0f);
   ref->NotifyDrillShotTaken();
 }
 
