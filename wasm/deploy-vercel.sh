@@ -29,6 +29,7 @@ for f in play-button.png training-button.png worldcup-button.png settings-button
   cp "web/src/assets/$f" "$D/menu-assets/" 2>/dev/null || true
 done
 cp -r web/src/assets/training "$D/menu-assets/training" 2>/dev/null || true
+cp -r web/src/assets/cards "$D/menu-assets/cards" 2>/dev/null || true
 cp web/src/assets/audio/goal-shout-v5.mp3 "$D/radio/goal-shout-v5.mp3"
 cp web/src/assets/audio/match-intro.mp3 "$D/radio/match-intro.mp3"
 

@@ -568,6 +568,36 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_start_drill(int setPiece) {
 // ball with Ball::Touch, and spin it about Z so the Magnus effect bends it the
 // way it was drawn.
 static void gpf_creditTouch(Match *m, int teamID); // defined below
+
+// Solve the launch of a CROSS against the engine's own ball model. The ball has
+// quadratic air drag (Ball::drag, 0.015) which at crossing pace bleeds nearly as
+// much speed as gravity does height, so the schoolbook vz = (h + g/2 t^2)/t put
+// the ball on the deck ~7m short of the box — the corner "bounced" its way in.
+// Integrate instead and binary-search the smallest climb that still has the ball
+// `targetZ` up after `dist` metres, at the given pace. -1 = can't be done.
+static float gpf_solveCrossVz(float dist, float targetZ, float speed) {
+  const float g = 9.81f, drag = 0.015f, dt = 0.01f;
+  float lo = 3.0f, hi = 22.0f, best = -1.0f;
+  for (int it = 0; it < 22; it++) {
+    const float vz = (lo + hi) * 0.5f;
+    float x = 0.0f, z = 0.11f, vx = speed, vzc = vz, zAt = -1.0f;
+    for (int i = 0; i < 900; i++) {
+      vzc += -g * dt;
+      const float v = std::sqrt(vx * vx + vzc * vzc);
+      if (v > 0.001f) {
+        float k = (v - drag * v * v * dt) / v;
+        if (k < 0.0f) k = 0.0f;
+        vx *= k; vzc *= k;
+      }
+      x += vx * dt; z += vzc * dt;
+      if (z < 0.11f) break;              // hit the grass first: too flat
+      if (x >= dist) { zAt = z; break; }
+    }
+    if (zAt >= targetZ) { best = vz; hi = vz; } else lo = vz;
+  }
+  return best;
+}
+
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp, float power, float curl) {
   boost::shared_ptr<GameTask> gt = GetGameTask();
   Match *m = gt ? gt->GetMatch() : 0;
@@ -615,17 +645,21 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp
   vel.coords[2] = 2.0f + u * 9.0f;      // loft (2..11 m/s)
 
   if (isCorner) {
-    // A CROSS has to still be in the air when it reaches the box — with a flat
-    // shot's loft it bounced twice on the way ("il rebondit"). Pick the climb
-    // that lands the ball around head height at the target: with time of flight
-    // t = dist / speed, z(t) = vz*t - g/2*t^2 = 2m  =>  vz = (2 + g/2*t^2) / t.
-    // The trace's up-stroke then makes it flatter (0.75x) or higher (1.25x).
-    speed = 17.0f + 8.0f * p;           // a cross, not a rocket
-    float dist = (target - ballPos).GetLength();
-    float t = dist / std::max(speed, 6.0f);
-    float vzIdeal = (2.0f + 4.905f * t * t) / std::max(t, 0.25f);
-    vel = (fwd + lat * (r * 0.55f)).GetNormalized() * speed;
-    vel.coords[2] = clamp(vzIdeal * (0.75f + 0.5f * u), 4.0f, 16.0f);
+    // A CROSS has to still be IN THE AIR when it reaches the box; air drag is what
+    // was putting it down short. Solve the launch properly (see gpf_solveCrossVz) so
+    // it arrives around head height at the near penalty spot; the trace's up-stroke
+    // then only adds height on top, never takes it away.
+    const float dist = (target - ballPos).GetLength();
+    float cs = 26.0f + 8.0f * p;        // a longer stroke -> a whipped-in cross
+    float cvz = -1.0f;
+    for (int k = 0; k < 6 && cvz < 0.0f; k++) {
+      cvz = gpf_solveCrossVz(dist, 2.0f, cs);
+      if (cvz < 0.0f) cs += 3.0f;       // too slow to get there at all: hit it harder
+    }
+    if (cvz < 0.0f) cvz = 12.0f;        // shouldn't happen; keep it airborne anyway
+    cvz *= 1.0f + 0.15f * u;            // draw higher -> a floatier ball
+    vel = (fwd + lat * (r * 0.55f)).GetNormalized() * cs;
+    vel.coords[2] = cvz;
   }
 
   m->GetBall()->Touch(vel);

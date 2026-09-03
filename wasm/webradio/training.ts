@@ -14,7 +14,7 @@ const DRILLS: Drill[] = [
   { label: "Coup franc", sub: "Passe le mur", img: "/menu-assets/training/freekick.jpeg", setPiece: 3 },
   { label: "Corner", sub: "Centre depuis le corner", img: "/menu-assets/training/corner.jpeg", setPiece: 4 },
   { label: "Dribble", sub: "Élimine ton adversaire", img: "/menu-assets/training-tackle.png", setPiece: 0 },
-  { label: "Gardien", sub: "Le bot tire, arrête-le !", setPiece: 6, keeper: true, emoji: "🧤" },
+  { label: "Gardien", sub: "Le bot tire, arrête-le !", img: "/menu-assets/training/gardien.jpeg", setPiece: 6, keeper: true },
 ];
 
 const CSS = `
@@ -80,10 +80,10 @@ function renderTraining(): void {
   const grid = root.querySelector(".t-grid")!;
   for (const d of DRILLS) {
     const c = document.createElement("button");
-    c.className = "t-card" + (d.keeper ? " keeper" : "");
-    c.innerHTML = (d.keeper
-      ? `<span class="t-emoji">${d.emoji}</span>`
-      : `<img src="${d.img}" alt="${L(d.label)}">`)
+    c.className = "t-card" + (d.keeper && !d.img ? " keeper" : "");
+    c.innerHTML = (d.img
+      ? `<img src="${d.img}" alt="${L(d.label)}">`
+      : `<span class="t-emoji">${d.emoji}</span>`)
       + `<span class="t-cap"><b>${L(d.label)}</b><em>${L(d.sub)}</em></span>`;
     c.addEventListener("click", () => {
       hideTraining();

@@ -91,15 +91,25 @@ const CSS = `
 #gpf-home .menu-mode-button.ref-card,
 #gpf-home .menu-mode-button.emoji-card { border-radius:16px; overflow:hidden;
   background:linear-gradient(160deg,#12303f,#0b1c26); box-shadow:0 16px 20px rgba(0,0,0,.34); }
+/* photo cards: the picture fills the card, the label sits over a dark gradient */
+#gpf-home .menu-mode-button.photo-card .card-photo { position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; display:block; filter:none; }
+#gpf-home .menu-mode-button.photo-card::before { content:""; position:absolute; inset:0; z-index:1;
+  background:linear-gradient(180deg,rgba(3,10,16,.05) 32%,rgba(3,10,16,.88)); }
+#gpf-home .menu-mode-button.photo-card .ref-card-inner { position:relative; z-index:2;
+  justify-content:flex-end; gap:2px; padding-bottom:12px; }
+#gpf-home .menu-mode-button.photo-card .ref-card-title { text-shadow:0 3px 10px rgba(0,0,0,.85); }
+#gpf-home .menu-mode-button.photo-card .ref-card-sub { color:#d6e6ee; text-shadow:0 2px 8px rgba(0,0,0,.9); }
 /* the 2-players card lights up when local co-op is armed */
-#gpf-home .menu-mode-button.emoji-card.on { background:linear-gradient(160deg,#1d4a2c,#0c2417);
-  box-shadow:0 0 0 3px rgba(255,233,74,.75), 0 16px 20px rgba(0,0,0,.34); }
+#gpf-home .menu-mode-button.photo-card.on { box-shadow:0 0 0 3px rgba(255,233,74,.85), 0 16px 20px rgba(0,0,0,.34); }
+#gpf-home .menu-mode-button.photo-card.on .ref-card-title { color:#ffe94a; }
 #gpf-home .ref-card-inner { display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:6px; width:100%; height:100%; padding:10px; box-sizing:border-box; }
 #gpf-home .ref-card-emoji { font-size:46px; line-height:1; filter:drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
 #gpf-home .ref-card-title { font-weight:900; font-size:19px; letter-spacing:1px; color:#eafff5; text-transform:uppercase; }
 #gpf-home .ref-card-sub { font-size:11px; font-weight:700; color:#8fb6c6; text-align:center; }
-#gpf-home .menu-mode-button.ref-card::after { content:"🟨🟥"; position:absolute; top:8px; right:10px; font-size:13px; opacity:.85; }
+#gpf-home .menu-mode-button.ref-card::after { content:"🟨🟥"; position:absolute; top:8px; right:10px;
+  z-index:3; font-size:13px; opacity:.85; }
 #gpf-home .menu-mode-button { pointer-events:auto; cursor:pointer; min-height:148px; padding:0; position:relative;
   display:grid; place-items:center; text-align:left; color:#fff; background:transparent; border:0; overflow:hidden;
   font-family:inherit; }
@@ -323,27 +333,19 @@ function card(img: string, label: string, onClick: () => void): HTMLButtonElemen
 // The referee card has no PNG art — build it from an emoji + label so it sits
 // alongside the image cards as a first-class "mode" button.
 function refCard(onClick: () => void): HTMLButtonElement {
-  const b = document.createElement("button");
-  b.className = "menu-mode-button ref-card";
-  b.title = L("Arbitre");
-  b.innerHTML =
-    `<span class="ref-card-inner">` +
-    `<span class="ref-card-emoji">🧑‍⚖️</span>` +
-    `<span class="ref-card-title" data-i18n="Arbitre">${L("Arbitre")}</span>` +
-    `<span class="ref-card-sub" data-i18n="Tu diriges le match">${L("Tu diriges le match")}</span>` +
-    `</span>`;
-  b.addEventListener("click", onClick);
+  const b = photoCard("/menu-assets/cards/arbitre.jpeg", "Arbitre", "Tu diriges le match", onClick);
+  b.classList.add("ref-card"); // keeps the 🟨🟥 corner badge
   return b;
 }
 
-/** Emoji "mode" card (no PNG art), same look as the referee card. */
-function emojiCard(emoji: string, title: string, sub: string, onClick: () => void): HTMLButtonElement {
+/** "Mode" card built from a photo, with the label over a gradient. */
+function photoCard(img: string, title: string, sub: string, onClick: () => void): HTMLButtonElement {
   const b = document.createElement("button");
-  b.className = "menu-mode-button emoji-card";
+  b.className = "menu-mode-button photo-card";
   b.title = L(title);
   b.innerHTML =
+    `<img class="card-photo" src="${img}" alt="${L(title)}">` +
     `<span class="ref-card-inner">` +
-    `<span class="ref-card-emoji">${emoji}</span>` +
     `<span class="ref-card-title" data-i18n="${title}">${L(title)}</span>` +
     `<span class="ref-card-sub" data-i18n="${sub}">${L(sub)}</span>` +
     `</span>`;
@@ -393,7 +395,7 @@ export function initHomeMenu(): void {
   let players = localStorage.getItem("gpf-two-players") === "1" ? 2 : 1;
   setTwoPlayers(players === 2);
 
-  const coopCard = emojiCard("🎮", "2 Joueurs", "Sur le même clavier", () => {
+  const coopCard = photoCard("/menu-assets/cards/deuxjoueurs.jpeg", "2 Joueurs", "Sur le même clavier", () => {
     players = players === 1 ? 2 : 1;
     localStorage.setItem("gpf-two-players", players === 2 ? "1" : "0");
     setTwoPlayers(players === 2);
@@ -414,7 +416,7 @@ export function initHomeMenu(): void {
     card("/menu-assets/training-button.png", "Entraînement", () => { refNextMatch = false; showTraining(); }),
     card("/menu-assets/worldcup-button.png", "Coupe du monde", () => { refNextMatch = false; startNativeMatch(); }),
     coopCard,
-    emojiCard("🌐", "En ligne", "Joue avec un ami", () => { openNetplay(); }),
+    photoCard("/menu-assets/cards/enligne.jpeg", "En ligne", "Joue avec un ami", () => { openNetplay(); }),
   );
 
   document.body.appendChild(root);
