@@ -591,8 +591,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp
   // a corner is a CROSS: aim into the box (around the penalty spot) rather than
   // straight down the byline, which is where the goal line itself points from the
   // corner flag.
-  float aimX = (ref->GetDrillType() == e_SetPiece_Corner) ? (pitchHalfW - 9.0f) : pitchHalfW;
-  Vector3 fwd = Vector3(oppSide * aimX, 0.0f, 0.0f) - ballPos;
+  bool isCorner = (ref->GetDrillType() == e_SetPiece_Corner);
+  float aimX = isCorner ? (pitchHalfW - 9.0f) : pitchHalfW;
+  Vector3 target = Vector3(oppSide * aimX, 0.0f, 0.0f);
+  Vector3 fwd = target - ballPos;
   if (fwd.GetLength() < 0.01f) fwd = Vector3((float)oppSide, 0.0f, 0.0f);
   fwd.Normalize();
   Vector3 lat = Vector3(fwd.coords[1], -fwd.coords[0], 0.0f); // perpendicular
@@ -611,6 +613,20 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_drill_shoot(float aimRight, float aimUp
   float speed = 20.0f + 15.0f * p;      // pace toward goal (m/s)
   Vector3 vel = (fwd + lat * (r * 0.55f)).GetNormalized() * speed;
   vel.coords[2] = 2.0f + u * 9.0f;      // loft (2..11 m/s)
+
+  if (isCorner) {
+    // A CROSS has to still be in the air when it reaches the box — with a flat
+    // shot's loft it bounced twice on the way ("il rebondit"). Pick the climb
+    // that lands the ball around head height at the target: with time of flight
+    // t = dist / speed, z(t) = vz*t - g/2*t^2 = 2m  =>  vz = (2 + g/2*t^2) / t.
+    // The trace's up-stroke then makes it flatter (0.75x) or higher (1.25x).
+    speed = 17.0f + 8.0f * p;           // a cross, not a rocket
+    float dist = (target - ballPos).GetLength();
+    float t = dist / std::max(speed, 6.0f);
+    float vzIdeal = (2.0f + 4.905f * t * t) / std::max(t, 0.25f);
+    vel = (fwd + lat * (r * 0.55f)).GetNormalized() * speed;
+    vel.coords[2] = clamp(vzIdeal * (0.75f + 0.5f * u), 4.0f, 16.0f);
+  }
 
   m->GetBall()->Touch(vel);
   // Magnus swerve = momentumDir x (-rotVec); a Z spin bends the ball horizontally.

@@ -332,6 +332,10 @@ const CSS = `
 #gpf-net .np-x { position:absolute; top:14px; right:16px; color:#8aa; cursor:pointer; font-size:22px; }
 `;
 
+/** Opened from the home menu's "En ligne" card (set up in initNetplay). */
+let openPanel: (() => void) | null = null;
+export function openNetplay(): void { openPanel?.(); }
+
 export function initNetplay(): void {
   const style = document.createElement("style");
   style.id = "gpf-net-style"; style.textContent = CSS;
@@ -379,6 +383,7 @@ export function initNetplay(): void {
 
   const open = (): void => { panel?.classList.add("show"); paintSync(); };
   const close = (): void => panel?.classList.remove("show");
+  openPanel = open;
   btn.addEventListener("click", open);
   panel.querySelector(".np-x")?.addEventListener("click", close);
 

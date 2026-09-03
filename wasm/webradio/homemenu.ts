@@ -17,6 +17,7 @@ import { hideTraining, showTraining } from "./training";
 import { showSettings } from "./settings";
 import { showMatches } from "./matches";
 import { showDefi, hideDefi } from "./defi";
+import { openNetplay } from "./netplay";
 import { setAnthemOverride } from "./anthem";
 import { resumeMenuMusic } from "./menu";
 import { clearScoreFlags } from "./scoreflags";
@@ -85,10 +86,14 @@ const CSS = `
 #gpf-home .menu-hero-legends .legend-card:nth-child(2){ transform:translateX(-2px) translateY(-18px) scale(1.12); z-index:3; }
 #gpf-home .menu-hero-legends .legend-card:nth-child(3){ transform:translateX(2px) translateY(0) scale(1.08); z-index:2; }
 #gpf-home .menu-hero-legends .legend-card:nth-child(4){ transform:translateX(-16px) translateY(8px) scale(1.04); z-index:1; }
-#gpf-home .menu-main-actions { width:100%; display:grid; grid-template-columns:repeat(4,minmax(0,1fr));
+#gpf-home .menu-main-actions { width:100%; display:grid; grid-template-columns:repeat(6,minmax(0,1fr));
   gap:12px; z-index:2; margin-top:auto; margin-bottom:0; transform:translateY(200px); }
-#gpf-home .menu-mode-button.ref-card { border-radius:16px; overflow:hidden;
+#gpf-home .menu-mode-button.ref-card,
+#gpf-home .menu-mode-button.emoji-card { border-radius:16px; overflow:hidden;
   background:linear-gradient(160deg,#12303f,#0b1c26); box-shadow:0 16px 20px rgba(0,0,0,.34); }
+/* the 2-players card lights up when local co-op is armed */
+#gpf-home .menu-mode-button.emoji-card.on { background:linear-gradient(160deg,#1d4a2c,#0c2417);
+  box-shadow:0 0 0 3px rgba(255,233,74,.75), 0 16px 20px rgba(0,0,0,.34); }
 #gpf-home .ref-card-inner { display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:6px; width:100%; height:100%; padding:10px; box-sizing:border-box; }
 #gpf-home .ref-card-emoji { font-size:46px; line-height:1; filter:drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
@@ -100,7 +105,6 @@ const CSS = `
   font-family:inherit; }
 #gpf-home .menu-mode-button img { width:100%; height:100%; object-fit:contain; display:block;
   filter:drop-shadow(0 16px 20px rgba(0,0,0,.34)); }
-#gpf-home .menu-main-actions .menu-mode-button:nth-child(3) img { width:74%; height:74%; justify-self:center; align-self:center; }
 #gpf-home .menu-mode-button:active { transform:translateY(3px); }
 #gpf-home .image-mode-caption,#gpf-home .image-mode-note { position:absolute; left:18px; right:18px;
   text-align:left; color:#fff; text-shadow:0 3px 12px rgba(0,0,0,.7); pointer-events:none; }
@@ -122,9 +126,16 @@ const CSS = `
 #gpf-home .gpf-hint { position:absolute; bottom:14px; left:0; right:0; text-align:center; z-index:4;
   color:rgba(255,255,255,.66); font-size:13px; font-weight:700; text-shadow:0 2px 8px rgba(0,0,0,.8); }
 #gpf-home.hidden { display:none; }
+/* the home menu has an "En ligne" card now — don't also float the old button over it */
+body.gpf-home-open #gpf-net-btn { display:none !important; }
 @media (max-height:820px){ #gpf-home .menu-hero-legends{ height:340px; inset:70px 80px auto 80px; }
   #gpf-home .legend-card,#gpf-home .legend-photo{ min-height:340px; height:340px; }
   #gpf-home .menu-main-actions{ transform:translateY(150px); } }
+/* six cards don't fit side by side on a phone/tablet: wrap to two shorter rows */
+@media (max-width:1000px){ #gpf-home .menu-main-actions{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+  #gpf-home .menu-mode-button{ min-height:104px; }
+  #gpf-home .ref-card-emoji{ font-size:34px; }
+  #gpf-home .ref-card-title{ font-size:15px; } }
 `;
 
 let root: HTMLElement | null = null;
@@ -262,9 +273,10 @@ export function onMatchStarted(): void {
   }
 }
 
-export function hide(): void { root?.classList.add("hidden"); }
+export function hide(): void { root?.classList.add("hidden"); document.body.classList.remove("gpf-home-open"); }
 export function show(): void {
-  root?.classList.remove("hidden"); resumeMenuMusic(); clearScoreFlags();
+  root?.classList.remove("hidden"); document.body.classList.add("gpf-home-open");
+  resumeMenuMusic(); clearScoreFlags();
   setAnthemOverride(null, null); // don't leak a picked team name into a plain match
   refNextMatch = false; // back at the menu: the next match is a normal one unless the Arbitre card says otherwise
   // end any online-lockstep session so the next (offline) match doesn't stall
@@ -324,6 +336,21 @@ function refCard(onClick: () => void): HTMLButtonElement {
   return b;
 }
 
+/** Emoji "mode" card (no PNG art), same look as the referee card. */
+function emojiCard(emoji: string, title: string, sub: string, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.className = "menu-mode-button emoji-card";
+  b.title = L(title);
+  b.innerHTML =
+    `<span class="ref-card-inner">` +
+    `<span class="ref-card-emoji">${emoji}</span>` +
+    `<span class="ref-card-title" data-i18n="${title}">${L(title)}</span>` +
+    `<span class="ref-card-sub" data-i18n="${sub}">${L(sub)}</span>` +
+    `</span>`;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
 export function initHomeMenu(): void {
   const style = document.createElement("style");
   style.id = "gpf-home-style"; style.textContent = CSS;
@@ -354,45 +381,44 @@ export function initHomeMenu(): void {
     imgBtn("/menu-assets/settings-button.png", "Réglages", showSettings),
   );
 
-  const actions = root.querySelector(".menu-main-actions")!;
-  actions.append(
-    card("/menu-assets/play-button.png", "Match amical", () => { refNextMatch = false; showFriendly(); }),
-    refCard(() => { refNextMatch = true; showFriendly(); }), // play AS the referee (same team-pick flow, then AI-vs-AI)
-    card("/menu-assets/training-button.png", "Entraînement", () => { refNextMatch = false; showTraining(); }),
-    card("/menu-assets/worldcup-button.png", "Coupe du monde", () => { refNextMatch = false; startNativeMatch(); }),
-  );
-
-  const strip = root.querySelector(".home-settings-strip")!;
   // Same-screen local 2-player: player 1 uses the arrows + W/A/S/D, player 2 uses
   // I/J/K/L (+ U/O/H/Y…) on the SAME keyboard. The native side creates a second
-  // keyboard device and, when this is on, puts it on the opposing team.
+  // keyboard device and, when this is on, puts it on the opposing team. It used to
+  // be a small toggle strip under the cards, which nobody found — it is a proper
+  // mode card now, next to the online one.
   const setTwoPlayers = (on: boolean): void => {
     const M2 = (window as unknown as { Module?: { _gpf_set_two_players?: (n: number) => void } }).Module;
     M2?._gpf_set_two_players?.(on ? 1 : 0);
   };
   let players = localStorage.getItem("gpf-two-players") === "1" ? 2 : 1;
   setTwoPlayers(players === 2);
-  const opt = document.createElement("button");
-  opt.className = "menu-option";
-  const render = (): void => {
-    opt.innerHTML =
-      `<span class="menu-key">J</span>` +
-      `<span class="menu-option-label">${L("Joueurs")}</span>` +
-      `<span class="menu-choice-line">` +
-      `<span class="${players === 1 ? "active-choice yellow-choice" : "muted-choice"}">${L("1 JOUEUR")}</span>` +
-      `<span class="${players === 2 ? "active-choice yellow-choice" : "muted-choice"}">${L("2 JOUEURS")}</span>` +
-      `</span>`;
-  };
-  render();
-  opt.addEventListener("click", () => {
+
+  const coopCard = emojiCard("🎮", "2 Joueurs", "Sur le même clavier", () => {
     players = players === 1 ? 2 : 1;
     localStorage.setItem("gpf-two-players", players === 2 ? "1" : "0");
     setTwoPlayers(players === 2);
-    render();
+    paintCoop();
   });
-  strip.append(opt);
+  function paintCoop(): void {
+    coopCard.classList.toggle("on", players === 2);
+    const sub = coopCard.querySelector<HTMLElement>(".ref-card-sub");
+    const key = players === 2 ? "Activé — flèches contre I J K L" : "Sur le même clavier";
+    if (sub) { sub.dataset.i18n = key; sub.textContent = L(key); }
+  }
+  paintCoop();
+
+  const actions = root.querySelector(".menu-main-actions")!;
+  actions.append(
+    card("/menu-assets/play-button.png", "Match amical", () => { refNextMatch = false; showFriendly(); }),
+    refCard(() => { refNextMatch = true; showFriendly(); }), // play AS the referee (same team-pick flow, then AI-vs-AI)
+    card("/menu-assets/training-button.png", "Entraînement", () => { refNextMatch = false; showTraining(); }),
+    card("/menu-assets/worldcup-button.png", "Coupe du monde", () => { refNextMatch = false; startNativeMatch(); }),
+    coopCard,
+    emojiCard("🌐", "En ligne", "Joue avec un ami", () => { openNetplay(); }),
+  );
 
   document.body.appendChild(root);
+  if (!root.classList.contains("hidden")) document.body.classList.add("gpf-home-open");
 
   // re-translate the whole home menu when the language changes
   onLangChange(() => {
