@@ -59,6 +59,28 @@ void ElizaController::RequestCommand(PlayerCommandQueue &commandQueue) {
   extern PlayerBase *gpf_injuredPlayer;
   // Down injured: he must NOT keep playing — he lies there until the referee has
   // seen him (gametask re-trips him so he stays on the deck).
+  // Sent off / carried off: he is out of the game but still on the field — walk
+  // him to his own dugout, then gametask takes him off for real.
+  {
+    extern bool gpf_isWalkingOff(PlayerBase *p, float &tx, float &ty);
+    float wx = 0.0f, wy = 0.0f;
+    extern int gpf_walkOffCommands;
+    if (gpf_isWalkingOff(player, wx, wy)) {
+      gpf_walkOffCommands++;
+      Vector3 target(wx, wy, 0.0f);
+      Vector3 to = target - CastPlayer()->GetPosition();
+      to.coords[2] = 0.0f;
+      PlayerCommand off;
+      off.desiredFunctionType = e_FunctionType_Movement;
+      off.useDesiredMovement = true;
+      off.desiredDirection = (to.GetLength() > 0.1f) ? to.GetNormalized() : CastPlayer()->GetDirectionVec();
+      off.desiredVelocityFloat = (to.GetLength() > 12.0f) ? sprintVelocity : walkVelocity;
+      off.useDesiredLookAt = true;
+      off.desiredLookAt = target;
+      commandQueue.push_back(off);
+      return;
+    }
+  }
   if (gpf_injuredPlayer == player) {
     PlayerCommand injured;
     injured.desiredFunctionType = e_FunctionType_Movement;

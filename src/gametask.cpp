@@ -309,6 +309,77 @@ extern "C" EMSCRIPTEN_KEEPALIVE int gpf_ref_awaiting_whistle() {
   return gpf_refAwaitingWhistle ? 1 : 0;
 }
 
+// ---- walking off ----------------------------------------------------------
+// A red card (or a player carried off injured) used to make the man vanish on
+// the spot. He now WALKS to his own dugout first (the shelters are part of the
+// stadium mesh, see tools/gen_dugout_ase.py); only when he gets there is he
+// really taken off the pitch. He is neutralised for the walk — his controller
+// just steers him to the touchline (see ElizaController::RequestCommand).
+struct GpfWalkOff { PlayerBase *player; float tx, ty; int ticks; };
+static std::vector<GpfWalkOff> gpf_walkOffList;
+static std::vector<PlayerBase*> gpf_walkedOff;   // already made the walk: send off for real
+int gpf_walkOffCommands = 0;   // how many times a controller steered someone off
+
+// The bench each side walks to: team 0's dugout sits left of the halfway line,
+// team 1's to the right, both just behind the touchline.
+static void gpf_benchSpot(int teamID, float &tx, float &ty) {
+  tx = (teamID == 0) ? -12.0f : 12.0f;
+  ty = -37.4f;   // in front of the shelter, just off the pitch
+}
+
+// True while this player is walking off; fills in where he is heading.
+bool gpf_isWalkingOff(PlayerBase *p, float &tx, float &ty) {
+  for (unsigned int i = 0; i < gpf_walkOffList.size(); i++) {
+    if (gpf_walkOffList[i].player == p) { tx = gpf_walkOffList[i].tx; ty = gpf_walkOffList[i].ty; return true; }
+  }
+  return false;
+}
+
+// Start (or keep) the walk. Returns true while the caller should DEFER whatever
+// it was about to do (Player::SendOff) until he has reached the bench.
+//
+// Player::Process() calls SendOff() on EVERY frame while a red card stands, so
+// this has to keep saying "defer" for as long as he is still walking — the walk
+// is ended by removing him from the list in the tick below, and only then does
+// the next SendOff() go through for real.
+bool gpf_startWalkOff(PlayerBase *p, int teamID) {
+  if (!p) return false;
+  for (unsigned int i = 0; i < gpf_walkedOff.size(); i++) {
+    if (gpf_walkedOff[i] == p) return false;      // he already walked: off he goes
+  }
+  float tx, ty;
+  if (gpf_isWalkingOff(p, tx, ty)) return true;   // still on his way: keep deferring
+  GpfWalkOff w;
+  w.player = p;
+  gpf_benchSpot(teamID, w.tx, w.ty);
+  w.ticks = 0;
+  gpf_walkOffList.push_back(w);
+  return true;
+}
+
+// How many players are currently walking off, and how far the first of them
+// still has to go (metres). Used by the headless tests.
+extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_walkoff_state() {
+  static std::string out; out.clear();
+  char buf[96];
+  float dist = -1.0f;
+  if (!gpf_walkOffList.empty()) {
+    Player *pl = static_cast<Player*>(gpf_walkOffList[0].player);
+    Vector3 pos = pl->GetPosition();
+    float dx = pos.coords[0] - gpf_walkOffList[0].tx, dy = pos.coords[1] - gpf_walkOffList[0].ty;
+    dist = std::sqrt(dx * dx + dy * dy);
+  }
+  float px = 0.0f, py = 0.0f;
+  if (!gpf_walkOffList.empty()) {
+    Vector3 pp = static_cast<Player*>(gpf_walkOffList[0].player)->GetPosition();
+    px = pp.coords[0]; py = pp.coords[1];
+  }
+  snprintf(buf, sizeof(buf), "%i,%.1f,%.1f,%.1f,%i", (int)gpf_walkOffList.size(), dist, px, py,
+           gpf_walkOffCommands);
+  out.assign(buf);
+  return out.c_str();
+}
+
 // Put a random outfield player of `team` on the ground, injured. Returns his name.
 extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_ref_injure(int team) {
   static std::string name; name.clear();
@@ -349,6 +420,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_injury_resolve(int sendOff) {
   gpf_injuredPlayer = 0;
   if (sendOff) p->SendOff();
 }
+// A new match starts with nobody having walked off.
+void gpf_resetWalkOff() { gpf_walkOffList.clear(); gpf_walkedOff.clear(); }
+
+
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_referee_mode(int on) {
   gpf_refereeMode = (on != 0);
   gpf_refMoveX = 0.0f; gpf_refMoveY = 0.0f;
@@ -923,6 +998,7 @@ void GameTask::Action(e_GameTaskMessage message) {
     case e_GameTaskMessage_StartMatch:
       {
         if (Verbose()) printf("*gametaskmessage: starting match\n");
+        gpf_resetWalkOff();   // nobody has walked off in this new match
 
         GetGraphicsSystem()->getPhaseMutex.lock();
         MatchData *matchData = GetMenuTask()->GetMatchData();
@@ -1174,6 +1250,23 @@ void GameTask::ProcessPhase() {
   // keep an injured player DOWN: the humanoid holds the last frame of the fall once he
   // is actually lying down (see Humanoid::Process), so this only has to keep retrying
   // until a lay_front/lay_back trip anim was picked (TripMe is a no-op while he's down).
+  // walking off: when he reaches his dugout (or after 20s, if he got stuck),
+  // finish the send-off for real — that is what takes him out of the team.
+  if (!gpf_walkOffList.empty() && match) {
+    for (int i = (int)gpf_walkOffList.size() - 1; i >= 0; i--) {
+      GpfWalkOff &w = gpf_walkOffList[i];
+      Player *pl = static_cast<Player*>(w.player);
+      Vector3 pos = pl->GetPosition();
+      float dx = pos.coords[0] - w.tx, dy = pos.coords[1] - w.ty;
+      w.ticks++;
+      if (dx * dx + dy * dy < 4.0f || w.ticks > 2000) {
+        gpf_walkOffList.erase(gpf_walkOffList.begin() + i);
+        gpf_walkedOff.push_back(pl);
+        pl->SendOff();   // gpf_startWalkOff now returns false -> really sent off
+      }
+    }
+  }
+
   if (gpf_injuredPlayer && match) {
     if (++gpf_injuredTick >= 60) {
       gpf_injuredTick = 0;

@@ -240,6 +240,11 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice*> &controllers) :
   PrepareGoalNetting();
 
 
+  // The technical-area dugouts live inside the stadium mesh itself (see
+  // tools/gen_dugout_ase.py) — loading them as a separate .object parsed fine
+  // but never reached the renderer.
+
+
   // pitch
 
   Log(e_Notice, "Match", "Match", "Generating pitch");

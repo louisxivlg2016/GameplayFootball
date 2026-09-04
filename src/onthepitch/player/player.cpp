@@ -487,6 +487,23 @@ void Player::Hide2D() {
 }
 
 void Player::SendOff() {
+#ifdef __EMSCRIPTEN__
+  // Walk to the dugout first; this is called again on arrival, and the second
+  // time gpf_startWalkOff returns false so the send-off goes through.
+  {
+    extern bool gpf_isWalkingOff(PlayerBase *p, float &tx, float &ty);
+    extern bool gpf_startWalkOff(PlayerBase *p, int teamID);
+    float wx = 0.0f, wy = 0.0f;
+    const bool already = gpf_isWalkingOff(this, wx, wy);
+    if (gpf_startWalkOff(this, team->GetID())) {
+      if (!already) {   // Process() calls this every frame — announce once
+        if (team->IsHumanControlled(this->GetID())) team->DeselectPlayer(this);
+        match->SpamMessage(playerData->GetLastName() + " walks off...", 3000);
+      }
+      return;
+    }
+  }
+#endif
   float x = random(0, 3);
   std::string message;
   if (x < 1.0) {
