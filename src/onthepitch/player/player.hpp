@@ -47,6 +47,8 @@ class Player : public PlayerBase {
     int GetCurrentFrame() { return CastHumanoid()->GetCurrentFrame(); }
 
     void SelectRetainAnim() { CastHumanoid()->SelectRetainAnim(); }
+    // after being sent off: keep the model on screen at `pos` (he walked there)
+    void KeepVisibleAt(const Vector3 &pos) { CastHumanoid()->UnHide(pos); }
 
     inline e_FunctionType GetCurrentFunctionType() { return CastHumanoid()->GetCurrentFunctionType(); }
     FormationEntry GetFormationEntry();

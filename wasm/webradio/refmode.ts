@@ -27,6 +27,7 @@ function voice(text: string): void {
 interface RefModule {
   _gpf_ref_whistle?: () => void;
   _gpf_ref_card?: (team: number, color: number) => void;
+  _gpf_ref_stop?: (on: number) => void;
   _gpf_ref_setpiece?: (type: number, team: number) => void;
   _gpf_ref_injury_off?: (team: number) => void;
   _gpf_ref_walk?: (x: number, y: number) => void;
@@ -264,7 +265,7 @@ function maybeEvent(): void {
     if (!who) return;              // couldn't injure anyone — skip this event
     injuredName = who;
     showEvent("🏥 " + who + " — " + L("va voir le joueur à terre !"));
-    whistle(); stopped = true; refreshHint();     // play stops for the injury
+    refStop(true);                                // play stops for the injury
   }
 }
 function sendDialogue(): void {
@@ -315,6 +316,17 @@ function showCardInHand(red: boolean): void {
 
 let pendingCard = 0; // 1=yellow / 3=red, waiting for you to tap WHO gets it
 
+// Stop or resume play EXPLICITLY, keeping the HTML state and the engine in step.
+// The whistle button toggles; everything else (a card, an injury) says exactly
+// what it wants. Toggling was the bug: when a restart is waiting on the ref's
+// whistle, a whistle STARTS play, so carding someone made the game run again.
+function refStop(on: boolean): void {
+  M()?._gpf_ref_stop?.(on ? 1 : 0);
+  stopped = on;
+  if (!on) disputeMode = false;
+  refreshHint();
+}
+
 // Actually deliver the card. The native gpf_ref_card cards gpf_talkPlayer (the
 // player you tapped/selected), so this always goes to the chosen player. The
 // commentator announces it (through the stoppage) with the player's name.
@@ -328,9 +340,9 @@ function doCard(color: number, name?: string): void {
 // selected → card him now. Otherwise freeze the game and arm "tap the player":
 // the next tap on a player books him (handled in onUp).
 function card(color: number): void {
+  refStop(true);                                                 // a card always stops play
   if (dlgOpen) { doCard(color, dlgCurrentName); return; }        // the player you're talking to
   pendingCard = color;
-  if (!stopped) { M()?._gpf_ref_whistle?.(); stopped = true; refreshHint(); }
   showEvent((color >= 3 ? "🟥 " : "🟨 ") + L("Appuie sur le joueur à sanctionner"));
 }
 function setpiece(type: number, team: number): void {
@@ -568,7 +580,7 @@ export function initRefmode(): void {
   bar.addEventListener("click", (e) => {
     const a = (e.target as HTMLElement)?.dataset?.a;
     if (!a) return;
-    if (a === "wh") { whistle(); stopped = !stopped; if (!stopped) disputeMode = false; refreshHint(); }
+    if (a === "wh") { refStop(!stopped); }
     else if (a === "y") card(1);
     else if (a === "r") card(3);
     else if (a === "pen0") setpiece(6, 0);

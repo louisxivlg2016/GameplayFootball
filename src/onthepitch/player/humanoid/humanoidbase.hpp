@@ -246,6 +246,9 @@ class HumanoidBase {
     const NodeMap &GetNodeMap() { return nodeMap; }
 
     void Hide() { fullbodyNode->SetPosition(Vector3(1000, 1000, -1000)); hairStyle->SetPosition(Vector3(1000, 1000, -1000)); } // hax ;)
+    // undo Hide(): park the (no longer simulated) model somewhere visible, e.g.
+    // a sent-off player left standing by his dugout
+    void UnHide(const Vector3 &pos) { fullbodyNode->SetPosition(pos); hairStyle->SetPosition(pos); }
 
     void SetKit(boost::intrusive_ptr < Resource<Surface> > newKit);
 

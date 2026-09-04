@@ -457,6 +457,25 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_whistle() {
   }
 }
 
+// Referee mode: stop (1) or resume (0) play EXPLICITLY. The whistle button
+// toggles, which is right for it — but a card must always STOP the game, and
+// with a toggle it could resume instead: when a restart is waiting on the ref's
+// whistle, gpf_ref_whistle starts play rather than freezing it, so carding a
+// player right then set the game running again.
+extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_stop(int on) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (!m) return;
+  if (m->GetReferee()) m->GetReferee()->BlowWhistle();
+  if (on) {
+    gpf_freezePlayers = true;
+    gpf_refWhistleGiven = false;   // a restart waiting on the whistle keeps waiting
+  } else {
+    gpf_freezePlayers = false;
+    if (gpf_refAwaitingWhistle) { gpf_refWhistleGiven = true; gpf_refAwaitingWhistle = false; }
+  }
+}
+
 // Award a set piece to a team. type = e_SetPiece (1=KickOff,2=GoalKick,3=FreeKick,
 // 4=Corner,5=ThrowIn,6=Penalty); team 0/1.
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_setpiece(int type, int team) {
@@ -1260,9 +1279,14 @@ void GameTask::ProcessPhase() {
       float dx = pos.coords[0] - w.tx, dy = pos.coords[1] - w.ty;
       w.ticks++;
       if (dx * dx + dy * dy < 4.0f || w.ticks > 2000) {
+        const Vector3 benchPos = pl->GetPosition();
         gpf_walkOffList.erase(gpf_walkOffList.begin() + i);
         gpf_walkedOff.push_back(pl);
         pl->SendOff();   // gpf_startWalkOff now returns false -> really sent off
+        // ...but don't let him vanish: Deactivate() parks the model far off the
+        // map, so put it back by the dugout. He is out of the game, just still
+        // standing there (the engine has no sitting animation).
+        pl->KeepVisibleAt(benchPos);
       }
     }
   }
