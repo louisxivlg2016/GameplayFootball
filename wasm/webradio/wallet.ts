@@ -7,9 +7,17 @@
  * play, which would sit on top of the pitch).
  */
 import { L } from "./i18n";
+import { isChallengeSession, isDrillSession } from "./homemenu";
 
 const KEY = "gpf-coins";
 const START = 800;
+
+/** Paid once at the final whistle of a normal match, and for a challenge won. */
+export const MATCH_REWARD = 1000;
+export const CHALLENGE_REWARD = 1000;
+
+/** A challenge you beat pays the same as a match (called from defi.ts). */
+export function rewardChallenge(): void { addCoins(CHALLENGE_REWARD, "Défi réussi"); }
 
 const COIN_IMG = "/menu-assets/cards/coin.png";
 
@@ -109,9 +117,11 @@ export function initWallet(): void {
   document.body.appendChild(hud);
   paint();
 
-  // Earn by playing: a goal for your side pays, and the final whistle pays out
-  // on the result. Chain onto whatever handler is already installed (replay.ts
-  // does the same) so nobody's hook is lost.
+  // Earn by playing: a full match pays MATCH_REWARD at the final whistle. A
+  // CHALLENGE pays the same, but only when you actually beat it — that one is
+  // credited from defi.ts (rewardChallenge), so skip the whistle there; training
+  // drills pay nothing. Chain onto whatever handler is already installed
+  // (replay.ts does the same) so nobody's hook is lost.
   const w = window as unknown as {
     gpfRadioEvent?: (e: string, p: string, t: number, s0: number, s1: number) => void;
   };
@@ -119,11 +129,8 @@ export function initWallet(): void {
   w.gpfRadioEvent = (event, player, team, s0, s1): void => {
     try { prev?.(event, player, team, s0, s1); } finally {
       try {
-        if (event === "goal" && team === 0) addCoins(30, "But !");
-        else if (event === "fulltime" && s0 >= 0) {
-          if (s0 > s1) addCoins(200, "Victoire");
-          else if (s0 === s1) addCoins(80, "Match nul");
-          else addCoins(40, "Défaite");
+        if (event === "fulltime" && !isChallengeSession() && !isDrillSession()) {
+          addCoins(MATCH_REWARD, "Match joué");
         }
       } catch { /* never break the radio */ }
     }

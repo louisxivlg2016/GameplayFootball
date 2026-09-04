@@ -14,6 +14,7 @@ import { applyMatchSquads } from "./squads";
 import { setAnthemOverride } from "./anthem";
 import { teamLineup } from "./lineup";
 import { L, onLangChange } from "./i18n";
+import { rewardChallenge } from "./wallet";
 
 interface Team { name: string; iso: string; flag: string; color: string }
 // objective: 0 = SCORE a goal, 1 = WIN (be ahead at full time), 2 = HOLD (don't concede)
@@ -195,6 +196,7 @@ function fireChallenge(): void {
 }
 
 function showResult(win: boolean): void {
+  if (win) rewardChallenge();   // beating a challenge pays like a match
   hud?.classList.remove("show");
   if (!resultEl) return;
   resultEl.querySelector(".big")!.textContent = win ? "DÉFI RÉUSSI ✅" : "DÉFI RATÉ ❌";
