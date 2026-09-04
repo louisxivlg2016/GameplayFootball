@@ -12,8 +12,9 @@ import { isChallengeSession, isDrillSession } from "./homemenu";
 const KEY = "gpf-coins";
 const START = 800;
 
-/** Paid once at the final whistle of a normal match, and for a challenge won. */
-export const MATCH_REWARD = 1000;
+/** Paid once at the final whistle of a normal match... */
+export const MATCH_REWARD = 100;
+/** ...and rather more for beating a challenge. */
 export const CHALLENGE_REWARD = 1000;
 
 /** A challenge you beat pays the same as a match (called from defi.ts). */
