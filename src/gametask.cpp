@@ -318,6 +318,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int gpf_ref_awaiting_whistle() {
 struct GpfWalkOff { PlayerBase *player; float tx, ty; int ticks; };
 static std::vector<GpfWalkOff> gpf_walkOffList;
 static std::vector<PlayerBase*> gpf_walkedOff;   // already made the walk: send off for real
+static int gpf_benchUsed[2] = { 0, 0 };          // seats taken in each dugout
 int gpf_walkOffCommands = 0;   // how many times a controller steered someone off
 
 // The bench each side walks to: team 0's dugout sits left of the halfway line,
@@ -421,7 +422,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_injury_resolve(int sendOff) {
   if (sendOff) p->SendOff();
 }
 // A new match starts with nobody having walked off.
-void gpf_resetWalkOff() { gpf_walkOffList.clear(); gpf_walkedOff.clear(); }
+void gpf_resetWalkOff() {
+  gpf_walkOffList.clear(); gpf_walkedOff.clear();
+  gpf_benchUsed[0] = gpf_benchUsed[1] = 0;
+}
 
 
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_referee_mode(int on) {
@@ -1279,14 +1283,18 @@ void GameTask::ProcessPhase() {
       float dx = pos.coords[0] - w.tx, dy = pos.coords[1] - w.ty;
       w.ticks++;
       if (dx * dx + dy * dy < 4.0f || w.ticks > 2000) {
-        const Vector3 benchPos = pl->GetPosition();
+        const int tid = (pl->GetTeamID() == 1) ? 1 : 0;
         gpf_walkOffList.erase(gpf_walkOffList.begin() + i);
         gpf_walkedOff.push_back(pl);
         pl->SendOff();   // gpf_startWalkOff now returns false -> really sent off
-        // ...but don't let him vanish: Deactivate() parks the model far off the
-        // map, so put it back by the dugout. He is out of the game, just still
-        // standing there (the engine has no sitting animation).
-        pl->KeepVisibleAt(benchPos);
+        // ...and he SITS DOWN on the bench instead of vanishing: Deactivate()
+        // parks the model far off the map, so pose it on a free seat of his own
+        // dugout, facing the pitch. Seats are 1.2m apart, eight per shelter
+        // (tools/gen_dugout_ase.py).
+        const float cx = (tid == 0) ? -12.0f : 12.0f;
+        const int seat = gpf_benchUsed[tid]++ % 8;
+        Vector3 seatPos(cx - 4.2f + 1.2f * seat, -39.6f + 0.35f, 0.0f);
+        pl->SitDownAt(seatPos, FixAngle((Vector3(0, 0, 0) - seatPos).GetAngle2D()));
       }
     }
   }

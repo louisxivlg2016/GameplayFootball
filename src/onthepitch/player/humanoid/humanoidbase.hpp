@@ -233,6 +233,10 @@ class HumanoidBase {
     void ResetPosition(const Vector3 &newPos, const Vector3 &focusPos);
     void OffsetPosition(const Vector3 &offset);
     void TripMe(const Vector3 &tripVector, int tripType);
+    // Park the (no longer simulated) model in a SITTING pose at `pos`, facing
+    // `angle` — a sent-off player on the bench. See the .cpp for why this is a
+    // frozen frame of an existing clip rather than a new animation.
+    void SitDownAt(const Vector3 &pos, radian angle);
 
     boost::intrusive_ptr<Node> GetHumanoidNode() { return humanoidNode; }
     boost::intrusive_ptr<Node> GetFullbodyNode() { return fullbodyNode; }

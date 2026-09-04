@@ -1062,6 +1062,41 @@ void HumanoidBase::OffsetPosition(const Vector3 &offset) {
   currentAnim->positionOffset += offset * cheat;
 }
 
+// Sit the player down and leave him there.
+//
+// The engine ships no sitting animation — there is walk, run, shoot, pass,
+// tackle, fall, get-up and celebrate, and nothing else. But "get up from your
+// back" passes THROUGH a sitting pose on its way up, so freezing the right
+// frame of that clip gives a real, properly-posed sit. It is written straight
+// into the render buffer, so it never goes near animation selection and cannot
+// leak into normal play; the model then stays exactly like that, which is what
+// we want for a man who has been sent off.
+void HumanoidBase::SitDownAt(const Vector3 &pos, radian angle) {
+  if (!anims) return;
+  Animation *sit = 0;
+  const std::vector<Animation*> &all = anims->GetAnimations();
+  for (unsigned int i = 0; i < all.size(); i++) {
+    if (all[i] && all[i]->GetName().find("stand_up_from_back") != std::string::npos) { sit = all[i]; break; }
+  }
+  if (!sit) return;
+  const int sitFrame = 28;   // upright on his backside, before he stands up
+
+  animApplyBuffer.anim = sit;
+  animApplyBuffer.frameNum = std::min(sitFrame, sit->GetFrameCount() - 1);
+  animApplyBuffer.smooth = false;
+  animApplyBuffer.position = pos + Vector3(0, 0, 0.62f);  // up off the floor, onto the seat
+  animApplyBuffer.orientation = angle;
+  animApplyBuffer.offsets.clear();
+  buf_animApplyBuffer = animApplyBuffer;
+
+  // Belt and braces: Deactivate() parks the model at (1000,1000,-1000), and a
+  // deactivated player may no longer have his buffer applied. Move the nodes
+  // there ourselves too, so at worst he stands by the bench instead of vanishing.
+  const Vector3 seat = pos + Vector3(0, 0, 0.62f);
+  fullbodyNode->SetPosition(seat);
+  hairStyle->SetPosition(seat);
+}
+
 void HumanoidBase::TripMe(const Vector3 &tripVector, int tripType) {
   if (match->GetBallRetainer() == player) return;
   if (currentAnim->anim->GetVariable("incoming_special_state").compare("") == 0 && currentAnim->anim->GetVariable("outgoing_special_state").compare("") == 0) {
