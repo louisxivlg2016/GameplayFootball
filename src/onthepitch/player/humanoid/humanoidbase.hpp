@@ -237,6 +237,12 @@ class HumanoidBase {
     // `angle` — a sent-off player on the bench. See the .cpp for why this is a
     // frozen frame of an existing clip rather than a new animation.
     void SitDownAt(const Vector3 &pos, radian angle);
+    // Height of one skeleton node, for the headless tests (a seated player's
+    // neck sits far lower than a standing one's).
+    float GetNodeHeight(const std::string &name) const {
+      NodeMap::const_iterator it = nodeMap.find(name);
+      return (it == nodeMap.end() || !it->second) ? -1.0f : it->second->GetPosition().coords[2];
+    }
 
     boost::intrusive_ptr<Node> GetHumanoidNode() { return humanoidNode; }
     boost::intrusive_ptr<Node> GetFullbodyNode() { return fullbodyNode; }

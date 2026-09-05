@@ -51,6 +51,7 @@ class Player : public PlayerBase {
     void KeepVisibleAt(const Vector3 &pos) { CastHumanoid()->UnHide(pos); }
     // ...and sit him down there, on the bench
     void SitDownAt(const Vector3 &pos, radian angle) { CastHumanoid()->SitDownAt(pos, angle); }
+    float GetNodeHeight(const std::string &name) { return CastHumanoid()->GetNodeHeight(name); }
 
     inline e_FunctionType GetCurrentFunctionType() { return CastHumanoid()->GetCurrentFunctionType(); }
     FormationEntry GetFormationEntry();

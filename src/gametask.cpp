@@ -319,6 +319,7 @@ struct GpfWalkOff { PlayerBase *player; float tx, ty; int ticks; };
 static std::vector<GpfWalkOff> gpf_walkOffList;
 static std::vector<PlayerBase*> gpf_walkedOff;   // already made the walk: send off for real
 static int gpf_benchUsed[2] = { 0, 0 };          // seats taken in each dugout
+static PlayerBase *gpf_lastSeated = 0;           // for the headless pose check
 int gpf_walkOffCommands = 0;   // how many times a controller steered someone off
 
 // The bench each side walks to: team 0's dugout sits left of the halfway line,
@@ -356,6 +357,22 @@ bool gpf_startWalkOff(PlayerBase *p, int teamID) {
   w.ticks = 0;
   gpf_walkOffList.push_back(w);
   return true;
+}
+
+// Where the last sent-off player ended up, and how high his neck is: seated he
+// is far lower than standing, which is how the headless test tells the pose was
+// really applied. "" when nobody has been sent off yet.
+extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_sit_state() {
+  static std::string out; out.clear();
+  if (gpf_lastSeated) {
+    Player *pl = static_cast<Player*>(gpf_lastSeated);
+    char buf[96];
+    snprintf(buf, sizeof(buf), "%.1f,%.1f,neck=%.2f,body=%.2f",
+             pl->GetNodeHeight("neck") >= -0.5f ? 0.0f : 0.0f, 0.0f,
+             pl->GetNodeHeight("neck"), pl->GetNodeHeight("body"));
+    out.assign(buf);
+  }
+  return out.c_str();
 }
 
 // How many players are currently walking off, and how far the first of them
@@ -1295,6 +1312,7 @@ void GameTask::ProcessPhase() {
         const int seat = gpf_benchUsed[tid]++ % 8;
         Vector3 seatPos(cx - 4.2f + 1.2f * seat, -39.6f + 0.35f, 0.0f);
         pl->SitDownAt(seatPos, FixAngle((Vector3(0, 0, 0) - seatPos).GetAngle2D()));
+        gpf_lastSeated = pl;
       }
     }
   }

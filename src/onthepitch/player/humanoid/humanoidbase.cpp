@@ -1084,15 +1084,29 @@ void HumanoidBase::SitDownAt(const Vector3 &pos, radian angle) {
   animApplyBuffer.anim = sit;
   animApplyBuffer.frameNum = std::min(sitFrame, sit->GetFrameCount() - 1);
   animApplyBuffer.smooth = false;
+  animApplyBuffer.smoothFactor = 1.0f;
+  animApplyBuffer.noPos = false;
   animApplyBuffer.position = pos + Vector3(0, 0, 0.62f);  // up off the floor, onto the seat
   animApplyBuffer.orientation = angle;
   animApplyBuffer.offsets.clear();
   buf_animApplyBuffer = animApplyBuffer;
 
-  // Belt and braces: Deactivate() parks the model at (1000,1000,-1000), and a
-  // deactivated player may no longer have his buffer applied. Move the nodes
-  // there ourselves too, so at worst he stands by the bench instead of vanishing.
-  const Vector3 seat = pos + Vector3(0, 0, 0.62f);
+  // ...and POSE HIM NOW. Writing the buffer is not enough: a deactivated player
+  // is never "put" again by the graphics pass, so nothing would apply it. Nor is
+  // calling Apply() enough on its own — what actually gets drawn comes out of
+  // the temporal smoother, which only Put() feeds. So run the real Put() path
+  // with our frame in the fetched buffer. Twice: the first pass seeds the
+  // smoother, the second one displays it (otherwise it interpolates back into
+  // the stride he was in). Nothing touches these nodes afterwards, so it sticks.
+  buf_animApplyBuffer.snapshotTime_ms = match->GetActualTime_ms();
+  FetchPutBuffers(buf_animApplyBuffer.snapshotTime_ms);
+  Put();
+  Put();
+
+  // Whatever the skeleton ends up doing, make sure the man is SEEN at the bench:
+  // Deactivate() parks the model at (1000,1000,-1000), so put the body and hair
+  // nodes on the seat last of all.
+  const Vector3 seat = animApplyBuffer.position;
   fullbodyNode->SetPosition(seat);
   hairStyle->SetPosition(seat);
 }
