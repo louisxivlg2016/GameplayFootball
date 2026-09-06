@@ -198,6 +198,17 @@ w.gpfRadioTick = (snap): void => {
   pushMatchState(snap);
 };
 
+// Rolling browser frame rate, so the diagnostic ping can say whether the page
+// itself is struggling or only the sim is behind.
+let fpsFrames = 0, fpsSince = Date.now(), fpsValue = 0;
+(function tickFps(): void {
+  fpsFrames++;
+  const dt = Date.now() - fpsSince;
+  if (dt >= 1000) { fpsValue = (fpsFrames * 1000) / dt; fpsFrames = 0; fpsSince = Date.now(); }
+  requestAnimationFrame(tickFps);
+})();
+function fpsNow(): number { return fpsValue; }
+
 // ---- stoppage punditry -----------------------------------------------------
 let lastPunditAt = 0;
 let stoppageSince = 0;
@@ -453,6 +464,8 @@ if (location.hostname === "127.0.0.1" || location.hostname === "localhost") {
         playCtx: d?.ctxState ?? "", err: (d?.lastError ?? "").slice(0, 120),
         voices: (() => { try { return window.speechSynthesis?.getVoices().length ?? -1; } catch { return -2; } })(),
         simFrame: gd.Module?._gpf_sim_frame?.() ?? -1,
+        pace: (() => { try { return gd.Module?.ccall?.("gpf_pace_state", "string", [], []) ?? ""; } catch { return ""; } })(),
+        fps: Math.round(fpsNow()),
         vis: document.visibilityState,
         goal: (window as unknown as { __goalDebug?: unknown }).__goalDebug ?? null,
         busy: (gd as Record<string, unknown>).__radioBusy ?? null,

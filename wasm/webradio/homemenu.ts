@@ -379,10 +379,11 @@ export function initHomeMenu(): void {
 
   const sidebar = root.querySelector(".menu-sidebar")!;
   sidebar.append(
-    iconBtn("⌂", "Accueil", true), iconBtn("◎", "Clubs", false, showClubs),
-    iconBtn("◔", "Sélections", false, showNational),
+    iconBtn("⌂", "Accueil", true),
+    imgBtn("/menu-assets/cards/clubs-button.png", "Clubs", showClubs),
+    imgBtn("/menu-assets/cards/national-button.png", "Sélections", showNational),
     imgBtn("/menu-assets/cards/defis-button.png", "Défis", showDefi),
-    imgBtn("/menu-assets/cards/coin.png", "Mercato", showMarket),
+    imgBtn("/menu-assets/cards/coin.png", "Marché", showMarket),
     imgBtn("/menu-assets/settings-button.png", "Réglages", showSettings),
   );
 

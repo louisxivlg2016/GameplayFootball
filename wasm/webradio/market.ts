@@ -221,7 +221,7 @@ export function initMarket(): void {
     <div class="menu-shell">
       <div class="mk-top">
         <button class="mk-back" data-i18n="← Menu">${L("← Menu")}</button>
-        <h2 data-i18n="MERCATO">${L("MERCATO")}</h2>
+        <h2 data-i18n="MARCHÉ">${L("MARCHÉ")}</h2>
         <span class="mk-bal"></span>
       </div>
       <div class="mk-bar">

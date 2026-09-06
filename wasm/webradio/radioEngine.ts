@@ -1165,6 +1165,19 @@ function pumpEvents(): void {
 }
 setInterval(pumpEvents, 100);
 
+// Mic watchdog. If a clip's onended never lands (a saturated main thread will do
+// it), playerBusy stays true for good — and because radioFlow then only ever
+// takes the "synthesize and queue" branch, takeMic() is never called and its own
+// stuck-mic guard never runs. The commentator went silent for the rest of the
+// match. Free it here instead, from the outside.
+setInterval(() => {
+  if (playerBusy && playerBusyAt && Date.now() - playerBusyAt > MIC_STUCK_MS) {
+    stopCurrent();          // clears playerBusy
+    const g = globalThis as Record<string, unknown>;
+    g.__radioUnwedged = ((g.__radioUnwedged as number) ?? 0) + 1;
+  }
+}, 2000);
+
 function say(text: string, priority = 1, fx?: VoiceFx): void {
   if (!enabled) return;
   // hold a normal event line until the current sentence is over (see above)

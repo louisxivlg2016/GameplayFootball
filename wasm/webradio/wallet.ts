@@ -73,8 +73,6 @@ body.gpf-clubs-open #gpf-wallet, body.gpf-defi-open #gpf-wallet { display:flex; 
 #gpf-wallet img { width:30px; height:30px; object-fit:contain;
   filter:drop-shadow(0 2px 4px rgba(0,0,0,.6)); }
 #gpf-wallet b { font-size:19px; font-weight:900; letter-spacing:.5px; color:#ffe07a; }
-#gpf-wallet i { font-style:normal; font-size:11px; font-weight:800; color:#9fb3a6;
-  text-transform:uppercase; letter-spacing:1px; }
 #gpf-wallet .w-pop { position:absolute; left:50%; top:-4px; transform:translate(-50%,0);
   font-size:15px; font-weight:900; color:#7bff9d; text-shadow:0 2px 8px rgba(0,0,0,.8);
   opacity:0; transition:transform .9s ease-out, opacity .9s ease-out; white-space:nowrap; }
@@ -114,7 +112,7 @@ export function initWallet(): void {
 
   hud = document.createElement("div");
   hud.id = "gpf-wallet";
-  hud.innerHTML = `<img src="${COIN_IMG}" alt=""><b>0</b><i data-i18n="Ballons d'or">${L("Ballons d'or")}</i>`;
+  hud.innerHTML = `<img src="${COIN_IMG}" alt=""><b>0</b>`;   // the gold ball says it all
   document.body.appendChild(hud);
   paint();
 

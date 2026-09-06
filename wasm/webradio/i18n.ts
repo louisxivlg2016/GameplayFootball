@@ -17,7 +17,7 @@ const T: Record<string, Record<Lang, string>> = {
   "Défis":       { en: "Challenges", es: "Retos", pt: "Desafios", de: "Duelle", it: "Sfide", nl: "Uitdagingen" },
   "Matchs":      { en: "Matches", es: "Partidos", pt: "Jogos", de: "Spiele", it: "Partite", nl: "Wedstrijden" },
   "Réglages":    { en: "Settings", es: "Ajustes", pt: "Definições", de: "Optionen", it: "Opzioni", nl: "Instellingen" },
-  "Mercato":     { en: "Transfers", es: "Mercado", pt: "Mercado", de: "Transfers", it: "Mercato", nl: "Transfers" },
+  "Marché":      { en: "Market", es: "Mercado", pt: "Mercado", de: "Markt", it: "Mercato", nl: "Markt" },
   // --- wallet / transfer market ---
   "Ballons d'or": { en: "Gold balls", es: "Balones de oro", pt: "Bolas de ouro", de: "Goldbälle", it: "Palloni d'oro", nl: "Gouden ballen" },
   "But !":       { en: "Goal!", es: "¡Gol!", pt: "Golo!", de: "Tor!", it: "Gol!", nl: "Goal!" },
@@ -29,7 +29,7 @@ const T: Record<string, Record<Lang, string>> = {
     it: "Partita giocata", nl: "Wedstrijd gespeeld" },
   "Défi réussi": { en: "Challenge beaten", es: "Reto superado", pt: "Desafio superado",
     de: "Duell gemeistert", it: "Sfida superata", nl: "Uitdaging gehaald" },
-  "MERCATO":     { en: "TRANSFER MARKET", es: "MERCADO DE FICHAJES", pt: "MERCADO DE TRANSFERÊNCIAS", de: "TRANSFERMARKT", it: "MERCATO", nl: "TRANSFERMARKT" },
+  "MARCHÉ":      { en: "MARKET", es: "MERCADO", pt: "MERCADO", de: "MARKT", it: "MERCATO", nl: "MARKT" },
   "Club":        { en: "Club", es: "Club", pt: "Clube", de: "Verein", it: "Club", nl: "Club" },
   "Onze de départ": { en: "Starting XI", es: "Once inicial", pt: "Onze inicial", de: "Startelf", it: "Undici titolare", nl: "Basiself" },
   "Tes recrues": { en: "Your signings", es: "Tus fichajes", pt: "Os teus reforços", de: "Deine Neuzugänge", it: "I tuoi acquisti", nl: "Jouw aanwinsten" },

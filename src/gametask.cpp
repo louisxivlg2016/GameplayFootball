@@ -1299,6 +1299,62 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_net_apply_snapshot(const char *data) {
   }
 }
 
+#ifdef __EMSCRIPTEN__
+// ---- keeping the match at real speed -------------------------------------
+// The sim runs at 100Hz and the renderer competes with it for the one thread we
+// have. On a modest machine a full-rate render starves it: the user's own
+// diagnostic log showed the match clock advancing at 0.17x wall time — "very
+// very slow", and the radio went quiet with it because nothing was happening.
+//
+// So watch the match clock against the wall clock and, when it falls behind,
+// render LESS OFTEN (the sim gets the time back). When it catches up, ease the
+// render rate back towards what the chosen quality asked for. No setting to
+// find: it tunes itself, on whatever device you are playing on.
+static double gpf_paceCheckedAt = 0.0;
+static unsigned long gpf_paceMatchMs = 0;
+static int gpf_paceFrametime = 0;      // current render cap, ms (0 = untouched)
+static float gpf_paceSpeed = 1.0f;     // last measured speed, 1.0 = real time
+static const int gpf_paceBase[5] = { 150, 95, 60, 38, 26 };
+
+static void gpf_autoPace(Match *m) {
+  if (!m) { gpf_paceCheckedAt = 0.0; return; }
+  const double now = emscripten_get_now();
+  const unsigned long mt = m->GetActualTime_ms();
+  if (gpf_paceCheckedAt == 0.0) { gpf_paceCheckedAt = now; gpf_paceMatchMs = mt; return; }
+  const double dtReal = now - gpf_paceCheckedAt;
+  if (dtReal < 2000.0) return;                       // decide on 2s windows
+  const double dtMatch = (double)mt - (double)gpf_paceMatchMs;
+  gpf_paceCheckedAt = now;
+  gpf_paceMatchMs = mt;
+  if (dtMatch <= 0.0) return;                        // paused, menu, half time
+
+  gpf_paceSpeed = (float)(dtMatch / dtReal);
+  const int lvl = (gpf_quality_level < 0) ? 0 : (gpf_quality_level > 4 ? 4 : gpf_quality_level);
+  const int want = gpf_paceBase[lvl];
+  if (gpf_paceFrametime == 0) gpf_paceFrametime = want;
+
+  int next = gpf_paceFrametime;
+  if (gpf_paceSpeed < 0.80f) next = (int)(gpf_paceFrametime * 1.35f) + 4;   // behind: render less
+  else if (gpf_paceSpeed > 0.95f && gpf_paceFrametime > want) next = (int)(gpf_paceFrametime * 0.85f);
+  if (next > 260) next = 260;                        // ~4fps floor, still playable
+  if (next < want) next = want;
+  if (next != gpf_paceFrametime) {
+    gpf_paceFrametime = next;
+    gpf_apply_render_frametime(gpf_paceFrametime);
+    gpf_apply_render_defer(gpf_paceFrametime * 3);
+  }
+}
+
+// "speed,frametime,quality" — read by the page's diagnostic ping.
+extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_pace_state() {
+  static std::string out;
+  char buf[64];
+  snprintf(buf, sizeof(buf), "%.2f,%i,%i", gpf_paceSpeed, gpf_paceFrametime, gpf_quality_level);
+  out.assign(buf);
+  return out.c_str();
+}
+#endif
+
 void GameTask::ProcessPhase() {
 
   gpf_ppCalls++;
@@ -1310,6 +1366,10 @@ void GameTask::ProcessPhase() {
   // until a lay_front/lay_back trip anim was picked (TripMe is a no-op while he's down).
   // walking off: when he reaches his dugout (or after 20s, if he got stuck),
   // finish the send-off for real — that is what takes him out of the team.
+#ifdef __EMSCRIPTEN__
+  gpf_autoPace(match);
+#endif
+
   if (!gpf_walkOffList.empty() && match) {
     for (int i = (int)gpf_walkOffList.size() - 1; i >= 0; i--) {
       GpfWalkOff &w = gpf_walkOffList[i];

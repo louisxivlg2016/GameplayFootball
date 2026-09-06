@@ -22,7 +22,7 @@
 const ACCENTS: Record<string, string> = {
   // France
   MBAPPE: "Mbappé", DEMBELE: "Dembélé", KOUNDE: "Koundé", TCHOUAMENI: "Tchouaméni",
-  KONATE: "Konaté", DOUE: "Doué", "ZAIRE.EMERY": "Zaïré Emery", THURAM: "Thuram",
+  KONATE: "Konaté", DOUE: "Doué", "ZAIRE.EMERY": "Zaïré Emery", THURAM: "Thuram", EKITIKE: "Ekitiké",
   BARCOLA: "Barcola", OLISE: "Olisé", SALIBA: "Saliba", MAIGNAN: "Maignan",
   GIROUD: "Giroud", GRIEZMANN: "Griezmann", COMAN: "Coman", NKUNKU: "Nkunku",
   // Spain / Portugal / Brazil (nasals, tildes, cedillas)

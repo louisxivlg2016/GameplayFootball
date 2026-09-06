@@ -6,7 +6,7 @@
  */
 export const POS: Record<string, string> = {
   // --- national benches ---
-  AREOLA: "GB", KONATE: "DC", "L.HERNANDEZ": "DG", CAMAVINGA: "MC", "ZAIRE.EMERY": "MC", "M.THURAM": "BU", BARCOLA: "AG",
+  AREOLA: "GB", KONATE: "DC", "L.HERNANDEZ": "DG", CAMAVINGA: "MC", "ZAIRE.EMERY": "MC", EKITIKE: "BU", BARCOLA: "AG",
   "TER.STEGEN": "GB", SCHLOTTERBECK: "DC", ANTON: "DC", GROSS: "MC", GORETZKA: "MC", FULLKRUG: "BU", ADEYEMI: "AG",
   "R.SANCHEZ": "GB", VIVIAN: "DC", "G.MARTIN": "DG", "F.LOPEZ": "MC", MERINO: "MC", "F.TORRES": "BU", OYARZABAL: "AG",
   VICARIO: "GB", DARMIAN: "DD", MANCINI: "DC", UDOGIE: "DG", FRATTESI: "MC", RASPADORI: "MOC", ORSOLINI: "AD",
