@@ -116,7 +116,7 @@ export function commentaryTick(dt: number): void {
   const ctx = ctxOf(s);
   if (ctx !== prevCtx) {
     prevCtx = ctx;
-    if (sinceLine > 0.6) {   // don't machine-gun on scrappy midfield exchanges
+    if (sinceLine > 1.2) {   // don't machine-gun on scrappy midfield exchanges
       gap = 0;
       lastKind = "";
       sinceLine = STALE + 1;

@@ -348,6 +348,7 @@ let queuedFlow: { blob: Blob; at: number; ctx: string } | null = null;
 // name). If the situation has moved on by the time the mic frees, the line is dropped
 // rather than played late — the commentator was lagging behind the action.
 let flowCtx = "";
+let flowSynthPending = false;   // a play-by-play line is being synthesized
 /** Called by the commentary loop each time it composes a line. */
 export function setFlowContext(key: string): void { flowCtx = key; }
 let goalClipBytes: Promise<ArrayBuffer | null> | null = null;
@@ -1036,6 +1037,7 @@ export function radioReset(): void {
   playerBusy = false;
   playerBusyAt = 0;
   queuedFlow = null;
+  flowSynthPending = false;
   evtQueue = [];
   pendingText = null;
   predictFails = 0;
@@ -1054,7 +1056,7 @@ export function radioReset(): void {
  *  commentary loop keep exactly ONE line in reserve instead of re-synthesizing a
  *  fresh one every tick while the current line plays (which floods the worker). */
 export function radioHasQueued(): boolean {
-  return queuedFlow !== null;
+  return queuedFlow !== null || flowSynthPending;
 }
 
 /** Is the commentator free to take a play-by-play line right now? */
@@ -1086,13 +1088,21 @@ export function radioFlow(text: string): void {
     say(text, 1);
     return;
   }
+  // ONE synthesis at a time. Dropping stale lines frees the queue sooner, which
+  // let the commentary loop fire another piperPredict before the previous one
+  // came back — several TTS jobs piling up in the worker, pegging the CPU (the
+  // whole match ran slow) until the radio gave up altogether.
+  if (flowSynthPending) return;
+  flowSynthPending = true;
   const ctx = flowCtx;
-  void piperPredict(text).then((blob) => {
-    if (blob) {
-      queuedFlow = { blob, at: Date.now(), ctx };
-      playQueuedFlow(); // mic may have freed while we were synthesizing
-    }
-  });
+  void piperPredict(text)
+    .then((blob) => {
+      if (blob) {
+        queuedFlow = { blob, at: Date.now(), ctx };
+        playQueuedFlow(); // mic may have freed while we were synthesizing
+      }
+    })
+    .finally(() => { flowSynthPending = false; });
 }
 
 /** Speak an arbitrary line (a player arguing with the ref, etc.) in the radio

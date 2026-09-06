@@ -1046,6 +1046,17 @@ void GameTask::Action(e_GameTaskMessage message) {
       {
         if (Verbose()) printf("*gametaskmessage: starting match\n");
         gpf_resetWalkOff();   // nobody has walked off in this new match
+        // A new match ALWAYS starts live. The referee-mode whistle freeze and the
+        // talk/injury state used to survive into the next match: the players then
+        // stood still (the game looked crawlingly slow) and Match's radioQuiet
+        // flag stayed on, so the commentator never said a word either.
+        gpf_freezePlayers = false;
+        gpf_refAwaitingWhistle = false;
+        gpf_refWhistleGiven = false;
+        gpf_talkPlayer = 0;
+        gpf_talkOrder = 0;
+        gpf_injuredPlayer = 0;
+        gpf_injuredTick = 0;
 
         GetGraphicsSystem()->getPhaseMutex.lock();
         MatchData *matchData = GetMenuTask()->GetMatchData();
