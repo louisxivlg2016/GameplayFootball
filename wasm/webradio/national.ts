@@ -112,7 +112,8 @@ body.gpf-national-open #gpf-menu { display:none !important; }
 #gpf-national .nat-card { display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 8px 10px;
   background:rgba(5,18,12,.72); border:1px solid rgba(255,255,255,.12); border-top:3px solid var(--nat-color);
   border-radius:10px; text-align:center; }
-#gpf-national .nat-flag { width:58px; height:58px; display:grid; place-items:center; border-radius:14px;
+#gpf-national .nat-flag img { width:100%; height:100%; object-fit:cover; border-radius:8px; display:block; }
+#gpf-national .nat-flag { width:58px; height:58px; display:grid; place-items:center; border-radius:14px; overflow:hidden;
   background:rgba(255,255,255,.1); box-shadow:inset 0 0 0 2px rgba(0,0,0,.25),0 6px 12px rgba(0,0,0,.35);
   font-size:34px; line-height:1; }
 #gpf-national .nat-card b { font-size:13px; font-weight:800; line-height:1.15; }
@@ -181,7 +182,8 @@ function renderGrid(grid: HTMLElement, conf: Confed): void {
     card.className = "nat-card";
     card.style.setProperty("--nat-color", nat.color);
     card.innerHTML =
-      `<span class="nat-flag">${nat.flag}</span><b>${nat.name}</b>` +
+      `<span class="nat-flag"><img src="${flagImg(nat.iso)}" alt="${nat.name}" loading="lazy"` +
+      ` onerror="this.replaceWith(document.createTextNode('${nat.flag}'))"></span><b>${nat.name}</b>` +
       `<span class="nat-actions"><button class="nat-play" title="${L("Jouer avec cette équipe")}">JOUER</button>` +
       `<button class="nat-vs" title="${L("Affronter cette équipe")}">VS</button></span>`;
     card.querySelector(".nat-play")!.addEventListener("click", () => {

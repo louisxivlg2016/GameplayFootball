@@ -18,6 +18,10 @@ const T: Record<string, Record<Lang, string>> = {
   "Matchs":      { en: "Matches", es: "Partidos", pt: "Jogos", de: "Spiele", it: "Partite", nl: "Wedstrijden" },
   "Réglages":    { en: "Settings", es: "Ajustes", pt: "Definições", de: "Optionen", it: "Opzioni", nl: "Instellingen" },
   "Marché":      { en: "Market", es: "Mercado", pt: "Mercado", de: "Markt", it: "Mercato", nl: "Markt" },
+  "← Retour":    { en: "← Back", es: "← Volver", pt: "← Voltar", de: "← Zurück", it: "← Indietro", nl: "← Terug" },
+  "Choisis l'adversaire de": { en: "Choose the opponent for", es: "Elige el rival de",
+    pt: "Escolhe o adversário de", de: "Wähle den Gegner für", it: "Scegli l'avversario di",
+    nl: "Kies de tegenstander van" },
   // --- wallet / transfer market ---
   "Ballons d'or": { en: "Gold balls", es: "Balones de oro", pt: "Bolas de ouro", de: "Goldbälle", it: "Palloni d'oro", nl: "Gouden ballen" },
   "But !":       { en: "Goal!", es: "¡Gol!", pt: "Golo!", de: "Tor!", it: "Gol!", nl: "Goal!" },

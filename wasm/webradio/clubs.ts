@@ -105,6 +105,33 @@ body.gpf-clubs-open #gpf-menu { display:none !important; }
   font-weight:900; letter-spacing:.5px; }
 `;
 
+const VS_CSS = `
+#gpf-club-vs { position:fixed; inset:0; z-index:2147483260; display:none;
+  background:rgba(3,10,7,.9); font-family:"Segoe UI",Arial,sans-serif; color:#fff; }
+#gpf-club-vs.show { display:block; }
+#gpf-club-vs .vs-shell { position:absolute; inset:16px; display:flex; flex-direction:column; gap:12px;
+  padding:16px 20px; box-sizing:border-box; background:rgba(6,20,14,.96);
+  border:2px solid rgba(255,255,255,.16); border-radius:10px; }
+#gpf-club-vs .vs-head { display:flex; align-items:center; gap:14px; }
+#gpf-club-vs .vs-back { pointer-events:auto; cursor:pointer; min-height:40px; padding:0 15px; color:#fff;
+  background:rgba(255,255,255,.12); border:2px solid rgba(255,255,255,.24); border-radius:6px;
+  font-family:inherit; font-size:14px; font-weight:800; }
+#gpf-club-vs .vs-title { font-size:18px; font-weight:800; }
+#gpf-club-vs .vs-title b { color:#ffe07a; }
+#gpf-club-vs .vs-grid { flex:1; min-height:0; overflow-y:auto; display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; padding-right:4px; }
+#gpf-club-vs .vs-card { pointer-events:auto; cursor:pointer; display:flex; flex-direction:column;
+  align-items:center; gap:5px; padding:12px 8px; color:#fff; text-align:center;
+  background:rgba(5,18,12,.8); border:1px solid rgba(255,255,255,.12);
+  border-top:3px solid var(--club-color); border-radius:10px; font-family:inherit; }
+#gpf-club-vs .vs-card:hover { background:rgba(255,255,255,.12); }
+#gpf-club-vs .vs-card b { font-size:13px; font-weight:800; line-height:1.15; }
+#gpf-club-vs .vs-card small { font-size:11px; color:#9fb3a6; font-weight:700; }
+#gpf-club-vs .vs-crest { width:46px; height:46px; display:grid; place-items:center; border-radius:8px;
+  background:rgba(255,255,255,.1); font-size:12px; font-weight:900; overflow:hidden; }
+#gpf-club-vs .vs-crest img { width:100%; height:100%; object-fit:contain; }
+`;
+
 let root: HTMLElement | null = null;
 const logoCache = new Map<string, string>();
 
@@ -180,6 +207,40 @@ function launchClubs(home: Club, away: Club): void {
   else play(squad || []);
 }
 
+// VS = "play THIS club against one I choose". Used to be two clicks on two
+// different cards with only a status line to explain it, which nobody found;
+// now it opens a proper opponent screen listing every other club.
+let vsRoot: HTMLElement | null = null;
+function openOpponentPicker(home: Club): void {
+  if (!vsRoot) return;
+  const grid = vsRoot.querySelector<HTMLElement>(".vs-grid");
+  const title = vsRoot.querySelector<HTMLElement>(".vs-title");
+  if (title) title.innerHTML = `${L("Choisis l'adversaire de")} <b>${home.name}</b>`;
+  if (grid) {
+    grid.innerHTML = "";
+    for (const lg of LEAGUES) {
+      for (const c of lg.clubs) {
+        if (c.code === home.code) continue;
+        const b = document.createElement("button");
+        b.className = "vs-card";
+        b.style.setProperty("--club-color", c.color);
+        b.innerHTML = `<span class="vs-crest"><span>${c.code}</span></span>` +
+          `<b>${c.name}</b><small>${lg.country}</small>`;
+        b.addEventListener("click", () => { closeOpponentPicker(); void launchClubs(home, c); });
+        grid.appendChild(b);
+        void fetchLogo(c).then((src) => {
+          if (src) {
+            const crest = b.querySelector(".vs-crest");
+            if (crest) crest.innerHTML = `<img src="${src}" alt="" loading="lazy">`;
+          }
+        });
+      }
+    }
+  }
+  vsRoot.classList.add("show");
+}
+function closeOpponentPicker(): void { vsRoot?.classList.remove("show"); }
+
 function renderGrid(grid: HTMLElement, league: League): void {
   grid.innerHTML = "";
   for (const club of league.clubs) {
@@ -194,10 +255,7 @@ function renderGrid(grid: HTMLElement, league: League): void {
     // JOUER = play now: kick off straight away against an auto-picked club.
     // (Use VS on two clubs to choose the opponent yourself.)
     card.querySelector(".club-play")!.addEventListener("click", () => { void launchClubs(club, randomClubOpponent(club)); });
-    card.querySelector(".club-vs")!.addEventListener("click", () => {
-      if (!homePick) { homePick = club; updateClubStatus(); return; }
-      void launchClubs(homePick, club);
-    });
+    card.querySelector(".club-vs")!.addEventListener("click", () => { openOpponentPicker(club); });
     grid.appendChild(card);
     void fetchLogo(club).then((src) => {
       if (src) {
@@ -210,7 +268,7 @@ function renderGrid(grid: HTMLElement, league: League): void {
 
 export function initClubs(): void {
   const style = document.createElement("style");
-  style.id = "gpf-clubs-style"; style.textContent = CSS;
+  style.id = "gpf-clubs-style"; style.textContent = CSS + VS_CSS;
   document.head.appendChild(style);
 
   root = document.createElement("div");
@@ -251,6 +309,17 @@ export function initClubs(): void {
     void launchClubs(home, randomClubOpponent(home));
   });
   tabs.appendChild(play);
+
+  vsRoot = document.createElement("div");
+  vsRoot.id = "gpf-club-vs";
+  vsRoot.innerHTML =
+    `<div class="vs-shell"><div class="vs-head">` +
+    `<button class="vs-back">${L("← Retour")}</button><span class="vs-title"></span></div>` +
+    `<div class="vs-grid"></div></div>`;
+  vsRoot.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement)?.classList.contains("vs-back") || e.target === vsRoot) closeOpponentPicker();
+  });
+  document.body.appendChild(vsRoot);
 
   root.querySelector(".club-back")!.addEventListener("click", hideClubs);
   renderGrid(grid, active);

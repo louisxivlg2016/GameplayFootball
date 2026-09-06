@@ -747,7 +747,7 @@ let workerRespawns = 0;
 // itself, with no "clear site data" needed from the user.
 let warmAttempts = 0;
 let piperLoadStartedAt = 0;
-const PIPER_FALLBACK_DELAY_MS = 1500; // the neural voice takes ~20s to load (63MB
+const PIPER_FALLBACK_DELAY_MS = 6000;   // wait for the real voice before the browser's robot one
 // model + onnx init) — don't stay silent that whole time. After 1.5s the browser's
 // built-in voice starts commentating; Piper takes over the moment it's ready.
 // A worker whose init HANGS (never posts "ready" nor "error") used to leave the

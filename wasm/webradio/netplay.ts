@@ -154,9 +154,14 @@ function doJoin(code: string): void {
     // instead of leaving the user stuck on "Recherche…"
     joinWatch = window.setTimeout(() => {
       if (conn && conn.open) return;
-      if (joinAttempts < 4) { joinAttempts++; setConn(L("Pas encore — nouvel essai ") + joinAttempts + "…"); doJoin(code); }
-      else setConn(L("Connexion impossible — vérifie le code et que l'hôte attend, puis réessaie"));
-    }, 8000);
+      if (joinAttempts < 3) {
+        joinAttempts++;
+        setConn(L("Personne à ce code pour l'instant — nouvel essai ") + joinAttempts + "…");
+        doJoin(code);
+      } else {
+        setConn(L("Personne n'attend avec ce code. Sur l'AUTRE appareil, clique « Créer une partie » et donne-moi le code affiché."));
+      }
+    }, 5000);
   });
 }
 
@@ -352,7 +357,7 @@ export function initNetplay(): void {
     <div class="np-card">
       <span class="np-x">×</span>
       <h3>🌐 ${L("Multijoueur en ligne")}<span class="np-beta">BETA — TEST</span></h3>
-      <p>${L("Un joueur clique « Créer » et obtient un code. Il le donne à l'autre (WhatsApp, etc.) qui le tape puis clique « Rejoindre ». Ensuite lancez le MÊME match des deux côtés (mêmes équipes) sans toucher au clavier, et regardez l'état plus bas.")}</p>
+      <p>${L("Il faut DEUX appareils. Sur le premier, clique « Créer une partie » : un code s'affiche. Donne-le à ton ami (WhatsApp, etc.) : sur SON appareil il le tape et clique « Rejoindre ». Ensuite lancez le MÊME match des deux côtés (mêmes équipes) sans toucher au clavier.")}</p>
 
       <div class="np-row">
         <button class="np" data-act="create">${L("Créer une partie")}</button>
