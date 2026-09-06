@@ -320,6 +320,8 @@ static std::vector<GpfWalkOff> gpf_walkOffList;
 static std::vector<PlayerBase*> gpf_walkedOff;   // already made the walk: send off for real
 static int gpf_benchUsed[2] = { 0, 0 };          // seats taken in each dugout
 static PlayerBase *gpf_lastSeated = 0;           // for the headless pose check
+struct GpfSeated { PlayerBase *player; Vector3 seat; float angle; };
+static std::vector<GpfSeated> gpf_seated;        // sent off, sitting on the bench
 int gpf_walkOffCommands = 0;   // how many times a controller steered someone off
 
 // The bench each side walks to: team 0's dugout sits left of the halfway line,
@@ -364,12 +366,16 @@ bool gpf_startWalkOff(PlayerBase *p, int teamID) {
 // really applied. "" when nobody has been sent off yet.
 extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_sit_state() {
   static std::string out; out.clear();
-  if (gpf_lastSeated) {
+  boost::shared_ptr<GameTask> gt = GetGameTask();
+  Match *m = gt ? gt->GetMatch() : 0;
+  if (gpf_lastSeated && m && m->GetCamera()) {
     Player *pl = static_cast<Player*>(gpf_lastSeated);
-    char buf[96];
-    snprintf(buf, sizeof(buf), "%.1f,%.1f,neck=%.2f,body=%.2f",
-             pl->GetNodeHeight("neck") >= -0.5f ? 0.0f : 0.0f, 0.0f,
-             pl->GetNodeHeight("neck"), pl->GetNodeHeight("body"));
+    Vector3 gp = pl->GetGeomPosition();
+    Vector3 sc = GetProjectedCoord(gp + Vector3(0, 0, 0.9f), m->GetCamera());
+    char buf[128];
+    snprintf(buf, sizeof(buf), "screen=%.3f,%.3f world=%.1f,%.1f,%.2f",
+             sc.coords[0] / 100.0f, sc.coords[1] / 100.0f,
+             gp.coords[0], gp.coords[1], gp.coords[2]);
     out.assign(buf);
   }
   return out.c_str();
@@ -440,7 +446,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_ref_injury_resolve(int sendOff) {
 }
 // A new match starts with nobody having walked off.
 void gpf_resetWalkOff() {
-  gpf_walkOffList.clear(); gpf_walkedOff.clear();
+  gpf_walkOffList.clear(); gpf_walkedOff.clear(); gpf_seated.clear();
+  gpf_lastSeated = 0;
   gpf_benchUsed[0] = gpf_benchUsed[1] = 0;
 }
 
@@ -1311,10 +1318,21 @@ void GameTask::ProcessPhase() {
         const float cx = (tid == 0) ? -12.0f : 12.0f;
         const int seat = gpf_benchUsed[tid]++ % 8;
         Vector3 seatPos(cx - 4.2f + 1.2f * seat, -39.6f + 0.35f, 0.0f);
-        pl->SitDownAt(seatPos, FixAngle((Vector3(0, 0, 0) - seatPos).GetAngle2D()));
+        GpfSeated st;
+        st.player = pl;
+        st.seat = seatPos;
+        st.angle = FixAngle((Vector3(0, 0, 0) - seatPos).GetAngle2D());
+        gpf_seated.push_back(st);
         gpf_lastSeated = pl;
       }
     }
+  }
+
+  // hold the sent-off players in their seat: they are deactivated, so nothing
+  // draws them any more — the pose has to be pushed to the display every frame
+  // or the smoother falls back to the stride they walked in with.
+  for (unsigned int i = 0; i < gpf_seated.size(); i++) {
+    static_cast<Player*>(gpf_seated[i].player)->SitDownAt(gpf_seated[i].seat, gpf_seated[i].angle);
   }
 
   if (gpf_injuredPlayer && match) {

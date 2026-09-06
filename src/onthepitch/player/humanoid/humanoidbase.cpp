@@ -1073,20 +1073,26 @@ void HumanoidBase::OffsetPosition(const Vector3 &offset) {
 // we want for a man who has been sent off.
 void HumanoidBase::SitDownAt(const Vector3 &pos, radian angle) {
   if (!anims) return;
-  Animation *sit = 0;
-  const std::vector<Animation*> &all = anims->GetAnimations();
-  for (unsigned int i = 0; i < all.size(); i++) {
-    if (all[i] && all[i]->GetName().find("stand_up_from_back") != std::string::npos) { sit = all[i]; break; }
+  static Animation *sit = 0;   // same clip for everyone; look it up once
+  if (!sit) {
+    const std::vector<Animation*> &all = anims->GetAnimations();
+    for (unsigned int i = 0; i < all.size(); i++) {
+      if (all[i] && all[i]->GetName().find("stand_up_from_back") != std::string::npos) { sit = all[i]; break; }
+    }
   }
   if (!sit) return;
-  const int sitFrame = 28;   // upright on his backside, before he stands up
+  const int sitFrame = 28;          // upright on his backside, before he stands up
+  const float SEAT_HEIGHT = 0.76f;  // top of the dugout seats (gen_dugout_ase.py)
 
   animApplyBuffer.anim = sit;
   animApplyBuffer.frameNum = std::min(sitFrame, sit->GetFrameCount() - 1);
   animApplyBuffer.smooth = false;
   animApplyBuffer.smoothFactor = 1.0f;
   animApplyBuffer.noPos = false;
-  animApplyBuffer.position = pos + Vector3(0, 0, 0.62f);  // up off the floor, onto the seat
+  // The sitting frame drops the body 0.83m below the anim's base position (it
+  // was authored for a man on the ground), so lift him that much PLUS the seat
+  // height — otherwise he sits under the turf, out of sight.
+  animApplyBuffer.position = pos + Vector3(0, 0, 0.83f + SEAT_HEIGHT);
   animApplyBuffer.orientation = angle;
   animApplyBuffer.offsets.clear();
   buf_animApplyBuffer = animApplyBuffer;
