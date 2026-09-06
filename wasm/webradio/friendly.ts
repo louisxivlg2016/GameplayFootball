@@ -36,6 +36,9 @@ const OVR: Record<string, number> = {
   Ghana: 77, Tunisie: 77, "Pérou": 77, Chili: 77, Mali: 77,
   // lower
   Australie: 76, "Arabie Saoudite": 76, Paraguay: 76, "Costa Rica": 75, Qatar: 75,
+  // newly added sides
+  Hongrie: 78, "Slovénie": 78, "Géorgie": 77, Irak: 73, "Nouvelle-Zélande": 73,
+  Chine: 70, Pakistan: 65,
 };
 function ratingOf(n: Nation): number {
   if (OVR[n.name] != null) return OVR[n.name]!;

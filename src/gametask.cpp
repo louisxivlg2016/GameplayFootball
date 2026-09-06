@@ -51,7 +51,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_quality(int level) {
   // Keep the picture SHARP at every quality — the resolution drop (blur) barely
   // helped and looked bad, so all levels render at near-full resolution. Speed is
   // won by the render-RATE cap below (render less often), not by blurring.
-  static const float scales[5] = {0.85f, 0.90f, 0.94f, 0.97f, 1.0f};
+  // Sharpness was preferred here before, but a device that renders one frame in
+  // half a second cannot afford the pixels: the bottom levels now really do cut
+  // them (0.55 = 30% of the pixels of full res). Ultra is untouched.
+  static const float scales[5] = {0.55f, 0.68f, 0.80f, 0.92f, 1.0f};
   blunted::Renderer3D *renderer = GetGraphicsSystem() ? GetGraphicsSystem()->GetRenderer3D() : 0;
   if (renderer) renderer->SetRenderScale(scales[level]);
   // Render-rate cap (ms/frame): the lower the quality, the less often we render,
@@ -1314,6 +1317,7 @@ static double gpf_paceCheckedAt = 0.0;
 static unsigned long gpf_paceMatchMs = 0;
 static int gpf_paceFrametime = 0;      // current render cap, ms (0 = untouched)
 static float gpf_paceSpeed = 1.0f;     // last measured speed, 1.0 = real time
+static int gpf_paceStrikes = 0;        // consecutive windows stuck at the floor
 static const int gpf_paceBase[5] = { 150, 95, 60, 38, 26 };
 
 static void gpf_autoPace(Match *m) {
@@ -1342,6 +1346,20 @@ static void gpf_autoPace(Match *m) {
     gpf_paceFrametime = next;
     gpf_apply_render_frametime(gpf_paceFrametime);
     gpf_apply_render_defer(gpf_paceFrametime * 3);
+  }
+
+  // Rate-capping has a floor. If we are sitting on it and the match is STILL in
+  // slow motion, the frames themselves are too expensive — the user's log showed
+  // the browser managing 1-2fps at quality 4 with the cap already maxed out. So
+  // drop a quality level (fewer pixels, no shadows) and let it settle again.
+  if (gpf_paceFrametime >= 260 && gpf_paceSpeed < 0.80f && lvl > 0) {
+    if (++gpf_paceStrikes >= 2) {
+      gpf_paceStrikes = 0;
+      gpf_paceFrametime = 0;                 // re-baseline for the new level
+      gpf_set_quality(lvl - 1);
+    }
+  } else if (gpf_paceSpeed > 0.90f) {
+    gpf_paceStrikes = 0;
   }
 }
 

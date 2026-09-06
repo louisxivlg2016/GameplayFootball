@@ -39,6 +39,9 @@ export const CONFEDS: Confed[] = [
     { name: "Suède", flag: "🇸🇪", color: "#006aa7", iso: "se" },
     { name: "Écosse", flag: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", color: "#0065bf", iso: "gb-sct" },
     { name: "Pays de Galles", flag: "🏴󠁧󠁢󠁷󠁬󠁳󠁿", color: "#c8102e", iso: "gb-wls" },
+    { name: "Hongrie", flag: "🇭🇺", color: "#cd2a3e", iso: "hu" },
+    { name: "Géorgie", flag: "🇬🇪", color: "#da291c", iso: "ge" },
+    { name: "Slovénie", flag: "🇸🇮", color: "#00a94f", iso: "si" },
   ] },
   { id: "sa", label: "Amérique du Sud", icon: "🌎", teams: [
     { name: "Argentine", flag: "🇦🇷", color: "#75aadb", iso: "ar" },
@@ -75,6 +78,10 @@ export const CONFEDS: Confed[] = [
     { name: "Arabie Saoudite", flag: "🇸🇦", color: "#006c35", iso: "sa" },
     { name: "Iran", flag: "🇮🇷", color: "#239f40", iso: "ir" },
     { name: "Qatar", flag: "🇶🇦", color: "#8a1538", iso: "qa" },
+    { name: "Chine", flag: "🇨🇳", color: "#de2910", iso: "cn" },
+    { name: "Irak", flag: "🇮🇶", color: "#007a3d", iso: "iq" },
+    { name: "Pakistan", flag: "🇵🇰", color: "#01411c", iso: "pk" },
+    { name: "Nouvelle-Zélande", flag: "🇳🇿", color: "#ffffff", iso: "nz" },
   ] },
 ];
 
