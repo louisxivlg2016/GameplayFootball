@@ -114,6 +114,12 @@ export const MARKET: Target[] = [
   { id: "BEN.SEGHIR", label: "Eliesse Ben Seghir", pos: "FW", nat: "Maroc", flag: "🇲🇦", age: 21, price: 400, tier: "Espoir" },
 ];
 
+/** The position a bought player plays, by engine name. */
+export function marketPos(id: string): Pos | undefined {
+  const t = MARKET.find((m) => m.id === id);
+  return t ? t.pos : undefined;
+}
+
 /** Countries present in the catalogue, alphabetical. */
 export function marketCountries(): string[] {
   return [...new Set(MARKET.map((t) => t.nat))].sort((a, b) => a.localeCompare(b, "fr"));

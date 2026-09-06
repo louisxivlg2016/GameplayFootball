@@ -3,11 +3,12 @@
  *
  * A signing is just a name added to the club's line-up — the engine takes the
  * squad as a list of names (see squads.ts / applyMatchSquads), so a bought
- * player really does run out with the team. The keeper must stay in slot 0 or
- * the club takes the field without a goalkeeper, so signings are spliced in
- * AFTER him and push the existing outfielders down towards the bench.
+ * player really does run out with the team. Slot 0 is the goalkeeper's, so an
+ * outfield signing goes in behind him while a bought KEEPER takes the slot
+ * itself (see clubSquad).
  */
 import { CLUB_SQUADS } from "./clubsquads";
+import { marketPos } from "./marketdata";
 
 const KEY = "gpf-transfers";
 type Book = Record<string, string[]>;
@@ -51,14 +52,26 @@ export function releasePlayer(code: string, name: string): void {
 }
 
 /**
- * The club's line-up as it should take the field: keeper, then your signings
- * (they start), then the rest of the real squad.
+ * The club's line-up as it should take the field.
+ *
+ * Slot 0 IS the goalkeeper — the engine gives the shirt in that slot to whoever
+ * keeps goal — so a bought KEEPER has to go there (he was ending up at right
+ * back otherwise), pushing the club's own keeper down to the bench. Outfield
+ * signings are spliced in right behind the keeper so they start.
  */
 export function clubSquad(code: string): string[] {
   const base = CLUB_SQUADS[code] ?? [];
   const bought = signingsFor(code);
   if (!bought.length) return base;
-  const keeper = base.slice(0, 1);
+
+  const keepers = bought.filter((n) => marketPos(n) === "GK");
+  const outfield = bought.filter((n) => marketPos(n) !== "GK");
   const rest = base.slice(1).filter((n) => !bought.includes(n));
-  return [...keeper, ...bought, ...rest];
+
+  if (!keepers.length) return [...base.slice(0, 1), ...outfield, ...rest];
+
+  // your keeper takes the gloves; the club's own one, and any spare keeper you
+  // bought, sit on the bench (a second keeper must not play outfield either)
+  const benchedKeepers = [...base.slice(0, 1), ...keepers.slice(1)].filter((n) => n);
+  return [keepers[0]!, ...outfield, ...rest, ...benchedKeepers];
 }
