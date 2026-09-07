@@ -125,7 +125,9 @@ function sdlName(kc: number): string {
     1073741887: "F6", 1073741888: "F7", 1073741889: "F8", 1073741890: "F9", 1073741891: "F10",
     1073741892: "F11", 1073741893: "F12",
   };
-  if (rev[kc]) return rev[kc];
+  // arrows, Tab and the F-keys read the same everywhere; the worded ones (Entrée,
+  // Échap, Maj G…) have rows, and L() hands back the French when there is none.
+  if (rev[kc]) return L(rev[kc]);
   if (kc >= 33 && kc < 127) return String.fromCharCode(kc).toUpperCase();
   return "?";
 }
@@ -379,7 +381,7 @@ function renderAudio(): void {
   body.appendChild(sliderRow(L("Volume du jeu"), "audio_volume", 0.5));
   const note = document.createElement("div");
   note.className = "set-note";
-  note.textContent = "Astuce : les pastilles SON et RADIO STADE (en haut à droite) coupent la voix du commentateur et la musique du menu.";
+  note.textContent = L("Astuce : les pastilles SON et RADIO STADE (en haut à droite) coupent la voix du commentateur et la musique du menu.");
   body.appendChild(note);
 }
 
@@ -435,7 +437,7 @@ function renderControls(): void {
   body.appendChild(resetRow);
   const note = document.createElement("div");
   note.className = "set-note";
-  note.textContent = "Clique une touche puis appuie sur la nouvelle touche (Échap pour annuler). S'applique tout de suite.";
+  note.textContent = L("Clique une touche puis appuie sur la nouvelle touche (Échap pour annuler). S'applique tout de suite.");
   body.appendChild(note);
 }
 

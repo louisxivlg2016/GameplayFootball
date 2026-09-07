@@ -11,7 +11,7 @@
  * country.
  */
 import { allClubsWithSquads } from "./clubs";
-import { L, onLangChange } from "./i18n";
+import { countryName, isoFromFlag, L, onLangChange } from "./i18n";
 import { MARKET, POS_LABEL, marketCountries, type Pos, type Target } from "./marketdata";
 import { clubSquad, ownsPlayer, releasePlayer, signPlayer, signingsFor } from "./transfers";
 import { addCoins, coinImg, getCoins, onWalletChange, spendCoins } from "./wallet";
@@ -113,6 +113,17 @@ export function hideMarket(): void {
   document.body.classList.remove("gpf-market-open");
 }
 
+/**
+ * Name a nationality from the filter list in the reader's language.
+ *
+ * The list holds French names ("Belgique"), and the ISO code lives in the flag
+ * emoji, so borrow the flag of the first player of that nationality.
+ */
+function natName(french: string): string {
+  const who = MARKET.find((t) => t.nat === french);
+  return countryName(who ? isoFromFlag(who.flag) : "", french);
+}
+
 /** Fold accents so "seko" finds "Šeško" and "alvarez" finds "Álvarez". */
 function fold(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -164,7 +175,7 @@ function render(): void {
         `<b>${t.label}</b>` +
         `<span class="mk-price">${coinImg(16)}${t.price}</span>` +
         `<span class="mk-meta"><em>${L(POS_LABEL[t.pos])}</em>` +
-        `<span>${t.flag} ${L(t.nat)}</span>` +
+        `<span>${t.flag} ${countryName(isoFromFlag(t.flag), t.nat)}</span>` +
         `<span>${t.age} ${L("ans")}</span>` +
         `<span>${L(t.tier)}</span></span>`;
       const btn = document.createElement("button");
@@ -227,7 +238,7 @@ export function initMarket(): void {
       <div class="mk-bar">
         <label data-i18n="Club">${L("Club")}</label>
         <select class="mk-sel">
-          ${clubs.map((c) => `<option value="${c.code}">${c.name} — ${c.country}</option>`).join("")}
+          ${clubs.map((c) => `<option value="${c.code}">${c.name} — ${countryName("", c.country)}</option>`).join("")}
         </select>
         <input class="mk-q" type="search" placeholder="${L("Chercher un joueur…")}" autocomplete="off"
                autocapitalize="off" spellcheck="false">
@@ -237,7 +248,7 @@ export function initMarket(): void {
         </span>
         <select class="mk-nat">
           <option value="" data-i18n="Tous les pays">${L("Tous les pays")}</option>
-          ${marketCountries().map((c) => `<option value="${c}">${c}</option>`).join("")}
+          ${marketCountries().map((c) => `<option value="${c}">${natName(c)}</option>`).join("")}
         </select>
       </div>
       <div class="mk-xi"></div>
