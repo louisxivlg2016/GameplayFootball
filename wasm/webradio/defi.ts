@@ -13,7 +13,7 @@ import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads } from "./squads";
 import { setAnthemOverride } from "./anthem";
 import { teamLineup } from "./lineup";
-import { L, onLangChange } from "./i18n";
+import { L, countryName, onLangChange } from "./i18n";
 import { rewardChallenge } from "./wallet";
 
 interface Team { name: string; iso: string; flag: string; color: string }
@@ -62,7 +62,9 @@ const SQ = {
   ARG1986: ["PUMPIDO", "CUCIUFFO", "RUGGERI", "BROWN", "OLARTICOECHEA", "GIUSTI", "BATISTA", "BURRUCHAGA", "MARADONA", "VALDANO", "ENRIQUE", "ISLAS", "GARRE", "BOCHINI", "TAPIA", "PASCULLI", "ZELADA", "BORGHI"],
 };
 
-const OBJ_TXT = ["⚽ Marque un but pour l'emporter !", "🏆 Sois devant au coup de sifflet final !", "🛡️ Défends le résultat, ne concède rien !"];
+const OBJ_KEY = ["Marque un but pour l'emporter !", "Sois devant au coup de sifflet final !", "Défends le résultat, ne concède rien !"];
+const OBJ_ICON = ["⚽ ", "🏆 ", "🛡️ "];
+const objText = (i: number): string => OBJ_ICON[i]! + L(OBJ_KEY[i]!);
 
 // each is anchored to a real World Cup match (score/minute close to the real one)
 const CH: Challenge[] = [
@@ -171,7 +173,7 @@ function launch(c: Challenge, side: "a" | "b"): void {
       { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },
     );
     armed = {
-      hs: homeScore, as: awayScore, min: c.minute, obj: c.obj, goal: OBJ_TXT[c.obj], cup: c.cup,
+      hs: homeScore, as: awayScore, min: c.minute, obj: c.obj, goal: objText(c.obj), cup: c.cup,
       label: `${home.flag} ${home.name} ${homeScore}‑${awayScore} ${away.name} ${away.flag} — ${c.minute}ᵉ`,
     };
     setPendingChallenge();  // skips the anthem; onMatchStarted -> __gpfFireChallenge
@@ -216,7 +218,7 @@ function renderGrid(grid: HTMLElement): void {
       `<div class="df-cup">${c.cup}</div>` +
       `<div class="df-teams">${badge(c.a)}<span class="df-score">${c.aScore} ‑ ${c.bScore}</span>${badge(c.b)}</div>` +
       `<div class="df-sub">${c.sub}</div>` +
-      `<div class="df-goal">${OBJ_TXT[c.obj]}</div>` +
+      `<div class="df-goal">${objText(c.obj)}</div>` +
       `<div class="df-actions"></div>`;
     const actions = card.querySelector(".df-actions")!;
     const mkBtn = (label: string, side: "a" | "b"): void => {
@@ -225,9 +227,9 @@ function renderGrid(grid: HTMLElement): void {
       b.addEventListener("click", () => launch(c, side));
       actions.appendChild(b);
     };
-    if (c.play === "both") { mkBtn(`Jouer ${c.a.flag}`, "a"); mkBtn(`Jouer ${c.b.flag}`, "b"); }
-    else if (c.play === "a") mkBtn(`Jouer ${c.a.flag} ${c.a.name}`, "a");
-    else mkBtn(`Jouer ${c.b.flag} ${c.b.name}`, "b");
+    if (c.play === "both") { mkBtn(`${L("Jouer")} ${c.a.flag}`, "a"); mkBtn(`${L("Jouer")} ${c.b.flag}`, "b"); }
+    else if (c.play === "a") mkBtn(`${L("Jouer")} ${c.a.flag} ${countryName(c.a.iso, c.a.name)}`, "a");
+    else mkBtn(`${L("Jouer")} ${c.b.flag} ${countryName(c.b.iso, c.b.name)}`, "b");
     grid.appendChild(card);
   }
 }
@@ -243,7 +245,7 @@ export function initDefi(): void {
     <div class="menu-shell">
       <div class="menu-panel-head">
         <button class="df-back">${L("← Menu")}</button>
-        <b>DÉFIS</b>
+        <b data-i18n="DÉFIS">${L("DÉFIS")}</b>
         <span style="width:70px"></span>
       </div>
       <div class="df-grid"></div>

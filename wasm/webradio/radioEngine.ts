@@ -204,6 +204,14 @@ export function radioLanguage(): AppLanguage {
   return currentLanguage();
 }
 
+/** The language the MENUS are in — the one actually chosen, whether or not a
+ *  commentary voice exists for it. These must not be the same thing: keying the
+ *  UI off radioLanguage() put the whole interface into English for Japanese,
+ *  Korean, Thai, Hindi… simply because there is no voice for them. */
+export function menuLanguage(): AppLanguage {
+  return getCurrentLanguage();
+}
+
 // some Piper voices are mastered much quieter than tom/fr — per-voice boost
 // so every commentator hits the same broadcast loudness
 const VOICE_GAIN: Record<string, number> = {

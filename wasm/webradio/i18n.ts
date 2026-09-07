@@ -5,7 +5,7 @@
  * isn't covered. Fully translated: fr, en, es, pt, de, it, nl. Screens call L()
  * at render time and re-render on the "gpf-langchange" event fired by the picker.
  */
-import { radioLanguage } from "./radioEngine";
+import { menuLanguage } from "./radioEngine";
 
 type Lang = string;
 // french source -> { lang: translation }. Missing lang -> french source is used.
@@ -74,6 +74,24 @@ const T: Record<string, Record<Lang, string>> = {
     pt: "Liga-te primeiro ao teu amigo", de: "Verbinde dich zuerst mit deinem Freund",
     it: "Collegati prima al tuo amico", nl: "Maak eerst verbinding met je vriend" },
   "Graine":      { en: "Seed", es: "Semilla", pt: "Semente", de: "Startwert", it: "Seme", nl: "Seed" },
+  // --- challenge + settings screens, in every language the game speaks ---
+  "DÉFIS": { "en": "CHALLENGES", "es": "RETOS", "pt": "DESAFIOS", "de": "DUELLE", "nb": "UTFORDRINGER", "it": "SFIDE", "ga": "DÚSHLÁIN", "nl": "UITDAGINGEN", "hr": "IZAZOVI", "ro": "PROVOCĂRI", "pl": "WYZWANIA", "tr": "MEYDAN OKUMALAR", "ru": "ИСПЫТАНИЯ", "uk": "ВИКЛИКИ", "ar": "التحديات", "hi": "चुनौतियाँ", "id": "TANTANGAN", "vi": "THỬ THÁCH", "th": "ความท้าทาย", "ja": "チャレンジ", "ko": "챌린지", "zh-CN": "挑战", "zh-TW": "挑戰" },
+  "Jouer": { "en": "Play", "es": "Jugar", "pt": "Jogar", "de": "Spielen", "nb": "Spill", "it": "Gioca", "ga": "Imir", "nl": "Spelen", "hr": "Igraj", "ro": "Joacă", "pl": "Graj", "tr": "Oyna", "ru": "Играть", "uk": "Грати", "ar": "العب", "hi": "खेलें", "id": "Main", "vi": "Chơi", "th": "เล่น", "ja": "プレイ", "ko": "플레이", "zh-CN": "开始", "zh-TW": "開始" },
+  "Marque un but pour l'emporter !": { "en": "Score a goal to win!", "es": "¡Marca un gol para ganar!", "pt": "Marca um golo para venceres!", "de": "Schieß ein Tor zum Sieg!", "nb": "Score et mål for å vinne!", "it": "Segna un gol per vincere!", "ga": "Aimsigh cúl chun an bua!", "nl": "Scoor een goal om te winnen!", "hr": "Zabij gol za pobjedu!", "ro": "Marchează un gol pentru victorie!", "pl": "Strzel gola, by wygrać!", "tr": "Kazanmak için gol at!", "ru": "Забей гол ради победы!", "uk": "Забий гол заради перемоги!", "ar": "سجّل هدفاً للفوز!", "hi": "जीतने के लिए गोल करें!", "id": "Cetak gol untuk menang!", "vi": "Ghi bàn để chiến thắng!", "th": "ทำประตูเพื่อชนะ!", "ja": "ゴールを決めて勝利しよう！", "ko": "골을 넣어 이기세요!", "zh-CN": "进一球取胜！", "zh-TW": "進一球取勝！" },
+  "Sois devant au coup de sifflet final !": { "en": "Be ahead at the final whistle!", "es": "¡Ve ganando al pitido final!", "pt": "Está à frente no apito final!", "de": "Führe beim Schlusspfiff!", "nb": "Ligg foran ved sluttsignalet!", "it": "Sii avanti al fischio finale!", "ga": "Bí chun tosaigh ag an bhfeadóg dheiridh!", "nl": "Sta voor bij het laatste fluitsignaal!", "hr": "Vodi na kraju susreta!", "ro": "Fii în avantaj la fluierul final!", "pl": "Prowadź do końcowego gwizdka!", "tr": "Son düdükte önde ol!", "ru": "Веди в счёте к финальному свистку!", "uk": "Веди в рахунку до фінального свистка!", "ar": "تقدّم عند صافرة النهاية!", "hi": "अंतिम सीटी तक आगे रहें!", "id": "Unggul sampai peluit akhir!", "vi": "Dẫn trước khi kết thúc trận!", "th": "นำอยู่จนหมดเวลา!", "ja": "終了の笛まで勝ち越そう！", "ko": "경기 종료까지 앞서세요!", "zh-CN": "终场哨响时保持领先！", "zh-TW": "終場哨響時保持領先！" },
+  "Défends le résultat, ne concède rien !": { "en": "Defend the lead, concede nothing!", "es": "¡Defiende el resultado, no encajes!", "pt": "Defende o resultado, não sofras golos!", "de": "Verteidige das Ergebnis, kassiere nichts!", "nb": "Forsvar resultatet, slipp ingenting inn!", "it": "Difendi il risultato, non subire gol!", "ga": "Cosain an scór, ná lig aon chúl isteach!", "nl": "Verdedig de stand, incasseer niets!", "hr": "Obrani rezultat, ne primi gol!", "ro": "Apără rezultatul, nu primi gol!", "pl": "Broń wyniku, nie strać gola!", "tr": "Skoru koru, gol yeme!", "ru": "Удержи счёт, не пропусти!", "uk": "Утримай рахунок, не пропусти!", "ar": "دافع عن النتيجة ولا تستقبل أي هدف!", "hi": "बढ़त बचाएँ, कोई गोल न खाएँ!", "id": "Pertahankan skor, jangan kebobolan!", "vi": "Giữ vững tỉ số, đừng để thủng lưới!", "th": "รักษาผลไว้ อย่าเสียประตู!", "ja": "リードを守り、失点するな！", "ko": "리드를 지키고 실점하지 마세요!", "zh-CN": "守住比分，别丢球！", "zh-TW": "守住比分，別丟球！" },
+  "RÉGLAGES": { "en": "SETTINGS", "es": "AJUSTES", "pt": "DEFINIÇÕES", "de": "EINSTELLUNGEN", "nb": "INNSTILLINGER", "it": "OPZIONI", "ga": "SOCRUITHE", "nl": "INSTELLINGEN", "hr": "POSTAVKE", "ro": "SETĂRI", "pl": "USTAWIENIA", "tr": "AYARLAR", "ru": "НАСТРОЙКИ", "uk": "НАЛАШТУВАННЯ", "ar": "الإعدادات", "hi": "सेटिंग्स", "id": "PENGATURAN", "vi": "CÀI ĐẶT", "th": "การตั้งค่า", "ja": "設定", "ko": "설정", "zh-CN": "设置", "zh-TW": "設定" },
+  "Graphique": { "en": "Graphics", "es": "Gráficos", "pt": "Gráficos", "de": "Grafik", "nb": "Grafikk", "it": "Grafica", "ga": "Grafaic", "nl": "Grafisch", "hr": "Grafika", "ro": "Grafică", "pl": "Grafika", "tr": "Grafik", "ru": "Графика", "uk": "Графіка", "ar": "الرسومات", "hi": "ग्राफ़िक्स", "id": "Grafis", "vi": "Đồ họa", "th": "กราฟิก", "ja": "グラフィック", "ko": "그래픽", "zh-CN": "画面", "zh-TW": "畫面" },
+  "Gameplay": { "en": "Gameplay", "es": "Juego", "pt": "Jogo", "de": "Spiel", "nb": "Spill", "it": "Gioco", "ga": "Imirt", "nl": "Spel", "hr": "Igra", "ro": "Joc", "pl": "Rozgrywka", "tr": "Oynanış", "ru": "Игра", "uk": "Гра", "ar": "اللعب", "hi": "गेमप्ले", "id": "Permainan", "vi": "Lối chơi", "th": "การเล่น", "ja": "ゲームプレイ", "ko": "게임플레이", "zh-CN": "玩法", "zh-TW": "玩法" },
+  "Audio": { "en": "Audio", "es": "Audio", "pt": "Áudio", "de": "Audio", "nb": "Lyd", "it": "Audio", "ga": "Fuaim", "nl": "Audio", "hr": "Zvuk", "ro": "Audio", "pl": "Dźwięk", "tr": "Ses", "ru": "Звук", "uk": "Звук", "ar": "الصوت", "hi": "ऑडियो", "id": "Audio", "vi": "Âm thanh", "th": "เสียง", "ja": "オーディオ", "ko": "오디오", "zh-CN": "音频", "zh-TW": "音訊" },
+  "Commandes": { "en": "Controls", "es": "Controles", "pt": "Controlos", "de": "Steuerung", "nb": "Kontroller", "it": "Comandi", "ga": "Rialuithe", "nl": "Besturing", "hr": "Kontrole", "ro": "Comenzi", "pl": "Sterowanie", "tr": "Kontroller", "ru": "Управление", "uk": "Керування", "ar": "التحكم", "hi": "नियंत्रण", "id": "Kontrol", "vi": "Điều khiển", "th": "การควบคุม", "ja": "操作", "ko": "조작", "zh-CN": "操作", "zh-TW": "操作" },
+  "MATCH": { "en": "MATCH", "es": "PARTIDO", "pt": "JOGO", "de": "SPIEL", "nb": "KAMP", "it": "PARTITA", "ga": "CLUICHE", "nl": "WEDSTRIJD", "hr": "UTAKMICA", "ro": "MECI", "pl": "MECZ", "tr": "MAÇ", "ru": "МАТЧ", "uk": "МАТЧ", "ar": "المباراة", "hi": "मैच", "id": "PERTANDINGAN", "vi": "TRẬN ĐẤU", "th": "การแข่งขัน", "ja": "試合", "ko": "경기", "zh-CN": "比赛", "zh-TW": "比賽" },
+  "Difficulté du CPU (Humain vs CPU)": { "en": "CPU difficulty (Human vs CPU)", "es": "Dificultad de la CPU (Humano vs CPU)", "pt": "Dificuldade do CPU (Humano vs CPU)", "de": "CPU-Schwierigkeit (Mensch gegen CPU)", "nb": "CPU-vanskelighet (menneske mot CPU)", "it": "Difficoltà CPU (Umano vs CPU)", "ga": "Deacracht an ríomhaire (Duine vs Ríomhaire)", "nl": "CPU-moeilijkheid (mens tegen CPU)", "hr": "Težina CPU-a (Čovjek protiv CPU-a)", "ro": "Dificultatea CPU (Om vs CPU)", "pl": "Poziom CPU (Człowiek vs CPU)", "tr": "CPU zorluğu (İnsan vs CPU)", "ru": "Сложность ИИ (человек против ИИ)", "uk": "Складність ШІ (людина проти ШІ)", "ar": "صعوبة الحاسوب (لاعب ضد الحاسوب)", "hi": "CPU कठिनाई (मानव बनाम CPU)", "id": "Kesulitan CPU (Manusia vs CPU)", "vi": "Độ khó CPU (Người vs CPU)", "th": "ความยากของ CPU (คนปะทะ CPU)", "ja": "CPUの強さ（人間 対 CPU）", "ko": "CPU 난이도 (사람 대 CPU)", "zh-CN": "电脑难度（玩家对电脑）", "zh-TW": "電腦難度（玩家對電腦）" },
+  "Durée du match": { "en": "Match length", "es": "Duración del partido", "pt": "Duração do jogo", "de": "Spieldauer", "nb": "Kamplengde", "it": "Durata della partita", "ga": "Fad an chluiche", "nl": "Wedstrijdduur", "hr": "Trajanje utakmice", "ro": "Durata meciului", "pl": "Długość meczu", "tr": "Maç süresi", "ru": "Длительность матча", "uk": "Тривалість матчу", "ar": "مدة المباراة", "hi": "मैच की अवधि", "id": "Durasi pertandingan", "vi": "Thời lượng trận đấu", "th": "ความยาวการแข่งขัน", "ja": "試合の長さ", "ko": "경기 시간", "zh-CN": "比赛时长", "zh-TW": "比賽時長" },
+  "Vitesse des joueurs": { "en": "Player speed", "es": "Velocidad de los jugadores", "pt": "Velocidade dos jogadores", "de": "Spielertempo", "nb": "Spillerfart", "it": "Velocità dei giocatori", "ga": "Luas na n-imreoirí", "nl": "Spelersnelheid", "hr": "Brzina igrača", "ro": "Viteza jucătorilor", "pl": "Szybkość zawodników", "tr": "Oyuncu hızı", "ru": "Скорость игроков", "uk": "Швидкість гравців", "ar": "سرعة اللاعبين", "hi": "खिलाड़ियों की गति", "id": "Kecepatan pemain", "vi": "Tốc độ cầu thủ", "th": "ความเร็วผู้เล่น", "ja": "選手のスピード", "ko": "선수 속도", "zh-CN": "球员速度", "zh-TW": "球員速度" },
+  "Force réaliste des équipes": { "en": "Realistic team strength", "es": "Fuerza realista de los equipos", "pt": "Força realista das equipas", "de": "Realistische Teamstärke", "nb": "Realistisk lagstyrke", "it": "Forza realistica delle squadre", "ga": "Neart réadúil na bhfoirne", "nl": "Realistische teamsterkte", "hr": "Realna snaga momčadi", "ro": "Puterea realistă a echipelor", "pl": "Realistyczna siła drużyn", "tr": "Gerçekçi takım gücü", "ru": "Реалистичная сила команд", "uk": "Реалістична сила команд", "ar": "قوة واقعية للفرق", "hi": "यथार्थवादी टीम ताकत", "id": "Kekuatan tim realistis", "vi": "Sức mạnh đội thực tế", "th": "ความแข็งแกร่งตามจริง", "ja": "チームの実力を反映", "ko": "현실적인 팀 전력", "zh-CN": "真实球队实力", "zh-TW": "真實球隊實力" },
+  "Activé": { "en": "On", "es": "Activado", "pt": "Ativado", "de": "An", "nb": "På", "it": "Attivo", "ga": "Ar siúl", "nl": "Aan", "hr": "Uključeno", "ro": "Activat", "pl": "Włączone", "tr": "Açık", "ru": "Включено", "uk": "Увімкнено", "ar": "مفعّل", "hi": "चालू", "id": "Aktif", "vi": "Bật", "th": "เปิด", "ja": "オン", "ko": "켜짐", "zh-CN": "开启", "zh-TW": "開啟" },
+  "ASSISTANCES": { "en": "ASSISTS", "es": "AYUDAS", "pt": "AJUDAS", "de": "HILFEN", "nb": "HJELPEMIDLER", "it": "AIUTI", "ga": "CÚNAIMH", "nl": "HULPMIDDELEN", "hr": "POMOĆI", "ro": "ASISTENȚE", "pl": "UŁATWIENIA", "tr": "YARDIMLAR", "ru": "ПОМОЩЬ", "uk": "ДОПОМОГА", "ar": "المساعدات", "hi": "सहायता", "id": "BANTUAN", "vi": "HỖ TRỢ", "th": "ตัวช่วย", "ja": "アシスト", "ko": "보조 기능", "zh-CN": "辅助", "zh-TW": "輔助" },
   "Sur l'AUTRE appareil, ouvre cette adresse": {
     en: "On the OTHER device, open this address", es: "En el OTRO dispositivo, abre esta dirección",
     pt: "No OUTRO aparelho, abre este endereço", de: "Öffne auf dem ANDEREN Gerät diese Adresse",
@@ -340,15 +358,41 @@ const T: Record<string, Record<Lang, string>> = {
 
 /** current UI language code (en/fr/es/…), from the radio/menu picker. */
 export function uiLang(): Lang {
-  try { return radioLanguage(); } catch { return "fr"; }
+  try { return menuLanguage(); } catch { return "fr"; }
 }
 
 /** translate a French source string to the current language (French = identity). */
+// Country names in EVERY language the game speaks, without a table: the browser
+// knows them all from the ISO code. Falls back to the French name for the ones
+// Intl has no region for (the home nations, "gb-eng" and friends).
+const regionCache = new Map<string, string>();
+export function countryName(iso: string, french: string): string {
+  const lang = uiLang();
+  const key = lang + "|" + iso;
+  const hit = regionCache.get(key);
+  if (hit !== undefined) return hit;
+  let out = french;
+  const code = iso.toUpperCase();
+  if (/^[A-Z]{2}$/.test(code)) {
+    try {
+      const dn = new Intl.DisplayNames([lang], { type: "region" });
+      out = dn.of(code) ?? french;
+    } catch { out = french; }
+  }
+  regionCache.set(key, out);
+  return out;
+}
+
 export function L(fr: string): string {
   const lang = uiLang();
   if (lang === "fr" || !lang) return fr;
   const row = T[fr];
-  return (row && row[lang]) ? row[lang] : fr;
+  if (!row) return fr;
+  // Exact language first, then the base of a regional code (zh-CN -> zh), then
+  // English as the widest fallback — a Japanese player reading English beats a
+  // Japanese player reading French.
+  const base = lang.split("-")[0] ?? lang;
+  return row[lang] ?? row[base] ?? row.en ?? fr;
 }
 
 /** translate a "CAPITAINE — FRANCE"-style header keeping the dynamic tail. */

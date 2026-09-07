@@ -8,7 +8,7 @@ import { setAnthemOverride } from "./anthem";
 import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads, SQUADS, kitColor } from "./squads";
 import { teamLineup } from "./lineup";
-import { L, onLangChange } from "./i18n";
+import { L, countryName, onLangChange } from "./i18n";
 
 export interface Nation { name: string; flag: string; color: string; iso: string }
 export interface Confed { id: string; label: string; icon: string; teams: Nation[] }
@@ -183,7 +183,7 @@ function renderGrid(grid: HTMLElement, conf: Confed): void {
     card.style.setProperty("--nat-color", nat.color);
     card.innerHTML =
       `<span class="nat-flag"><img src="${flagImg(nat.iso)}" alt="${nat.name}" loading="lazy"` +
-      ` onerror="this.replaceWith(document.createTextNode('${nat.flag}'))"></span><b>${nat.name}</b>` +
+      ` onerror="this.replaceWith(document.createTextNode('${nat.flag}'))"></span><b>${countryName(nat.iso, nat.name)}</b>` +
       `<span class="nat-actions"><button class="nat-play" title="${L("Jouer avec cette équipe")}">JOUER</button>` +
       `<button class="nat-vs" title="${L("Affronter cette équipe")}">VS</button></span>`;
     card.querySelector(".nat-play")!.addEventListener("click", () => {
