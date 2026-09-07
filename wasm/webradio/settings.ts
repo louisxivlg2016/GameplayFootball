@@ -157,6 +157,7 @@ export function applySavedKeys(): void {
 }
 
 const QUALITY = ["Potato", "Basse", "Moyenne", "Haute", "Ultra"];
+const qualityLabel = (i: number): string => `${i + 1}. ${L(QUALITY[i]!)}`;
 
 const CSS = `
 #gpf-settings { position:fixed; inset:0; z-index:2147483250; color:#fff; display:none;
@@ -274,7 +275,7 @@ function renderGraphics(): void {
   const btns = qRow.querySelector(".set-btns")!;
   QUALITY.forEach((name, i) => {
     const b = document.createElement("button");
-    b.textContent = `${i + 1}. ${name}`;
+    b.textContent = qualityLabel(i); void name;
     if (i === level) b.classList.add("on");
     b.addEventListener("click", () => {
       M()?._gpf_set_quality?.(i);
@@ -285,7 +286,7 @@ function renderGraphics(): void {
   });
   const note = document.createElement("div");
   note.className = "set-note";
-  note.textContent = "Potato = le plus rapide (l'image reste nette, mais se rafraîchit moins souvent). Ultra = le plus fluide visuellement.";
+  note.textContent = L("Potato = le plus rapide (l'image reste nette, mais se rafraîchit moins souvent). Ultra = le plus fluide visuellement.");
   qRow.appendChild(note);
   body.appendChild(qRow);
   // fullscreen
@@ -463,10 +464,10 @@ export function initSettings(): void {
         <span style="width:70px"></span>
       </div>
       <div class="set-tabs">
-        <button class="set-tab" data-tab="graphics" data-i18n="🖥️ Graphique">${L("🖥️ Graphique")}</button>
-        <button class="set-tab" data-tab="gameplay" data-i18n="🎮 Gameplay">${L("🎮 Gameplay")}</button>
-        <button class="set-tab" data-tab="audio" data-i18n="🔊 Audio">${L("🔊 Audio")}</button>
-        <button class="set-tab" data-tab="controls" data-i18n="⌨️ Commandes">${L("⌨️ Commandes")}</button>
+        <button class="set-tab" data-tab="graphics" data-i18n="Graphique">🖥️ ${L("Graphique")}</button>
+        <button class="set-tab" data-tab="gameplay" data-i18n="Gameplay">🎮 ${L("Gameplay")}</button>
+        <button class="set-tab" data-tab="audio" data-i18n="Audio">🔊 ${L("Audio")}</button>
+        <button class="set-tab" data-tab="controls" data-i18n="Commandes">⌨️ ${L("Commandes")}</button>
       </div>
       <div class="set-body"></div>
     </div>`;

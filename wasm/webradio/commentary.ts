@@ -91,6 +91,16 @@ function ctxOf(s: MatchSnapshot): string {
 }
 let prevCtx = "";
 
+/** How fast the match is running compared to real time (1 = normal), from the
+ *  engine's own pacer. 0 when it has not measured yet. */
+function simSpeed(): number {
+  try {
+    const m = (window as unknown as { Module?: { ccall?: (...a: unknown[]) => string } }).Module;
+    const s = m?.ccall?.("gpf_pace_state", "string", [], []);
+    return s ? Number(String(s).split(",")[0]) || 0 : 0;
+  } catch { return 0; }
+}
+
 let commentaryGen = -1;
 let openingBurst = false;
 
@@ -132,7 +142,13 @@ export function commentaryTick(dt: number): void {
     gap = 0.12;
     return;
   }
+  // Synthesising a line is real CPU work, on a machine that may already be
+  // struggling to run the match. When the engine reports it is behind, space the
+  // commentary out instead of competing with the game for the processor.
+  const speed = simSpeed();
+  const slow = speed > 0 && speed < 0.75;
   gap = openingBurst ? 0.12 + Math.random() * 0.18 : 0.18 + Math.random() * 0.32;
+  if (slow) gap += 2.5 + Math.random() * 1.5;
   openingBurst = s.clock < 14;
 
   const language = radioLanguage();

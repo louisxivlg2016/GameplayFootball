@@ -10,6 +10,7 @@ import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads } from "./squads";
 import { CLUB_SQUADS } from "./clubsquads";
 import { clubSquad } from "./transfers";
+import { countryName } from "./i18n";
 import { teamLineup } from "./lineup";
 import { L, onLangChange } from "./i18n";
 
@@ -225,7 +226,7 @@ function openOpponentPicker(home: Club): void {
         b.className = "vs-card";
         b.style.setProperty("--club-color", c.color);
         b.innerHTML = `<span class="vs-crest"><span>${c.code}</span></span>` +
-          `<b>${c.name}</b><small>${lg.country}</small>`;
+          `<b>${c.name}</b><small>${L(lg.country)}</small>`;
         b.addEventListener("click", () => { closeOpponentPicker(); void launchClubs(home, c); });
         grid.appendChild(b);
         void fetchLogo(c).then((src) => {
@@ -291,7 +292,10 @@ export function initClubs(): void {
   for (const lg of LEAGUES) {
     const b = document.createElement("button");
     b.className = "club-league-tab" + (lg === active ? " active" : "");
-    b.innerHTML = `<span>${lg.flag}</span><b>${L(lg.country)}</b>`;
+    // "fr"/"es"/"it"/"de" are real country codes, so Intl names them in every
+    // language; "en" (England) and "eu" (other countries) fall back to L().
+    const iso = /^(fr|es|it|de)$/.test(lg.id) ? lg.id : "";
+    b.innerHTML = `<span>${lg.flag}</span><b>${countryName(iso, lg.country)}</b>`;
     b.addEventListener("click", () => {
       active = lg;
       for (const e of tabEls) e.classList.toggle("active", e === b);

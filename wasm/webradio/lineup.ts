@@ -224,7 +224,7 @@ function renderCards(): void {
     pitchEl.appendChild(c);
     void loadPhoto(p, head);
   }
-  benchEl.innerHTML = `<span>${L("Remplaçants")}${curSubs.length ? " — clique un titulaire puis un remplaçant pour échanger" : ""}</span>`;
+  benchEl.innerHTML = `<span>${L("Remplaçants")}${curSubs.length ? " — " + L("clique un titulaire puis un remplaçant pour échanger") : ""}</span>`;
   for (const p of curSubs) {
     const c = document.createElement("button");
     c.className = "bench-card" + (selected === p ? " sel" : "");
@@ -264,10 +264,10 @@ export function initLineup(): void {
   root.innerHTML = `
     <div class="menu-shell"><div class="lineup-panel">
       <div class="lineup-top">
-        <button class="lineup-back">← Menu</button>
+        <button class="lineup-back">${L("← Menu")}</button>
         <div style="text-align:center">
           <span class="lineup-team">Manchester City</span>
-          <small>Choisis tes joueurs avant le match</small>
+          <small>${L("Choisis tes joueurs avant le match")}</small>
         </div>
         <button class="lineup-start">${L("Jouer le match")}</button>
       </div>
