@@ -146,9 +146,16 @@ export function commentaryTick(dt: number): void {
   // struggling to run the match. When the engine reports it is behind, space the
   // commentary out instead of competing with the game for the processor.
   const speed = simSpeed();
-  const slow = speed > 0 && speed < 0.75;
+  // Back off when the engine is genuinely struggling — synthesising a line costs
+  // real CPU, and on a machine at half speed it competes with the match itself.
+  // But back off gently: the first version cut in below 0.75x and added up to
+  // four seconds, and since the slow laptop lived under 0.75x the whole match,
+  // it did not slow the radio down so much as switch it off. Only a match that
+  // is really crawling gets the longer gap, and never more than a second and a
+  // half of it.
+  const slow = speed > 0 && speed < 0.5;
   gap = openingBurst ? 0.12 + Math.random() * 0.18 : 0.18 + Math.random() * 0.32;
-  if (slow) gap += 2.5 + Math.random() * 1.5;
+  if (slow) gap += 0.8 + Math.random() * 0.7;
   openingBurst = s.clock < 14;
 
   const language = radioLanguage();
