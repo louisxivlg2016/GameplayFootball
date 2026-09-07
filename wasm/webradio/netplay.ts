@@ -146,23 +146,33 @@ function doJoin(code: string): void {
   peer = freshPeer();
   if (codeEl) codeEl.textContent = "—";
   setConn(L("Connexion au serveur…"));
-  peer.on("open", () => {
-    setConn(L("Recherche de ") + code + "…");
-    const c = peer!.connect(roomId(code), { reliable: true });
-    wireConn(c);
-    // the broker occasionally drops a connection request — retry a few times
-    // instead of leaving the user stuck on "Recherche…"
-    joinWatch = window.setTimeout(() => {
-      if (conn && conn.open) return;
-      if (joinAttempts < 3) {
-        joinAttempts++;
-        setConn(L("Personne à ce code pour l'instant — nouvel essai ") + joinAttempts + "…");
-        doJoin(code);
-      } else {
-        setConn(L("Personne n'attend avec ce code. Sur l'AUTRE appareil, clique « Créer une partie » et donne-moi le code affiché."));
-      }
-    }, 5000);
-  });
+  peer.on("open", () => { attemptConnect(code); });
+}
+
+// Retry the CONNECTION, not the whole peer.
+//
+// This is what broke joining: a retry tore the Peer down (destroy + rebuild) and
+// the 5s watchdog fired while WebRTC was still negotiating — ICE against a STUN
+// server regularly needs longer than that — so every attempt killed the one
+// before it and the join never completed. Keep the broker socket, just ask for
+// the room again, and give it a realistic 20s.
+function attemptConnect(code: string): void {
+  if (!peer) return;
+  try { conn?.close(); } catch { /* not open */ }
+  setConn(L("Recherche de ") + code + "…");
+  const c = peer.connect(roomId(code), { reliable: true });
+  wireConn(c);
+  if (joinWatch !== null) clearTimeout(joinWatch);
+  joinWatch = window.setTimeout(() => {
+    if (conn && conn.open) return;
+    if (joinAttempts < 3) {
+      joinAttempts++;
+      setConn(L("Toujours rien — nouvel essai ") + joinAttempts + "…");
+      attemptConnect(code);
+    } else {
+      setConn(L("Personne n'attend avec ce code. Sur l'AUTRE appareil, clique « Créer une partie » et donne-moi le code affiché."));
+    }
+  }, 20000);
 }
 
 // ---- determinism monitor ----

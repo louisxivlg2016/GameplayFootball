@@ -51,10 +51,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_quality(int level) {
   // Keep the picture SHARP at every quality — the resolution drop (blur) barely
   // helped and looked bad, so all levels render at near-full resolution. Speed is
   // won by the render-RATE cap below (render less often), not by blurring.
-  // Sharpness was preferred here before, but a device that renders one frame in
-  // half a second cannot afford the pixels: the bottom levels now really do cut
-  // them (0.55 = 30% of the pixels of full res). Ultra is untouched.
-  static const float scales[5] = {0.55f, 0.68f, 0.80f, 0.92f, 1.0f};
+  // Kept near full resolution at every level: dropping it to 0.55 was tried and
+  // made no difference to the speed on the user's laptop, so the picture stays
+  // sharp and the render RATE below does the work.
+  static const float scales[5] = {0.85f, 0.90f, 0.94f, 0.97f, 1.0f};
   blunted::Renderer3D *renderer = GetGraphicsSystem() ? GetGraphicsSystem()->GetRenderer3D() : 0;
   if (renderer) renderer->SetRenderScale(scales[level]);
   // Render-rate cap (ms/frame): the lower the quality, the less often we render,

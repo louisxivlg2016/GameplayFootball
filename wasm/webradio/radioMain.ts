@@ -209,6 +209,35 @@ let fpsFrames = 0, fpsSince = Date.now(), fpsValue = 0;
 })();
 function fpsNow(): number { return fpsValue; }
 
+// Which GPU (if any) is actually drawing. "SwiftShader"/"llvmpipe" here means the
+// browser fell back to CPU rendering, which is the difference between a machine
+// that plays this fine and one that manages two frames a second.
+let glCache = "";
+function glRenderer(): string {
+  if (glCache) return glCache;
+  try {
+    const c = document.createElement("canvas");
+    const gl = (c.getContext("webgl2") || c.getContext("webgl")) as WebGLRenderingContext | null;
+    if (!gl) return (glCache = "no-webgl");
+    const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+    const r = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER));
+    glCache = r.slice(0, 60);
+  } catch { glCache = "err"; }
+  return glCache;
+}
+
+// The engine's own sounds (whistle, crowd) and the radio share the page's audio
+// context; the anthem is a plain <audio> element and keeps playing even when the
+// context is stalled — exactly what the user described.
+function audioState(): string {
+  const g = globalThis as Record<string, unknown>;
+  const al = (g.AL as { currentCtx?: { audioContext?: AudioContext } } | undefined)?.currentCtx?.audioContext;
+  const sdl = (g.SDL2 as { audioContext?: AudioContext } | undefined)?.audioContext;
+  const s = (g.Module as { SDL2?: { audioContext?: AudioContext } } | undefined)?.SDL2?.audioContext;
+  const one = (c?: AudioContext): string => (c ? `${c.state}@${Math.round(c.currentTime)}s` : "-");
+  return `al:${one(al)} sdl:${one(sdl || s)}`;
+}
+
 // ---- stoppage punditry -----------------------------------------------------
 let lastPunditAt = 0;
 let stoppageSince = 0;
@@ -466,6 +495,8 @@ if (location.hostname === "127.0.0.1" || location.hostname === "localhost") {
         simFrame: gd.Module?._gpf_sim_frame?.() ?? -1,
         pace: (() => { try { return gd.Module?.ccall?.("gpf_pace_state", "string", [], []) ?? ""; } catch { return ""; } })(),
         fps: Math.round(fpsNow()),
+        gl: glRenderer(),
+        actx: audioState(),
         vis: document.visibilityState,
         goal: (window as unknown as { __goalDebug?: unknown }).__goalDebug ?? null,
         busy: (gd as Record<string, unknown>).__radioBusy ?? null,
