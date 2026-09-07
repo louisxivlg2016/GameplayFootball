@@ -12,6 +12,7 @@
  */
 import { allClubsWithSquads } from "./clubs";
 import { countryName, isoFromFlag, L, onLangChange } from "./i18n";
+import { localName } from "./translit";
 import { MARKET, POS_LABEL, marketCountries, type Pos, type Target } from "./marketdata";
 import { clubSquad, ownsPlayer, releasePlayer, signPlayer, signingsFor } from "./transfers";
 import { addCoins, coinImg, getCoins, onWalletChange, spendCoins } from "./wallet";
@@ -238,7 +239,7 @@ export function initMarket(): void {
       <div class="mk-bar">
         <label data-i18n="Club">${L("Club")}</label>
         <select class="mk-sel">
-          ${clubs.map((c) => `<option value="${c.code}">${c.name} — ${countryName("", c.country)}</option>`).join("")}
+          ${clubs.map((c) => `<option value="${c.code}">${localName(c.name)} — ${countryName("", c.country)}</option>`).join("")}
         </select>
         <input class="mk-q" type="search" placeholder="${L("Chercher un joueur…")}" autocomplete="off"
                autocapitalize="off" spellcheck="false">

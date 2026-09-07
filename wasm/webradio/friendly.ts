@@ -14,7 +14,7 @@ import { applyMatchSquads, SQUADS, kitColor, skinsFor, aggressionFor } from "./s
 import { teamLineup } from "./lineup";
 import { showSettings } from "./settings";
 import { CONFEDS, flagImg, isoCode, type Nation, type Confed } from "./national";
-import { L, Lcaptain, onLangChange } from "./i18n";
+import { L, Lcaptain, countryName, onLangChange } from "./i18n";
 
 const ALL: Nation[] = CONFEDS.flatMap((c) => c.teams);
 const byName = (n: string): Nation | undefined => ALL.find((x) => x.name === n);
@@ -252,7 +252,7 @@ function sideHTML(n: Nation, cls: string): string {
            onerror="this.style.display='none'">
       <div class="fr-ovr">${ratingOf(n)}<small>OVR</small></div>
     </div>
-    <div class="fr-name">${n.name}</div>
+    <div class="fr-name">${countryName(n.iso, n.name)}</div>
     <div class="fr-bar" style="background:${kit}"></div>
     <button class="fr-change" data-side="${cls}">${L("Changer le pays")}</button>
   </div>`;
@@ -311,7 +311,7 @@ function launch(): void {
     void startWithRadioReady();
   };
   hideFriendly();
-  if (homeSquad.length) teamLineup(`${home.flag} ${home.name}`, homeSquad, home.name, play);
+  if (homeSquad.length) teamLineup(`${home.flag} ${countryName(home.iso, home.name)}`, homeSquad, home.name, play);
   else play(homeSquad);
 }
 
@@ -354,7 +354,7 @@ function renderPick(conf: Confed): void {
     const card = document.createElement("button");
     card.className = "pk-card";
     card.style.setProperty("--c", nat.color);
-    card.innerHTML = `<img src="${flagImg(nat.iso)}" alt="" onerror="this.style.visibility='hidden'"><span>${nat.name}</span>`;
+    card.innerHTML = `<img src="${flagImg(nat.iso)}" alt="" onerror="this.style.visibility='hidden'"><span>${countryName(nat.iso, nat.name)}</span>`;
     card.addEventListener("click", () => {
       // don't allow both sides to be the same nation
       if (pickTarget === "home") { home = nat; if (away.name === nat.name) away = ALL.find((x) => x.name !== nat.name) ?? away; }

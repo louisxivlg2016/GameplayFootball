@@ -11,6 +11,7 @@ import { applyMatchSquads } from "./squads";
 import { CLUB_SQUADS } from "./clubsquads";
 import { clubSquad } from "./transfers";
 import { countryName } from "./i18n";
+import { localName } from "./translit";
 import { teamLineup } from "./lineup";
 import { L, onLangChange } from "./i18n";
 
@@ -176,7 +177,9 @@ export function allClubsWithSquads(): Array<{ name: string; code: string; color:
 let homePick: Club | null = null;
 function updateClubStatus(): void {
   const s = root?.querySelector<HTMLElement>(".club-status");
-  if (s) s.innerHTML = homePick ? `Ton club : <b>${homePick.name}</b> — choisis l'adversaire (VS)` : `<b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire`;
+  if (s) s.innerHTML = homePick
+    ? `${L("Ton club")} : <b>${localName(homePick.name)}</b> — ${L("choisis l'adversaire (VS)")}`
+    : L("<b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire");
 }
 async function doPlayClubs(home: Club, away: Club, homeNames: string[]): Promise<void> {
   setAnthemOverride(home.name, away.name); // club name -> anthem + radio team name
@@ -226,7 +229,7 @@ function openOpponentPicker(home: Club): void {
         b.className = "vs-card";
         b.style.setProperty("--club-color", c.color);
         b.innerHTML = `<span class="vs-crest"><span>${c.code}</span></span>` +
-          `<b>${c.name}</b><small>${L(lg.country)}</small>`;
+          `<b>${localName(c.name)}</b><small>${countryName("", lg.country)}</small>`;
         b.addEventListener("click", () => { closeOpponentPicker(); void launchClubs(home, c); });
         grid.appendChild(b);
         void fetchLogo(c).then((src) => {
@@ -250,7 +253,7 @@ function renderGrid(grid: HTMLElement, league: League): void {
     card.style.setProperty("--club-color", club.color);
     card.innerHTML =
       `<span class="club-crest"><span>${club.code}</span></span>` +
-      `<b>${club.name}</b><small>${club.city}</small>` +
+      `<b>${localName(club.name)}</b><small>${localName(club.city)}</small>` +
       `<span class="club-actions"><button class="club-play" title="Jouer avec ce club">JOUER</button>` +
       `<button class="club-vs" title="${L("Affronter ce club")}">VS</button></span>`;
     // JOUER = play now: kick off straight away against an auto-picked club.
@@ -278,8 +281,8 @@ export function initClubs(): void {
     <div class="menu-shell">
       <div class="menu-panel-head">
         <button class="club-back">${L("← Menu")}</button>
-        <span>Clubs · effectifs réels</span>
-        <b class="club-status"><b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire</b>
+        <span>${L("Clubs · effectifs réels")}</span>
+        <b class="club-status">${L("<b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire")}</b>
       </div>
       <div class="club-league-tabs"></div>
       <div class="club-grid"></div>

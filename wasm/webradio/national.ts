@@ -130,8 +130,8 @@ let homePick: Nation | null = null; // "your team" chosen with JOUER
 function updateStatus(): void {
   if (!statusEl) return;
   statusEl.innerHTML = homePick
-    ? `Ton équipe : <b>${homePick.flag} ${homePick.name}</b> — choisis l'adversaire (VS)`
-    : `<b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire`;
+    ? `${L("Ton équipe")} : <b>${homePick.flag} ${countryName("", homePick.name)}</b> — ${L("choisis l'adversaire (VS)")}`
+    : L("<b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire");
 }
 
 export function showNational(): void {
@@ -210,8 +210,8 @@ export function initNational(): void {
     <div class="menu-shell">
       <div class="menu-panel-head">
         <button class="nat-back">${L("← Menu")}</button>
-        <span>Équipes nationales</span>
-        <b class="nat-status"><b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire</b>
+        <span>${L("Équipes nationales")}</span>
+        <b class="nat-status">${L("<b>JOUER</b> = match direct · <b>VS</b> + <b>VS</b> = choisis l'adversaire")}</b>
       </div>
       <div class="conf-tabs"></div>
       <div class="nat-grid"></div>
