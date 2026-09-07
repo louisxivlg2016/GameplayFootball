@@ -68,6 +68,14 @@ void gpf_apply_render_frametime(int ms) {
 void gpf_apply_render_defer(int ms) {
   if (graphicsSequence) graphicsSequence->SetMaxDeferTime(ms);
 }
+// How often the SIM runs (ms per step). The default 10ms = 100Hz is what a slow
+// machine actually chokes on — not the drawing: the user's laptop was managing
+// 2fps with the render cap already at its floor, which only leaves the sim. A
+// bigger step means fewer, slightly coarser steps and the match runs at real
+// speed again.
+void gpf_apply_sim_step(int ms) {
+  if (gameSequence) gameSequence->SetSequenceTime(ms);
+}
 #endif
 
 boost::shared_ptr<GameTask> gameTask;

@@ -43,6 +43,7 @@ int gpf_quality_level = 4;
 // defined in main.cpp — retunes the render TaskSequence's frametime / max defer
 void gpf_apply_render_frametime(int ms);
 void gpf_apply_render_defer(int ms);
+void gpf_apply_sim_step(int ms);
 
 extern "C" EMSCRIPTEN_KEEPALIVE void gpf_set_quality(int level) {
   if (level < 0) level = 0;
@@ -1318,6 +1319,7 @@ static unsigned long gpf_paceMatchMs = 0;
 static int gpf_paceFrametime = 0;      // current render cap, ms (0 = untouched)
 static float gpf_paceSpeed = 1.0f;     // last measured speed, 1.0 = real time
 static int gpf_paceStrikes = 0;        // consecutive windows stuck at the floor
+static int gpf_simStep = 10;           // ms per simulation step (10 = 100Hz)
 static const int gpf_paceBase[5] = { 150, 95, 60, 38, 26 };
 
 static void gpf_autoPace(Match *m) {
@@ -1352,14 +1354,23 @@ static void gpf_autoPace(Match *m) {
   // slow motion, the frames themselves are too expensive — the user's log showed
   // the browser managing 1-2fps at quality 4 with the cap already maxed out. So
   // drop a quality level (fewer pixels, no shadows) and let it settle again.
-  if (gpf_paceFrametime >= 260 && gpf_paceSpeed < 0.80f && lvl > 0) {
+  if (gpf_paceFrametime >= 260 && gpf_paceSpeed < 0.80f) {
     if (++gpf_paceStrikes >= 2) {
       gpf_paceStrikes = 0;
-      gpf_paceFrametime = 0;                 // re-baseline for the new level
-      gpf_set_quality(lvl - 1);
+      if (lvl > 0) {
+        gpf_paceFrametime = 0;               // re-baseline for the new level
+        gpf_set_quality(lvl - 1);
+      } else if (gpf_simStep < 18) {
+        // Bottom quality, render floor, and the match is STILL behind: the sim
+        // itself is the cost. Take bigger steps — 10ms is 100 a second, 14ms is
+        // 71 — which is a third less work for a difference you cannot see.
+        gpf_simStep += 2;
+        gpf_apply_sim_step(gpf_simStep);
+      }
     }
-  } else if (gpf_paceSpeed > 0.90f) {
+  } else if (gpf_paceSpeed > 0.95f) {
     gpf_paceStrikes = 0;
+    if (gpf_simStep > 10) { gpf_simStep -= 2; gpf_apply_sim_step(gpf_simStep); }
   }
 }
 
@@ -1367,7 +1378,7 @@ static void gpf_autoPace(Match *m) {
 extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_pace_state() {
   static std::string out;
   char buf[64];
-  snprintf(buf, sizeof(buf), "%.2f,%i,%i", gpf_paceSpeed, gpf_paceFrametime, gpf_quality_level);
+  snprintf(buf, sizeof(buf), "%.2f,%i,%i,%i", gpf_paceSpeed, gpf_paceFrametime, gpf_quality_level, gpf_simStep);
   out.assign(buf);
   return out.c_str();
 }
