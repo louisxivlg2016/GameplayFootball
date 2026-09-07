@@ -18,6 +18,10 @@ export const POS: Record<string, string> = {
   KOBEL: "GB", ELVEDI: "DC", COMERT: "DC", ZAKARIA: "MDC", SHAQIRI: "MOC", AMDOUNI: "BU", OKAFOR: "AG",
   BENTO: "GB", MILITAO: "DC", BREMER: "DC", "A.SANDRO": "DG", "A.PEREIRA": "MC", ENDRICK: "BU", SAVINHO: "AD",
   RULLI: "GB", MONTIEL: "DD", "LIS.MARTINEZ": "DC", PAREDES: "MDC", "E.PALACIOS": "MC", GARNACHO: "AG", LAUTARO: "BU",
+  // keepers, spelled out so they can never be labelled as outfielders
+  "E.MARTINEZ": "GB", "J.MARTINEZ": "GB", ARMANI: "GB", MAMARDASHVILI: "GB", OBLAK: "GB",
+  GULACSI: "GB", DIBUSZ: "GB", "YAN.JUNLING": "GB", "WANG.DALEI": "GB", JALAL: "GB",
+  HANIF: "GB", CROCOMBE: "GB", MARINOVIC: "GB", LORIA: "GB", BELEC: "GB",
   SOSA: "DG", VARELA: "DD", CACERES: "DC", ARRASCAETA: "MOC", CANOBBIO: "AD", "M.ARAUJO": "DD", CAVANI: "BU",
   MONTERO: "GB", "C.CUESTA": "DC", LUCUMI: "DC", CUADRADO: "AD", "C.SANCHEZ": "MDC", BORRE: "BU", "S.CORDOBA": "BU",
   HORVATH: "GB", "C.CARTER": "DC", CHANDLER: "DD", AARONSON: "MOC", "DE.LA.TORRE": "MC", REYNA: "MOC", FERREIRA: "BU",

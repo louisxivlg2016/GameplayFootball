@@ -353,7 +353,12 @@ export function openNetplay(): void { openPanel?.(); }
 
 export function initNetplay(): void {
   const style = document.createElement("style");
-  style.id = "gpf-net-style"; style.textContent = CSS;
+  style.id = "gpf-net-style"; style.textContent = CSS + `
+#gpf-net .np-lan { display:none; margin:0 0 12px; padding:9px 12px; border-radius:8px;
+  background:rgba(255,214,90,.14); border:1px solid rgba(255,214,90,.45);
+  font-size:13px; font-weight:700; line-height:1.4; color:#ffe07a; }
+#gpf-net .np-lan b { font-size:15px; color:#fff; word-break:break-all; }
+`;
   document.head.appendChild(style);
 
   const btn = document.createElement("button");
@@ -367,7 +372,6 @@ export function initNetplay(): void {
     <div class="np-card">
       <span class="np-x">×</span>
       <h3>🌐 ${L("Multijoueur en ligne")}<span class="np-beta">BETA — TEST</span></h3>
-      <p>${L("Il faut DEUX appareils. Sur le premier, clique « Créer une partie » : un code s'affiche. Donne-le à ton ami (WhatsApp, etc.) : sur SON appareil il le tape et clique « Rejoindre ». Ensuite lancez le MÊME match des deux côtés (mêmes équipes) sans toucher au clavier.")}</p>
 
       <div class="np-row">
         <button class="np" data-act="create">${L("Créer une partie")}</button>
@@ -395,6 +399,21 @@ export function initNetplay(): void {
   syncEl = panel.querySelector(".np-sync");
   inEl = panel.querySelector(".np-in");
   launchRow = panel.querySelector(".np-launch");
+
+  // Playing between two devices at home only works if BOTH open the same
+  // address. On localhost the other device cannot: 127.0.0.1 there is itself.
+  // Ask the dev server for the wifi address and show it.
+  const lanHint = document.createElement("div");
+  lanHint.className = "np-lan";
+  panel.querySelector(".np-card")?.insertBefore(lanHint, panel.querySelector(".np-row"));
+  if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+    void fetch("/lan-address").then((r) => r.json()).then((d: { url?: string }) => {
+      if (d?.url) {
+        lanHint.innerHTML = `⚠️ ${L("Sur l'AUTRE appareil, ouvre cette adresse")} :<br><b>${d.url}</b>`;
+        lanHint.style.display = "block";
+      }
+    }).catch(() => { /* not the dev server */ });
+  }
 
   const open = (): void => { panel?.classList.add("show"); paintSync(); };
   const close = (): void => panel?.classList.remove("show");

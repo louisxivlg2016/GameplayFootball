@@ -80,6 +80,13 @@ export function enableAudioCapture(): void {
 }
 /** Live state of the radio's WebAudio context ("none" until it's created). For
  *  the on-screen ?radiodebug HUD: tells desktop-vs-mobile playback apart. */
+/** Live mic state for the diagnostic ping — audioPeak()'s cached copy freezes
+ *  exactly when something goes wrong, which sent me hunting the wrong thing. */
+export function radioMicState(): string {
+  return `${playerBusy ? "busy" : "free"},${playerBusy ? Date.now() - playerBusyAt : 0},` +
+    `${flowSynthPending ? "synth" : "-"},${queuedFlow ? "queued" : "-"},${evtQueue.length}`;
+}
+
 export function radioCtxState(): string {
   if (!radioCtx) return "none";
   return `${radioCtx.state}${radioUnlocked ? "/unlocked" : ""}`;
@@ -349,6 +356,7 @@ let queuedFlow: { blob: Blob; at: number; ctx: string } | null = null;
 // rather than played late — the commentator was lagging behind the action.
 let flowCtx = "";
 let flowSynthPending = false;   // a play-by-play line is being synthesized
+let flowSynthAt = 0;
 /** Called by the commentary loop each time it composes a line. */
 export function setFlowContext(key: string): void { flowCtx = key; }
 let goalClipBytes: Promise<ArrayBuffer | null> | null = null;
@@ -1056,7 +1064,7 @@ export function radioReset(): void {
  *  commentary loop keep exactly ONE line in reserve instead of re-synthesizing a
  *  fresh one every tick while the current line plays (which floods the worker). */
 export function radioHasQueued(): boolean {
-  return queuedFlow !== null || flowSynthPending;
+  return queuedFlow !== null;
 }
 
 /** Is the commentator free to take a play-by-play line right now? */
@@ -1092,8 +1100,12 @@ export function radioFlow(text: string): void {
   // let the commentary loop fire another piperPredict before the previous one
   // came back — several TTS jobs piling up in the worker, pegging the CPU (the
   // whole match ran slow) until the radio gave up altogether.
-  if (flowSynthPending) return;
+  // One synthesis at a time — but NEVER let the latch stick: if a predict never
+  // settles (it did, on a machine running at 2fps), the commentator would go
+  // quiet for the rest of the match. Time it out.
+  if (flowSynthPending && Date.now() - flowSynthAt < 15000) return;
   flowSynthPending = true;
+  flowSynthAt = Date.now();
   const ctx = flowCtx;
   void piperPredict(text)
     .then((blob) => {
@@ -1170,11 +1182,17 @@ setInterval(pumpEvents, 100);
 // takes the "synthesize and queue" branch, takeMic() is never called and its own
 // stuck-mic guard never runs. The commentator went silent for the rest of the
 // match. Free it here instead, from the outside.
+let busySince = 0;
 setInterval(() => {
-  if (playerBusy && playerBusyAt && Date.now() - playerBusyAt > MIC_STUCK_MS) {
+  if (!playerBusy) { busySince = 0; return; }
+  if (!busySince) { busySince = Date.now(); return; }
+  if (Date.now() - busySince > MIC_STUCK_MS) {
+    busySince = 0;
     stopCurrent();          // clears playerBusy
+    flowSynthPending = false;
     const g = globalThis as Record<string, unknown>;
     g.__radioUnwedged = ((g.__radioUnwedged as number) ?? 0) + 1;
+    playQueuedFlow();
   }
 }, 2000);
 

@@ -11,6 +11,7 @@
  *   bun run serve.ts [dir] [port]
  */
 import { join } from "node:path";
+import * as os from "node:os";
 
 const dir = Bun.argv[2] ?? "dist";
 const port = Number(Bun.argv[3] ?? 8080);
@@ -108,6 +109,21 @@ Bun.serve({
       return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*" } });
     }
     if (path === "/radio.js") return js(await radioJs());
+    // The address the OTHER device on the same wifi must open. Playing online
+    // between a laptop and a tablet fails silently otherwise: 127.0.0.1 on the
+    // tablet is the tablet itself, so the two never load the same game.
+    if (path === "/lan-address") {
+      const nets = os.networkInterfaces();
+      let ip = "";
+      for (const list of Object.values(nets)) {
+        for (const n of list ?? []) {
+          if (n.family === "IPv4" && !n.internal) { ip = n.address; break; }
+        }
+        if (ip) break;
+      }
+      return new Response(JSON.stringify({ url: ip ? `http://${ip}:${port}/` : "" }),
+        { headers: { "content-type": "application/json" } });
+    }
     if (path === "/tts/worker.js") return js(await workerJs());
     // narrow voice-rerouting service worker (must be same-origin, root scope)
     if (path === "/sw.js") return js(await Bun.file(join(import.meta.dir, "sw.js")).text());
