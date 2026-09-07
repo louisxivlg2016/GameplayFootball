@@ -18,6 +18,23 @@
 #include "onthepitch/player/player.hpp"
 #include "onthepitch/player/playerofficial.hpp"
 #include "onthepitch/officials.hpp"
+// Where does the second actually go?
+//
+// The pacer can tell the match is behind, but not WHY: on a machine sitting at
+// half speed with the quality already at the floor and the render cap maxed
+// out, the cost has to be somewhere else. So account for it — real milliseconds
+// spent per real second inside the simulation (gameTask Get+Process) and inside
+// the render preparation (PutPhase, which skins every player). Both go out in
+// gpf_pace_state, so a diagnostic ping from a slow laptop says outright whether
+// the sim, the skinning, or the browser around them is eating the frame.
+static double gpf_msSim = 0.0, gpf_msPut = 0.0;      // accumulating, this window
+static float  gpf_simPerSec = 0.0f, gpf_putPerSec = 0.0f;  // last full window
+struct GpfStopwatch {
+  double *sink; double t0;
+  explicit GpfStopwatch(double *s) : sink(s), t0(emscripten_get_now()) {}
+  ~GpfStopwatch() { *sink += emscripten_get_now() - t0; }
+};
+
 #include "onthepitch/team.hpp"
 #include "onthepitch/humangamer.hpp"
 
@@ -1133,6 +1150,9 @@ void GameTask::Action(e_GameTaskMessage message) {
 }
 
 void GameTask::GetPhase() {
+#ifdef __EMSCRIPTEN__
+  GpfStopwatch gpf_sw(&gpf_msSim);
+#endif
 
   // process messageQueue
   if (match) match->Get();
@@ -1335,6 +1355,14 @@ static void gpf_autoPace(Match *m) {
   if (dtMatch <= 0.0) return;                        // paused, menu, half time
 
   gpf_paceSpeed = (float)(dtMatch / dtReal);
+
+  // real ms burnt per real second, over the window we just measured
+  const double secs = dtReal / 1000.0;
+  if (secs > 0.05) {
+    gpf_simPerSec = (float)(gpf_msSim / secs);
+    gpf_putPerSec = (float)(gpf_msPut / secs);
+  }
+  gpf_msSim = 0.0; gpf_msPut = 0.0;
   const int lvl = (gpf_quality_level < 0) ? 0 : (gpf_quality_level > 4 ? 4 : gpf_quality_level);
   const int want = gpf_paceBase[lvl];
   if (gpf_paceFrametime == 0) gpf_paceFrametime = want;
@@ -1360,31 +1388,33 @@ static void gpf_autoPace(Match *m) {
       if (lvl > 0) {
         gpf_paceFrametime = 0;               // re-baseline for the new level
         gpf_set_quality(lvl - 1);
-      } else if (gpf_simStep < 18) {
-        // Bottom quality, render floor, and the match is STILL behind: the sim
-        // itself is the cost. Take bigger steps — 10ms is 100 a second, 14ms is
-        // 71 — which is a third less work for a difference you cannot see.
-        gpf_simStep += 2;
-        gpf_apply_sim_step(gpf_simStep);
       }
+      // NOTE: do NOT widen the simulation step here. The match clock advances a
+      // fixed 10ms per tick (match.cpp), so running the sequence every 18ms does
+      // not make the sim cheaper — it caps the match at 10/18 = 0.55x real time
+      // no matter how fast the machine is. That is exactly the 0.55 ceiling the
+      // slow-laptop logs kept hitting, and it was self-inflicted.
     }
   } else if (gpf_paceSpeed > 0.95f) {
     gpf_paceStrikes = 0;
-    if (gpf_simStep > 10) { gpf_simStep -= 2; gpf_apply_sim_step(gpf_simStep); }
   }
 }
 
-// "speed,frametime,quality" — read by the page's diagnostic ping.
+// "speed,frametime,quality,simStep,simMsPerSec,putMsPerSec" — read by the diagnostic ping.
 extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_pace_state() {
   static std::string out;
   char buf[64];
-  snprintf(buf, sizeof(buf), "%.2f,%i,%i,%i", gpf_paceSpeed, gpf_paceFrametime, gpf_quality_level, gpf_simStep);
+  snprintf(buf, sizeof(buf), "%.2f,%i,%i,%i,%.0f,%.0f", gpf_paceSpeed, gpf_paceFrametime,
+           gpf_quality_level, gpf_simStep, gpf_simPerSec, gpf_putPerSec);
   out.assign(buf);
   return out.c_str();
 }
 #endif
 
 void GameTask::ProcessPhase() {
+#ifdef __EMSCRIPTEN__
+  GpfStopwatch gpf_sw(&gpf_msSim);
+#endif
 
   gpf_ppCalls++;
   // Online: broadcast my input + apply the peer's, then sim NORMALLY (no waiting).
@@ -1467,6 +1497,9 @@ void GameTask::ProcessPhase() {
 }
 
 void GameTask::PutPhase() {
+#ifdef __EMSCRIPTEN__
+  GpfStopwatch gpf_sw(&gpf_msPut);
+#endif
 
   std::vector < boost::intrusive_ptr<UpdateFullbodyModel> > updateFullbodyModels;
   std::vector < boost::intrusive_ptr<UploadFullbodyModel> > uploadFullbodyModels;
