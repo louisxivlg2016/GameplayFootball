@@ -38,14 +38,56 @@ let inviteUrl = "";
 let joinWatch: number | null = null;
 let joinAttempts = 0;
 
-// Explicit ICE — a couple of public STUN servers so NAT traversal has options
-// (the free broker only handles signalling; ICE is what actually links the two).
+// Explicit ICE — the broker only handles signalling; ICE is what actually links
+// the two machines.
+//
+// STUN alone is not enough, and that is why joining kept failing: it works only
+// when both ends can send packets straight to each other. A phone on 4G, a
+// symmetric NAT, and — the common one at home — a router with client isolation
+// on its Wi-Fi all block that, and the connection stalls in "checking" forever
+// with no error to show. A TURN server relays the traffic when a direct link is
+// impossible, so these are the ones that make a tablet and a laptop find each
+// other. The 443/tcp entry is last-resort: it looks like ordinary HTTPS and gets
+// through networks that drop UDP entirely.
+const TURN_USER = "openrelayproject";
 const ICE: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:openrelay.metered.ca:80" },
+    { urls: "turn:openrelay.metered.ca:80", username: TURN_USER, credential: TURN_USER },
+    { urls: "turn:openrelay.metered.ca:443", username: TURN_USER, credential: TURN_USER },
+    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: TURN_USER, credential: TURN_USER },
   ],
+  iceCandidatePoolSize: 4,
 };
+
+/**
+ * Say out loud where the link is stuck.
+ *
+ * A DataConnection that never opens used to show nothing but "still nothing,
+ * new try" — useless when you are the one holding the tablet. The underlying
+ * RTCPeerConnection knows exactly what is happening, so watch it and put the
+ * stage on screen: "linking the machines…", and a plain sentence when ICE
+ * gives up rather than a silent wait.
+ */
+function watchIce(c: DataConnection): void {
+  let pc: RTCPeerConnection | undefined;
+  const grab = window.setInterval(() => {
+    pc = (c as unknown as { peerConnection?: RTCPeerConnection }).peerConnection;
+    if (!pc) return;
+    window.clearInterval(grab);
+    const say = (): void => {
+      if (conn !== c || conn.open) return;
+      const st = pc?.iceConnectionState;
+      if (st === "checking") setConn(L("Liaison des deux appareils…"));
+      else if (st === "failed") setConn(L("Le réseau bloque la liaison. Essaie les deux appareils sur le même Wi-Fi, ou en partage de connexion 4G."));
+    };
+    pc.addEventListener("iceconnectionstatechange", say);
+    say();
+  }, 200);
+  window.setTimeout(() => window.clearInterval(grab), 30000);
+}
 
 // our recent checksums, keyed by sim frame, compared against the peer's
 const own = new Map<number, number>();
@@ -131,7 +173,7 @@ function createGame(): void {
     inviteUrl = location.origin + location.pathname + "?gpfjoin=" + myCode;
     setConn(L("Donne le code (ou le lien) à ton ami et attends…"));
   });
-  peer.on("connection", (c: DataConnection) => wireConn(c));
+  peer.on("connection", (c: DataConnection) => { wireConn(c); watchIce(c); });
 }
 
 function joinGame(code: string): void {
@@ -162,6 +204,7 @@ function attemptConnect(code: string): void {
   setConn(L("Recherche de ") + code + "…");
   const c = peer.connect(roomId(code), { reliable: true });
   wireConn(c);
+  watchIce(c);
   if (joinWatch !== null) clearTimeout(joinWatch);
   joinWatch = window.setTimeout(() => {
     if (conn && conn.open) return;
