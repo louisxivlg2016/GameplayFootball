@@ -184,7 +184,7 @@ function renderGrid(grid: HTMLElement, conf: Confed): void {
     card.innerHTML =
       `<span class="nat-flag"><img src="${flagImg(nat.iso)}" alt="${nat.name}" loading="lazy"` +
       ` onerror="this.replaceWith(document.createTextNode('${nat.flag}'))"></span><b>${countryName(nat.iso, nat.name)}</b>` +
-      `<span class="nat-actions"><button class="nat-play" title="${L("Jouer avec cette équipe")}">JOUER</button>` +
+      `<span class="nat-actions"><button class="nat-play" title="${L("Jouer avec cette équipe")}">${L("JOUER")}</button>` +
       `<button class="nat-vs" title="${L("Affronter cette équipe")}">VS</button></span>`;
     card.querySelector(".nat-play")!.addEventListener("click", () => {
       // JOUER = play now: kick off straight away against an auto-picked opponent.

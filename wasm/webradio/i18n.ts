@@ -11,13 +11,7 @@ type Lang = string;
 // french source -> { lang: translation }. Missing lang -> french source is used.
 const T: Record<string, Record<Lang, string>> = {
   // --- home sidebar ---
-  "Accueil":     { en: "Main", es: "Inicio", pt: "Início", de: "Start", it: "Home", nl: "Start" },
-  "Clubs":       { en: "Clubs", es: "Clubes", pt: "Clubes", de: "Vereine", it: "Club", nl: "Clubs" },
-  "Sélections":  { en: "National", es: "Selecciones", pt: "Seleções", de: "Nationen", it: "Nazionali", nl: "Landen" },
-  "Défis":       { en: "Challenges", es: "Retos", pt: "Desafios", de: "Duelle", it: "Sfide", nl: "Uitdagingen" },
   "Matchs":      { en: "Matches", es: "Partidos", pt: "Jogos", de: "Spiele", it: "Partite", nl: "Wedstrijden" },
-  "Réglages":    { en: "Settings", es: "Ajustes", pt: "Definições", de: "Optionen", it: "Opzioni", nl: "Instellingen" },
-  "Marché":      { en: "Market", es: "Mercado", pt: "Mercado", de: "Markt", it: "Mercato", nl: "Markt" },
   "← Retour":    { en: "← Back", es: "← Volver", pt: "← Voltar", de: "← Zurück", it: "← Indietro", nl: "← Terug" },
   // --- online multiplayer panel ---
   "Multijoueur en ligne": { en: "Online multiplayer", es: "Multijugador en línea", pt: "Multijogador online",
@@ -74,6 +68,28 @@ const T: Record<string, Record<Lang, string>> = {
     pt: "Liga-te primeiro ao teu amigo", de: "Verbinde dich zuerst mit deinem Freund",
     it: "Collegati prima al tuo amico", nl: "Maak eerst verbinding met je vriend" },
   "Graine":      { en: "Seed", es: "Semilla", pt: "Semente", de: "Startwert", it: "Seme", nl: "Seed" },
+  // --- menu, confederations and nations, in every language ---
+  "Europe": { "en": "Europe", "es": "Europa", "pt": "Europa", "de": "Europa", "nb": "Europa", "it": "Europa", "ga": "An Eoraip", "nl": "Europa", "hr": "Europa", "ro": "Europa", "pl": "Europa", "tr": "Avrupa", "ru": "Европа", "uk": "Європа", "ar": "أوروبا", "hi": "यूरोप", "id": "Eropa", "vi": "Châu Âu", "th": "ยุโรป", "ja": "ヨーロッパ", "ko": "유럽", "zh-CN": "欧洲", "zh-TW": "歐洲" },
+  "Amérique du Sud": { "en": "South America", "es": "Sudamérica", "pt": "América do Sul", "de": "Südamerika", "nb": "Sør-Amerika", "it": "Sud America", "ga": "Meiriceá Theas", "nl": "Zuid-Amerika", "hr": "Južna Amerika", "ro": "America de Sud", "pl": "Ameryka Płd.", "tr": "Güney Amerika", "ru": "Южная Америка", "uk": "Південна Америка", "ar": "أمريكا الجنوبية", "hi": "दक्षिण अमेरिका", "id": "Amerika Selatan", "vi": "Nam Mỹ", "th": "อเมริกาใต้", "ja": "南アメリカ", "ko": "남아메리카", "zh-CN": "南美洲", "zh-TW": "南美洲" },
+  "Afrique": { "en": "Africa", "es": "África", "pt": "África", "de": "Afrika", "nb": "Afrika", "it": "Africa", "ga": "An Afraic", "nl": "Afrika", "hr": "Afrika", "ro": "Africa", "pl": "Afryka", "tr": "Afrika", "ru": "Африка", "uk": "Африка", "ar": "أفريقيا", "hi": "अफ़्रीका", "id": "Afrika", "vi": "Châu Phi", "th": "แอฟริกา", "ja": "アフリカ", "ko": "아프리카", "zh-CN": "非洲", "zh-TW": "非洲" },
+  "Amér. du Nord": { "en": "North America", "es": "Norteamérica", "pt": "América do Norte", "de": "Nordamerika", "nb": "Nord-Amerika", "it": "Nord America", "ga": "Meiriceá Thuaidh", "nl": "Noord-Amerika", "hr": "Sjeverna Amerika", "ro": "America de Nord", "pl": "Ameryka Płn.", "tr": "Kuzey Amerika", "ru": "Северная Америка", "uk": "Північна Америка", "ar": "أمريكا الشمالية", "hi": "उत्तर अमेरिका", "id": "Amerika Utara", "vi": "Bắc Mỹ", "th": "อเมริกาเหนือ", "ja": "北アメリカ", "ko": "북아메리카", "zh-CN": "北美洲", "zh-TW": "北美洲" },
+  "Asie / Océanie": { "en": "Asia / Oceania", "es": "Asia / Oceanía", "pt": "Ásia / Oceania", "de": "Asien / Ozeanien", "nb": "Asia / Oseania", "it": "Asia / Oceania", "ga": "An Áise / An Aigéine", "nl": "Azië / Oceanië", "hr": "Azija / Oceanija", "ro": "Asia / Oceania", "pl": "Azja / Oceania", "tr": "Asya / Okyanusya", "ru": "Азия / Океания", "uk": "Азія / Океанія", "ar": "آسيا / أوقيانوسيا", "hi": "एशिया / ओशिनिया", "id": "Asia / Oseania", "vi": "Châu Á / Châu Đại Dương", "th": "เอเชีย / โอเชียเนีย", "ja": "アジア / オセアニア", "ko": "아시아 / 오세아니아", "zh-CN": "亚洲 / 大洋洲", "zh-TW": "亞洲 / 大洋洲" },
+  "JOUER": { "en": "PLAY", "es": "JUGAR", "pt": "JOGAR", "de": "SPIELEN", "nb": "SPILL", "it": "GIOCA", "ga": "IMIR", "nl": "SPELEN", "hr": "IGRAJ", "ro": "JOACĂ", "pl": "GRAJ", "tr": "OYNA", "ru": "ИГРАТЬ", "uk": "ГРАТИ", "ar": "العب", "hi": "खेलें", "id": "MAIN", "vi": "CHƠI", "th": "เล่น", "ja": "プレイ", "ko": "플레이", "zh-CN": "开始", "zh-TW": "開始" },
+  "Angleterre": { "en": "England", "es": "Inglaterra", "pt": "Inglaterra", "de": "England", "nb": "England", "it": "Inghilterra", "ga": "Sasana", "nl": "Engeland", "hr": "Engleska", "ro": "Anglia", "pl": "Anglia", "tr": "İngiltere", "ru": "Англия", "uk": "Англія", "ar": "إنجلترا", "hi": "इंग्लैंड", "id": "Inggris", "vi": "Anh", "th": "อังกฤษ", "ja": "イングランド", "ko": "잉글랜드", "zh-CN": "英格兰", "zh-TW": "英格蘭" },
+  "Écosse": { "en": "Scotland", "es": "Escocia", "pt": "Escócia", "de": "Schottland", "nb": "Skottland", "it": "Scozia", "ga": "Albain", "nl": "Schotland", "hr": "Škotska", "ro": "Scoția", "pl": "Szkocja", "tr": "İskoçya", "ru": "Шотландия", "uk": "Шотландія", "ar": "اسكتلندا", "hi": "स्कॉटलैंड", "id": "Skotlandia", "vi": "Scotland", "th": "สกอตแลนด์", "ja": "スコットランド", "ko": "스코틀랜드", "zh-CN": "苏格兰", "zh-TW": "蘇格蘭" },
+  "Pays de Galles": { "en": "Wales", "es": "Gales", "pt": "País de Gales", "de": "Wales", "nb": "Wales", "it": "Galles", "ga": "An Bhreatain Bheag", "nl": "Wales", "hr": "Wales", "ro": "Țara Galilor", "pl": "Walia", "tr": "Galler", "ru": "Уэльс", "uk": "Уельс", "ar": "ويلز", "hi": "वेल्स", "id": "Wales", "vi": "Xứ Wales", "th": "เวลส์", "ja": "ウェールズ", "ko": "웨일스", "zh-CN": "威尔士", "zh-TW": "威爾斯" },
+  "Accueil": { "en": "Main", "es": "Inicio", "pt": "Início", "de": "Start", "nb": "Hjem", "it": "Home", "ga": "Baile", "nl": "Start", "hr": "Početna", "ro": "Acasă", "pl": "Główna", "tr": "Ana sayfa", "ru": "Главная", "uk": "Головна", "ar": "الرئيسية", "hi": "होम", "id": "Beranda", "vi": "Trang chính", "th": "หน้าหลัก", "ja": "ホーム", "ko": "홈", "zh-CN": "主页", "zh-TW": "主頁" },
+  "Clubs": { "en": "Clubs", "es": "Clubes", "pt": "Clubes", "de": "Vereine", "nb": "Klubber", "it": "Club", "ga": "Clubanna", "nl": "Clubs", "hr": "Klubovi", "ro": "Cluburi", "pl": "Kluby", "tr": "Kulüpler", "ru": "Клубы", "uk": "Клуби", "ar": "الأندية", "hi": "क्लब", "id": "Klub", "vi": "Câu lạc bộ", "th": "สโมสร", "ja": "クラブ", "ko": "클럽", "zh-CN": "俱乐部", "zh-TW": "俱樂部" },
+  "Sélections": { "en": "National", "es": "Selecciones", "pt": "Seleções", "de": "Nationen", "nb": "Landslag", "it": "Nazionali", "ga": "Náisiúin", "nl": "Landen", "hr": "Reprezentacije", "ro": "Naționale", "pl": "Reprezentacje", "tr": "Milli takımlar", "ru": "Сборные", "uk": "Збірні", "ar": "المنتخبات", "hi": "राष्ट्रीय टीमें", "id": "Timnas", "vi": "Đội tuyển", "th": "ทีมชาติ", "ja": "代表チーム", "ko": "국가대표", "zh-CN": "国家队", "zh-TW": "國家隊" },
+  "Défis": { "en": "Challenges", "es": "Retos", "pt": "Desafios", "de": "Duelle", "nb": "Utfordringer", "it": "Sfide", "ga": "Dúshláin", "nl": "Uitdagingen", "hr": "Izazovi", "ro": "Provocări", "pl": "Wyzwania", "tr": "Meydan okumalar", "ru": "Испытания", "uk": "Виклики", "ar": "التحديات", "hi": "चुनौतियाँ", "id": "Tantangan", "vi": "Thử thách", "th": "ความท้าทาย", "ja": "チャレンジ", "ko": "챌린지", "zh-CN": "挑战", "zh-TW": "挑戰" },
+  "Marché": { "en": "Market", "es": "Mercado", "pt": "Mercado", "de": "Markt", "nb": "Marked", "it": "Mercato", "ga": "Margadh", "nl": "Markt", "hr": "Tržište", "ro": "Piață", "pl": "Rynek", "tr": "Piyasa", "ru": "Рынок", "uk": "Ринок", "ar": "السوق", "hi": "बाज़ार", "id": "Pasar", "vi": "Chợ chuyển nhượng", "th": "ตลาด", "ja": "マーケット", "ko": "마켓", "zh-CN": "市场", "zh-TW": "市場" },
+  "Réglages": { "en": "Settings", "es": "Ajustes", "pt": "Definições", "de": "Optionen", "nb": "Innstillinger", "it": "Opzioni", "ga": "Socruithe", "nl": "Instellingen", "hr": "Postavke", "ro": "Setări", "pl": "Ustawienia", "tr": "Ayarlar", "ru": "Настройки", "uk": "Налаштування", "ar": "الإعدادات", "hi": "सेटिंग्स", "id": "Pengaturan", "vi": "Cài đặt", "th": "การตั้งค่า", "ja": "設定", "ko": "설정", "zh-CN": "设置", "zh-TW": "設定" },
+  "2 Joueurs": { "en": "2 Players", "es": "2 Jugadores", "pt": "2 Jogadores", "de": "2 Spieler", "nb": "2 spillere", "it": "2 Giocatori", "ga": "2 Imreoir", "nl": "2 Spelers", "hr": "2 Igrača", "ro": "2 Jucători", "pl": "2 Graczy", "tr": "2 Oyuncu", "ru": "2 игрока", "uk": "2 гравці", "ar": "لاعبان", "hi": "2 खिलाड़ी", "id": "2 Pemain", "vi": "2 người chơi", "th": "2 ผู้เล่น", "ja": "2人プレイ", "ko": "2인 플레이", "zh-CN": "双人", "zh-TW": "雙人" },
+  "En ligne": { "en": "Online", "es": "En línea", "pt": "Online", "de": "Online", "nb": "På nett", "it": "Online", "ga": "Ar líne", "nl": "Online", "hr": "Online", "ro": "Online", "pl": "Online", "tr": "Çevrimiçi", "ru": "Онлайн", "uk": "Онлайн", "ar": "عبر الإنترنت", "hi": "ऑनलाइन", "id": "Online", "vi": "Trực tuyến", "th": "ออนไลน์", "ja": "オンライン", "ko": "온라인", "zh-CN": "在线", "zh-TW": "線上" },
+  "Arbitre": { "en": "Referee", "es": "Árbitro", "pt": "Árbitro", "de": "Schiedsrichter", "nb": "Dommer", "it": "Arbitro", "ga": "Réiteoir", "nl": "Scheidsrechter", "hr": "Sudac", "ro": "Arbitru", "pl": "Sędzia", "tr": "Hakem", "ru": "Судья", "uk": "Суддя", "ar": "الحكم", "hi": "रेफ़री", "id": "Wasit", "vi": "Trọng tài", "th": "ผู้ตัดสิน", "ja": "レフェリー", "ko": "심판", "zh-CN": "裁判", "zh-TW": "裁判" },
+  "Match amical": { "en": "Friendly", "es": "Amistoso", "pt": "Amigável", "de": "Freundschaftsspiel", "nb": "Treningskamp", "it": "Amichevole", "ga": "Cluiche cairdiúil", "nl": "Oefenwedstrijd", "hr": "Prijateljska", "ro": "Amical", "pl": "Towarzyski", "tr": "Hazırlık maçı", "ru": "Товарищеский", "uk": "Товариський", "ar": "مباراة ودية", "hi": "मैत्री मैच", "id": "Persahabatan", "vi": "Giao hữu", "th": "อุ่นเครื่อง", "ja": "親善試合", "ko": "친선 경기", "zh-CN": "友谊赛", "zh-TW": "友誼賽" },
+  "Entraînement": { "en": "Training", "es": "Entrenamiento", "pt": "Treino", "de": "Training", "nb": "Trening", "it": "Allenamento", "ga": "Traenáil", "nl": "Training", "hr": "Trening", "ro": "Antrenament", "pl": "Trening", "tr": "Antrenman", "ru": "Тренировка", "uk": "Тренування", "ar": "التدريب", "hi": "प्रशिक्षण", "id": "Latihan", "vi": "Tập luyện", "th": "การฝึกซ้อม", "ja": "トレーニング", "ko": "훈련", "zh-CN": "训练", "zh-TW": "訓練" },
+  "Coupe du monde": { "en": "World Cup", "es": "Copa del Mundo", "pt": "Copa do Mundo", "de": "Weltmeisterschaft", "nb": "VM", "it": "Coppa del Mondo", "ga": "Corn an Domhain", "nl": "Wereldbeker", "hr": "Svjetsko prvenstvo", "ro": "Cupa Mondială", "pl": "Mistrzostwa świata", "tr": "Dünya Kupası", "ru": "Чемпионат мира", "uk": "Чемпіонат світу", "ar": "كأس العالم", "hi": "विश्व कप", "id": "Piala Dunia", "vi": "World Cup", "th": "ฟุตบอลโลก", "ja": "ワールドカップ", "ko": "월드컵", "zh-CN": "世界杯", "zh-TW": "世界盃" },
   // --- challenge + settings screens, in every language the game speaks ---
   "DÉFIS": { "en": "CHALLENGES", "es": "RETOS", "pt": "DESAFIOS", "de": "DUELLE", "nb": "UTFORDRINGER", "it": "SFIDE", "ga": "DÚSHLÁIN", "nl": "UITDAGINGEN", "hr": "IZAZOVI", "ro": "PROVOCĂRI", "pl": "WYZWANIA", "tr": "MEYDAN OKUMALAR", "ru": "ИСПЫТАНИЯ", "uk": "ВИКЛИКИ", "ar": "التحديات", "hi": "चुनौतियाँ", "id": "TANTANGAN", "vi": "THỬ THÁCH", "th": "ความท้าทาย", "ja": "チャレンジ", "ko": "챌린지", "zh-CN": "挑战", "zh-TW": "挑戰" },
   "Jouer": { "en": "Play", "es": "Jugar", "pt": "Jogar", "de": "Spielen", "nb": "Spill", "it": "Gioca", "ga": "Imir", "nl": "Spelen", "hr": "Igraj", "ro": "Joacă", "pl": "Graj", "tr": "Oyna", "ru": "Играть", "uk": "Грати", "ar": "العب", "hi": "खेलें", "id": "Main", "vi": "Chơi", "th": "เล่น", "ja": "プレイ", "ko": "플레이", "zh-CN": "开始", "zh-TW": "開始" },
@@ -150,7 +166,6 @@ const T: Record<string, Record<Lang, string>> = {
   "Joueurs":     { en: "Players", es: "Jugadores", pt: "Jogadores", de: "Spieler", it: "Giocatori", nl: "Spelers" },
   "1 JOUEUR":    { en: "1 PLAYER", es: "1 JUGADOR", pt: "1 JOGADOR", de: "1 SPIELER", it: "1 GIOCATORE", nl: "1 SPELER" },
   "2 JOUEURS":   { en: "2 PLAYERS", es: "2 JUGADORES", pt: "2 JOGADORES", de: "2 SPIELER", it: "2 GIOCATORI", nl: "2 SPELERS" },
-  "2 Joueurs":   { en: "2 Players", es: "2 Jugadores", pt: "2 Jogadores", de: "2 Spieler", it: "2 Giocatori", nl: "2 Spelers" },
   "Sur le même clavier": { en: "On the same keyboard", es: "En el mismo teclado", pt: "No mesmo teclado",
     de: "Auf derselben Tastatur", it: "Sulla stessa tastiera", nl: "Op hetzelfde toetsenbord" },
   "Activé — flèches contre I J K L": { en: "On — arrows vs I J K L", es: "Activo — flechas contra I J K L",
@@ -170,7 +185,6 @@ const T: Record<string, Record<Lang, string>> = {
   "Coupé":       { en: "Off", es: "Apagado", pt: "Desligado", de: "Aus", it: "Spento", nl: "Uit" },
   "⏳ chargement…": { en: "⏳ loading…", es: "⏳ cargando…", pt: "⏳ a carregar…", de: "⏳ lädt…", it: "⏳ caricamento…", nl: "⏳ laden…" },
   // --- friendly / VS screen ---
-  "Match amical":         { en: "Friendly", es: "Amistoso", pt: "Amigável", de: "Freundschaftsspiel", it: "Amichevole", nl: "Oefenwedstrijd" },
   "Changer le pays":      { en: "Change country", es: "Cambiar país", pt: "Mudar país", de: "Land ändern", it: "Cambia paese", nl: "Land wijzigen" },
   "JOUER ⚽":             { en: "PLAY ⚽", es: "JUGAR ⚽", pt: "JOGAR ⚽", de: "SPIELEN ⚽", it: "GIOCA ⚽", nl: "SPELEN ⚽" },
   "⚑ Changer le capitaine": { en: "⚑ Change captain", es: "⚑ Cambiar capitán", pt: "⚑ Mudar capitão", de: "⚑ Kapitän ändern", it: "⚑ Cambia capitano", nl: "⚑ Aanvoerder wijzigen" },
@@ -180,7 +194,6 @@ const T: Record<string, Record<Lang, string>> = {
   "Retour":               { en: "Back", es: "Atrás", pt: "Voltar", de: "Zurück", it: "Indietro", nl: "Terug" },
 
   // --- training ---
-  "Entraînement":         { en: "Training", es: "Entrenamiento", pt: "Treino", de: "Training", it: "Allenamento", nl: "Training" },
   "Corner":               { en: "Corner", es: "Córner", pt: "Canto", de: "Ecke", it: "Calcio d'angolo", nl: "Hoekschop" },
   "Coup franc":           { en: "Free kick", es: "Tiro libre", pt: "Livre", de: "Freistoß", it: "Punizione", nl: "Vrije trap" },
   "Penalty":              { en: "Penalty", es: "Penalti", pt: "Grande penalidade", de: "Elfmeter", it: "Rigore", nl: "Strafschop" },
@@ -202,11 +215,6 @@ const T: Record<string, Record<Lang, string>> = {
   "Affronter cette équipe":  { en: "Play this team", es: "Enfrentar a este equipo", pt: "Enfrentar esta equipa", de: "Gegen dieses Team", it: "Affronta questa squadra", nl: "Speel tegen dit team" },
   "Jouer avec cette équipe": { en: "Play as this team", es: "Jugar con este equipo", pt: "Jogar com esta equipa", de: "Mit diesem Team spielen", it: "Gioca con questa squadra", nl: "Speel met dit team" },
   "Autres pays":          { en: "Other countries", es: "Otros países", pt: "Outros países", de: "Andere Länder", it: "Altri paesi", nl: "Andere landen" },
-  "Afrique":              { en: "Africa", es: "África", pt: "África", de: "Afrika", it: "Africa", nl: "Afrika" },
-  "Europe":               { en: "Europe", es: "Europa", pt: "Europa", de: "Europa", it: "Europa", nl: "Europa" },
-  "Amérique du Sud":      { en: "South America", es: "Sudamérica", pt: "América do Sul", de: "Südamerika", it: "Sud America", nl: "Zuid-Amerika" },
-  "Amér. du Nord":        { en: "North America", es: "Norteamérica", pt: "América do Norte", de: "Nordamerika", it: "Nord America", nl: "Noord-Amerika" },
-  "Asie / Océanie":       { en: "Asia / Oceania", es: "Asia / Oceanía", pt: "Ásia / Oceânia", de: "Asien / Ozeanien", it: "Asia / Oceania", nl: "Azië / Oceanië" },
   "Bravo, objectif rempli !": { en: "Well done, objective complete!", es: "¡Bien hecho, objetivo cumplido!", pt: "Boa, objetivo cumprido!", de: "Stark, Ziel erreicht!", it: "Bravo, obiettivo raggiunto!", nl: "Goed gedaan, doel behaald!" },
   "Pas cette fois — réessaie un autre défi.": { en: "Not this time — try another challenge.", es: "Esta vez no — prueba otro reto.", pt: "Desta vez não — tenta outro desafio.", de: "Nicht diesmal — versuch eine andere Aufgabe.", it: "Non stavolta — prova un'altra sfida.", nl: "Deze keer niet — probeer een andere uitdaging." },
 
@@ -218,7 +226,6 @@ const T: Record<string, Record<Lang, string>> = {
   "🎮 Gameplay":          { en: "🎮 Gameplay", es: "🎮 Jugabilidad", pt: "🎮 Jogabilidade", de: "🎮 Gameplay", it: "🎮 Gameplay", nl: "🎮 Gameplay" },
   "🔊 Audio":             { en: "🔊 Audio", es: "🔊 Audio", pt: "🔊 Áudio", de: "🔊 Audio", it: "🔊 Audio", nl: "🔊 Audio" },
   "⌨️ Commandes":         { en: "⌨️ Controls", es: "⌨️ Controles", pt: "⌨️ Comandos", de: "⌨️ Steuerung", it: "⌨️ Comandi", nl: "⌨️ Besturing" },
-  "RÉGLAGES":             { en: "SETTINGS", es: "AJUSTES", pt: "DEFINIÇÕES", de: "OPTIONEN", it: "OPZIONI", nl: "INSTELLINGEN" },
   "← Menu":               { en: "← Menu", es: "← Menú", pt: "← Menu", de: "← Menü", it: "← Menu", nl: "← Menu" },
   "Match":                { en: "Match", es: "Partido", pt: "Jogo", de: "Spiel", it: "Partita", nl: "Wedstrijd" },
   "Assistances":          { en: "Assists", es: "Asistencias", pt: "Assistências", de: "Hilfen", it: "Assistenze", nl: "Hulp" },
@@ -227,13 +234,9 @@ const T: Record<string, Record<Lang, string>> = {
   "Sans le ballon":       { en: "Off the ball", es: "Sin el balón", pt: "Sem a bola", de: "Ohne Ball", it: "Senza palla", nl: "Zonder bal" },
   "Général":              { en: "General", es: "General", pt: "Geral", de: "Allgemein", it: "Generale", nl: "Algemeen" },
   // --- settings: match ---
-  "Difficulté du CPU (Humain vs CPU)": { en: "CPU difficulty (Human vs CPU)", es: "Dificultad de la CPU (Humano vs CPU)", pt: "Dificuldade do CPU (Humano vs CPU)", de: "CPU-Schwierigkeit (Mensch vs CPU)", it: "Difficoltà CPU (Umano vs CPU)", nl: "CPU-moeilijkheid (Mens vs CPU)" },
-  "Durée du match":       { en: "Match length", es: "Duración del partido", pt: "Duração do jogo", de: "Spieldauer", it: "Durata partita", nl: "Wedstrijdduur" },
-  "Vitesse des joueurs":  { en: "Player speed", es: "Velocidad de los jugadores", pt: "Velocidade dos jogadores", de: "Spielergeschwindigkeit", it: "Velocità dei giocatori", nl: "Spelersnelheid" },
   "Tirs au but":          { en: "Penalty shootout", es: "Tanda de penaltis", pt: "Disputa de pênaltis", de: "Elfmeterschießen", it: "Calci di rigore", nl: "Strafschoppenreeks" },
   "Victoire à domicile":  { en: "Home win", es: "Gana el local", pt: "Vitória da casa", de: "Heimsieg", it: "Vince la squadra di casa", nl: "Thuisploeg wint" },
   "Victoire à l'extérieur": { en: "Away win", es: "Gana el visitante", pt: "Vitória de fora", de: "Auswärtssieg", it: "Vince la squadra ospite", nl: "Uitploeg wint" },
-  "Force réaliste des équipes": { en: "Realistic team strength", es: "Fuerza realista de los equipos", pt: "Força realista das equipas", de: "Realistische Teamstärke", it: "Forza realistica delle squadre", nl: "Realistische teamsterkte" },
   "Chaque équipe joue à son vrai niveau (selon son OVR) : les nations faibles jouent moins bien, les grandes nations mieux. Désactivé = toutes à niveau égal.": { en: "Each team plays at its real level (by its OVR): weaker nations play worse, top nations better. Off = all equal.", es: "Cada equipo juega a su nivel real (según su OVR): las selecciones débiles juegan peor, las grandes mejor. Desactivado = todas iguales.", pt: "Cada equipa joga ao seu nível real (pelo OVR): as seleções fracas jogam pior, as grandes melhor. Desativado = todas iguais.", de: "Jedes Team spielt auf seinem echten Niveau (nach OVR): schwächere Nationen schlechter, Topnationen besser. Aus = alle gleich.", it: "Ogni squadra gioca al suo livello reale (in base all'OVR): le nazionali deboli giocano peggio, le grandi meglio. Disattivato = tutte uguali.", nl: "Elk team speelt op zijn echte niveau (op basis van OVR): zwakke landen spelen slechter, toplanden beter. Uit = allemaal gelijk." },
   "↺ Valeurs d'usine":    { en: "↺ Factory defaults", es: "↺ Valores de fábrica", pt: "↺ Valores de fábrica", de: "↺ Werkseinstellungen", it: "↺ Valori di fabbrica", nl: "↺ Fabrieksinstellingen" },
   "✔ Activé":             { en: "✔ On", es: "✔ Activado", pt: "✔ Ativado", de: "✔ An", it: "✔ Attivo", nl: "✔ Aan" },
@@ -290,7 +293,6 @@ const T: Record<string, Record<Lang, string>> = {
   "Chargement du match":  { en: "Loading match", es: "Cargando partido", pt: "A carregar o jogo", de: "Spiel wird geladen", it: "Caricamento partita", nl: "Wedstrijd laden" },
 
   // --- referee mode ---
-  "Arbitre":              { en: "Referee", es: "Árbitro", pt: "Árbitro", de: "Schiedsrichter", it: "Arbitro", nl: "Scheidsrechter" },
   "Tu diriges le match":  { en: "You run the match", es: "Diriges el partido", pt: "Diriges o jogo", de: "Du leitest das Spiel", it: "Dirigi la partita", nl: "Jij leidt de wedstrijd" },
   "Sifflet":              { en: "Whistle", es: "Silbato", pt: "Apito", de: "Pfiff", it: "Fischio", nl: "Fluit" },
   "Jaune":                { en: "Yellow", es: "Amarilla", pt: "Amarelo", de: "Gelb", it: "Giallo", nl: "Geel" },
@@ -321,7 +323,6 @@ const T: Record<string, Record<Lang, string>> = {
   "Siffle pour arrêter puis parler à un joueur": { en: "Whistle to stop, then talk to a player", es: "Silba para parar y habla con un jugador", pt: "Apita para parar e fala com um jogador", de: "Pfeife zum Stoppen, dann rede mit einem Spieler", it: "Fischia per fermare, poi parla con un giocatore", nl: "Fluit om te stoppen, praat dan met een speler" },
 
   // --- online multiplayer ---
-  "En ligne":             { en: "Online", es: "En línea", pt: "Online", de: "Online", it: "Online", nl: "Online" },
   "Multijoueur en ligne": { en: "Online multiplayer", es: "Multijugador en línea", pt: "Multijogador online", de: "Online-Mehrspieler", it: "Multigiocatore online", nl: "Online multiplayer" },
   "Créer une partie":     { en: "Create a game", es: "Crear una partida", pt: "Criar um jogo", de: "Spiel erstellen", it: "Crea una partita", nl: "Spel aanmaken" },
   "Rejoindre":            { en: "Join", es: "Unirse", pt: "Entrar", de: "Beitreten", it: "Unisciti", nl: "Meedoen" },
@@ -371,13 +372,13 @@ export function countryName(iso: string, french: string): string {
   const key = lang + "|" + iso;
   const hit = regionCache.get(key);
   if (hit !== undefined) return hit;
-  let out = french;
+  let out = L(french);   // hand-translated fallback (England, Scotland, Wales…)
   const code = iso.toUpperCase();
   if (/^[A-Z]{2}$/.test(code)) {
     try {
       const dn = new Intl.DisplayNames([lang], { type: "region" });
-      out = dn.of(code) ?? french;
-    } catch { out = french; }
+      out = dn.of(code) ?? out;
+    } catch { /* keep the fallback */ }
   }
   regionCache.set(key, out);
   return out;
