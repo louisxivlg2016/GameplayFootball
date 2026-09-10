@@ -90,6 +90,19 @@ const T: Record<string, Record<Lang, string>> = {
   "Ton club": { "en": "Your club", "es": "Tu club", "pt": "O teu clube", "de": "Dein Verein", "nb": "Klubben din", "it": "Il tuo club", "ga": "Do chlub", "nl": "Jouw club", "hr": "Tvoj klub", "ro": "Clubul tău", "pl": "Twój klub", "tr": "Kulübün", "ru": "Твой клуб", "uk": "Твій клуб", "ar": "ناديك", "hi": "तुम्हारा क्लब", "id": "Klubmu", "vi": "Câu lạc bộ của bạn", "th": "สโมสรของคุณ", "ja": "あなたのクラブ", "ko": "당신의 클럽", "zh-CN": "你的俱乐部", "zh-TW": "你的俱樂部" },
   "Ton équipe": { "en": "Your team", "es": "Tu selección", "pt": "A tua seleção", "de": "Dein Team", "nb": "Laget ditt", "it": "La tua squadra", "ga": "D'fhoireann", "nl": "Jouw team", "hr": "Tvoja reprezentacija", "ro": "Echipa ta", "pl": "Twoja drużyna", "tr": "Takımın", "ru": "Твоя сборная", "uk": "Твоя збірна", "ar": "منتخبك", "hi": "तुम्हारी टीम", "id": "Timmu", "vi": "Đội của bạn", "th": "ทีมของคุณ", "ja": "あなたのチーム", "ko": "당신의 팀", "zh-CN": "你的球队", "zh-TW": "你的球隊" },
   "choisis l'adversaire (VS)": { "en": "pick the opponent (VS)", "es": "elige el rival (VS)", "pt": "escolhe o adversário (VS)", "de": "Gegner wählen (VS)", "nb": "velg motstander (VS)", "it": "scegli l'avversario (VS)", "ga": "roghnaigh an céile comhraic (VS)", "nl": "kies de tegenstander (VS)", "hr": "odaberi protivnika (VS)", "ro": "alege adversarul (VS)", "pl": "wybierz przeciwnika (VS)", "tr": "rakibi seç (VS)", "ru": "выбери соперника (VS)", "uk": "обери суперника (VS)", "ar": "اختر المنافس (VS)", "hi": "प्रतिद्वंद्वी चुनो (VS)", "id": "pilih lawan (VS)", "vi": "chọn đối thủ (VS)", "th": "เลือกคู่แข่ง (VS)", "ja": "対戦相手を選ぶ（VS）", "ko": "상대 선택 (VS)", "zh-CN": "选择对手（VS）", "zh-TW": "選擇對手（VS）" },
+  "CdM": { "en": "WC", "es": "Mundial", "pt": "Mundial", "de": "WM", "nb": "VM", "it": "Mondiali", "ga": "CD", "nl": "WK", "hr": "SP", "ro": "CM", "pl": "MŚ", "tr": "Dünya Kupası", "ru": "ЧМ", "uk": "ЧС", "ar": "كأس العالم", "hi": "विश्व कप", "id": "Piala Dunia", "vi": "World Cup", "th": "ฟุตบอลโลก", "ja": "W杯", "ko": "월드컵", "zh-CN": "世界杯", "zh-TW": "世界盃" },
+  "Finale": { "en": "Final", "es": "Final", "pt": "Final", "de": "Finale", "nb": "Finale", "it": "Finale", "ga": "Cluiche ceannais", "nl": "Finale", "hr": "Finale", "ro": "Finală", "pl": "Finał", "tr": "Final", "ru": "Финал", "uk": "Фінал", "ar": "النهائي", "hi": "फाइनल", "id": "Final", "vi": "Chung kết", "th": "รอบชิงชนะเลิศ", "ja": "決勝", "ko": "결승", "zh-CN": "决赛", "zh-TW": "決賽" },
+  "Quart": { "en": "Quarter-final", "es": "Cuartos", "pt": "Quartos", "de": "Viertelfinale", "nb": "Kvartfinale", "it": "Quarti", "ga": "Cluiche ceathrú ceannais", "nl": "Kwartfinale", "hr": "Četvrtfinale", "ro": "Sferturi", "pl": "Ćwierćfinał", "tr": "Çeyrek final", "ru": "Четвертьфинал", "uk": "Чвертьфінал", "ar": "ربع النهائي", "hi": "क्वार्टर फाइनल", "id": "Perempat final", "vi": "Tứ kết", "th": "รอบก่อนรองชนะเลิศ", "ja": "準々決勝", "ko": "8강", "zh-CN": "四分之一决赛", "zh-TW": "八強" },
+  "le but de la gagne (avant les tirs au but)": { "en": "the winner, before it goes to penalties", "es": "el gol de la victoria (antes de los penaltis)", "pt": "o golo da vitória (antes dos penáltis)", "de": "das Siegtor, bevor es ins Elfmeterschießen geht", "nb": "seiersmålet (før straffekonkurransen)", "it": "il gol vittoria (prima dei rigori)", "ga": "an cúl buacach (roimh na ciceanna pionóis)", "nl": "de winnende treffer (vóór de strafschoppen)", "hr": "pobjednički gol (prije jedanaesteraca)", "ro": "golul victoriei (înainte de penalty-uri)", "pl": "zwycięski gol (przed rzutami karnymi)", "tr": "galibiyet golü (penaltılara kalmadan)", "ru": "победный гол (пока не дошло до пенальти)", "uk": "переможний гол (поки не дійшло до пенальті)", "ar": "هدف الفوز قبل ركلات الترجيح", "hi": "जीत का गोल (पेनल्टी से पहले)", "id": "gol kemenangan (sebelum adu penalti)", "vi": "bàn thắng quyết định (trước loạt luân lưu)", "th": "ประตูชัย ก่อนไปดวลจุดโทษ", "ja": "PK戦になる前に決勝ゴールを", "ko": "승부차기 전에 결승골을", "zh-CN": "制胜进球，别拖到点球", "zh-TW": "致勝進球，別拖到PK" },
+  "Zidane ou Materazzi, à toi de trancher": { "en": "Zidane or Materazzi — you decide", "es": "Zidane o Materazzi, tú decides", "pt": "Zidane ou Materazzi, decides tu", "de": "Zidane oder Materazzi — du entscheidest", "nb": "Zidane eller Materazzi — du bestemmer", "it": "Zidane o Materazzi, decidi tu", "ga": "Zidane nó Materazzi — fút féin", "nl": "Zidane of Materazzi — jij beslist", "hr": "Zidane ili Materazzi — ti odlučuješ", "ro": "Zidane sau Materazzi — tu decizi", "pl": "Zidane czy Materazzi — ty decydujesz", "tr": "Zidane mi Materazzi mi, sen karar ver", "ru": "Зидан или Матерацци — решать тебе", "uk": "Зідан чи Матерацці — вирішувати тобі", "ar": "زيدان أم ماتيراتزي، القرار لك", "hi": "ज़िदान या मातेराज़ी, फैसला तुम्हारा", "id": "Zidane atau Materazzi, kamu yang menentukan", "vi": "Zidane hay Materazzi — bạn quyết định", "th": "ซีดานหรือมาเตรัซซี คุณตัดสิน", "ja": "ジダンかマテラッツィか、決めるのは君だ", "ko": "지단이냐 마테라치냐, 당신의 선택", "zh-CN": "齐达内还是马特拉齐，由你决定", "zh-TW": "席丹還是馬特拉齊，由你決定" },
+  "trouve le but à la Götze": { "en": "find a Götze-style winner", "es": "encuentra un gol a lo Götze", "pt": "encontra um golo à Götze", "de": "triff wie Götze", "nb": "finn et Götze-mål", "it": "trova il gol alla Götze", "ga": "aimsigh cúl ar nós Götze", "nl": "maak een treffer à la Götze", "hr": "zabij gol u Götzeovu stilu", "ro": "găsește un gol în stilul lui Götze", "pl": "strzel gola jak Götze", "tr": "Götze gibi bir gol bul", "ru": "забей как Гётце", "uk": "забий як Гетце", "ar": "سجّل هدفًا على طريقة غوتزه", "hi": "गोएत्से जैसा गोल करो", "id": "cetak gol ala Götze", "vi": "ghi bàn kiểu Götze", "th": "ทำประตูสไตล์เกิทเซ่", "ja": "ゲッツェのような一撃を", "ko": "괴체 같은 결승골을", "zh-CN": "来一记格策式的进球", "zh-TW": "來一記格策式的進球" },
+  "le but d'Iniesta t'attend": { "en": "Iniesta's goal is waiting for you", "es": "el gol de Iniesta te espera", "pt": "o golo do Iniesta espera-te", "de": "Iniestas Tor wartet auf dich", "nb": "Iniestas mål venter på deg", "it": "il gol di Iniesta ti aspetta", "ga": "tá cúl Iniesta ag fanacht ort", "nl": "het doelpunt van Iniesta wacht op je", "hr": "Iniestin gol te čeka", "ro": "golul lui Iniesta te așteaptă", "pl": "gol Iniesty czeka na ciebie", "tr": "Iniesta'nın golü seni bekliyor", "ru": "гол Иньесты ждёт тебя", "uk": "гол Іньєсти чекає на тебе", "ar": "هدف إنييستا في انتظارك", "hi": "इनिएस्ता का गोल तुम्हारा इंतज़ार कर रहा है", "id": "gol Iniesta menantimu", "vi": "bàn thắng của Iniesta đang chờ bạn", "th": "ประตูของอิเนียสตารอคุณอยู่", "ja": "イニエスタのゴールが待っている", "ko": "이니에스타의 골이 기다립니다", "zh-CN": "伊涅斯塔的进球在等你", "zh-TW": "伊涅斯塔的進球在等你" },
+  "défends le sacre à domicile": { "en": "defend the title on home soil", "es": "defiende el título en casa", "pt": "defende o título em casa", "de": "verteidige den Titel im eigenen Land", "nb": "forsvar tittelen på hjemmebane", "it": "difendi il titolo in casa", "ga": "cosain an craobh sa bhaile", "nl": "verdedig de titel op eigen bodem", "hr": "obrani naslov pred svojima", "ro": "apără titlul acasă", "pl": "obroń tytuł u siebie", "tr": "şampiyonluğu evinde koru", "ru": "защити титул дома", "uk": "захисти титул удома", "ar": "دافع عن اللقب على أرضك", "hi": "घर में खिताब बचाओ", "id": "pertahankan gelar di kandang", "vi": "bảo vệ chức vô địch trên sân nhà", "th": "ป้องกันแชมป์ในบ้าน", "ja": "地元での戴冠を守り抜け", "ko": "홈에서 우승을 지켜내세요", "zh-CN": "在主场捍卫冠军", "zh-TW": "在主場捍衛冠軍" },
+  "tiens l'exploit historique": { "en": "hold on to a historic upset", "es": "aguanta la gesta histórica", "pt": "segura o feito histórico", "de": "halte die historische Sensation fest", "nb": "hold på den historiske bragden", "it": "reggi l'impresa storica", "ga": "coinnigh an éacht stairiúil", "nl": "houd de historische stunt vast", "hr": "zadrži povijesni podvig", "ro": "păstrează isprava istorică", "pl": "utrzymaj historyczny wyczyn", "tr": "tarihi başarıyı koru", "ru": "удержи историческую сенсацию", "uk": "утримай історичну сенсацію", "ar": "حافظ على الإنجاز التاريخي", "hi": "ऐतिहासिक उलटफेर को थामे रखो", "id": "pertahankan kejutan bersejarah", "vi": "giữ vững kỳ tích lịch sử", "th": "รักษาผลงานประวัติศาสตร์เอาไว้", "ja": "歴史的番狂わせを守り切れ", "ko": "역사적인 이변을 지켜내세요", "zh-CN": "守住这场历史性的爆冷", "zh-TW": "守住這場歷史性的爆冷" },
+  "reviens dans la finale": { "en": "get back into the final", "es": "vuelve a la final", "pt": "volta à final", "de": "komm zurück ins Finale", "nb": "kom tilbake i finalen", "it": "rientra nella finale", "ga": "fill ar ais sa chluiche ceannais", "nl": "kom terug in de finale", "hr": "vrati se u finale", "ro": "revino în finală", "pl": "wróć do finału", "tr": "finale geri dön", "ru": "вернись в финал", "uk": "повернись у фінал", "ar": "عُد إلى المباراة النهائية", "hi": "फाइनल में वापसी करो", "id": "kembali ke final", "vi": "trở lại trận chung kết", "th": "กลับมาในนัดชิง", "ja": "決勝で巻き返せ", "ko": "결승전에 다시 뛰어드세요", "zh-CN": "重返决赛悬念", "zh-TW": "重返決賽懸念" },
+  "réponds à la main de Dieu": { "en": "answer the Hand of God", "es": "responde a la mano de Dios", "pt": "responde à mão de Deus", "de": "antworte auf die Hand Gottes", "nb": "svar på Guds hånd", "it": "rispondi alla mano di Dio", "ga": "freagair Lámh Dé", "nl": "antwoord op de hand van God", "hr": "odgovori na Božju ruku", "ro": "răspunde la mâna lui Dumnezeu", "pl": "odpowiedz na rękę Boga", "tr": "Tanrı'nın Eli'ne cevap ver", "ru": "ответь на руку Бога", "uk": "дай відповідь на руку Бога", "ar": "ردّ على هدف يد الله", "hi": "हैंड ऑफ गॉड का जवाब दो", "id": "balas Gol Tangan Tuhan", "vi": "đáp trả Bàn tay của Chúa", "th": "ตอบโต้ประตูหัตถ์พระเจ้า", "ja": "「神の手」に反撃せよ", "ko": "신의 손에 응답하세요", "zh-CN": "回敬那记“上帝之手”", "zh-TW": "回敬那記「上帝之手」" },
+  "DÉFI RÉUSSI ✅": { "en": "CHALLENGE BEATEN ✅", "es": "DESAFÍO SUPERADO ✅", "pt": "DESAFIO CUMPRIDO ✅", "de": "HERAUSFORDERUNG GESCHAFFT ✅", "nb": "UTFORDRING KLART ✅", "it": "SFIDA SUPERATA ✅", "ga": "DÚSHLÁN CURTHA I gCRÍCH ✅", "nl": "UITDAGING GEHAALD ✅", "hr": "IZAZOV RIJEŠEN ✅", "ro": "PROVOCARE REUȘITĂ ✅", "pl": "WYZWANIE ZALICZONE ✅", "tr": "MEYDAN OKUMA BAŞARILI ✅", "ru": "ИСПЫТАНИЕ ПРОЙДЕНО ✅", "uk": "ВИПРОБУВАННЯ ПРОЙДЕНО ✅", "ar": "تم اجتياز التحدي ✅", "hi": "चुनौती पूरी ✅", "id": "TANTANGAN SELESAI ✅", "vi": "HOÀN THÀNH THỬ THÁCH ✅", "th": "ผ่านชาเลนจ์ ✅", "ja": "チャレンジ達成 ✅", "ko": "챌린지 성공 ✅", "zh-CN": "挑战成功 ✅", "zh-TW": "挑戰成功 ✅" },
+  "DÉFI RATÉ ❌": { "en": "CHALLENGE FAILED ❌", "es": "DESAFÍO FALLIDO ❌", "pt": "DESAFIO FALHADO ❌", "de": "HERAUSFORDERUNG VERPASST ❌", "nb": "UTFORDRING MISLYKTES ❌", "it": "SFIDA FALLITA ❌", "ga": "DÚSHLÁN CAILLTE ❌", "nl": "UITDAGING MISLUKT ❌", "hr": "IZAZOV PROPUŠTEN ❌", "ro": "PROVOCARE RATATĂ ❌", "pl": "WYZWANIE NIEZALICZONE ❌", "tr": "MEYDAN OKUMA BAŞARISIZ ❌", "ru": "ИСПЫТАНИЕ ПРОВАЛЕНО ❌", "uk": "ВИПРОБУВАННЯ ПРОВАЛЕНО ❌", "ar": "فشل التحدي ❌", "hi": "चुनौती विफल ❌", "id": "TANTANGAN GAGAL ❌", "vi": "THỬ THÁCH THẤT BẠI ❌", "th": "ชาเลนจ์ล้มเหลว ❌", "ja": "チャレンジ失敗 ❌", "ko": "챌린지 실패 ❌", "zh-CN": "挑战失败 ❌", "zh-TW": "挑戰失敗 ❌" },
   // --- back buttons, card tooltips, currency ---
   "← Menu": { "en": "← Menu", "es": "← Menú", "pt": "← Menu", "de": "← Menü", "nb": "← Meny", "it": "← Menu", "ga": "← Roghchlár", "nl": "← Menu", "hr": "← Izbornik", "ro": "← Meniu", "pl": "← Menu", "tr": "← Menü", "ru": "← Меню", "uk": "← Меню", "ar": "← القائمة", "hi": "← मेन्यू", "id": "← Menu", "vi": "← Menu", "th": "← เมนู", "ja": "← メニュー", "ko": "← 메뉴", "zh-CN": "← 菜单", "zh-TW": "← 選單" },
   "← Retour": { "en": "← Back", "es": "← Volver", "pt": "← Voltar", "de": "← Zurück", "nb": "← Tilbake", "it": "← Indietro", "ga": "← Ar ais", "nl": "← Terug", "hr": "← Natrag", "ro": "← Înapoi", "pl": "← Wstecz", "tr": "← Geri", "ru": "← Назад", "uk": "← Назад", "ar": "← رجوع", "hi": "← वापस", "id": "← Kembali", "vi": "← Quay lại", "th": "← ย้อนกลับ", "ja": "← 戻る", "ko": "← 뒤로", "zh-CN": "← 返回", "zh-TW": "← 返回" },
@@ -429,20 +442,112 @@ export function countryName(iso: string, french: string): string {
     } catch { /* keep the fallback */ }
   }
   regionCache.set(key, out);
+  // a country name comes from Intl, not from a row, so the sweep needs its own
+  // way back: remember the French name that produced it
+  const k = out.trim();
+  if (k.length > 1) rendered.set(k, { key: french, kind: "country" });
   return out;
 }
 
 export function L(fr: string): string {
   const lang = uiLang();
-  if (lang === "fr" || !lang) return fr;
+  if (lang === "fr" || !lang) { remember(fr, fr); return fr; }
   const row = T[fr];
-  if (!row) return fr;
+  if (!row) { remember(fr, fr); return fr; }
   // Exact language first, then the base of a regional code (zh-CN -> zh), then
   // English as the widest fallback — a Japanese player reading English beats a
   // Japanese player reading French.
   const base = lang.split("-")[0] ?? lang;
-  return row[lang] ?? row[base] ?? row.en ?? fr;
+  const out = row[lang] ?? row[base] ?? row.en ?? fr;
+  remember(out, fr);
+  return out;
 }
+
+// ---- switching language on a screen that is already built --------------------
+//
+// A menu built once keeps the language it was built in: switching to Russian
+// left "Créer une partie" in French with "Не подключено" underneath it, because
+// only the handful of elements each screen bothered to re-translate by hand
+// followed the change. Annotating every string by hand is the same bug waiting
+// to happen — someone always forgets one.
+//
+// So remember, as L() hands each string out, what French key produced it. On a
+// language change we can then walk the menus, recognise any text we ourselves
+// put there whatever language it is in, and translate it again. Nothing to
+// annotate, and a string added tomorrow is covered the day it is written.
+interface Source { key: string; kind?: "name" | "country" }
+const rendered = new Map<string, Source>();       // what was shown -> what produced it
+function remember(shown: string, french: string): void {
+  const k = shown.trim();
+  if (k.length > 1) rendered.set(k, { key: french });   // "ok"-sized strings: too risky
+}
+
+// Club and city names do not come from L() — they live in their own table — so
+// translit registers how to resolve them and records what it displayed.
+let nameResolver: ((latin: string) => string) | null = null;
+export function setNameResolver(f: (latin: string) => string): void { nameResolver = f; }
+export function rememberName(shown: string, latin: string): void {
+  const k = shown.trim();
+  if (k.length > 1) rendered.set(k, { key: latin, kind: "name" });
+}
+function resolve(src: Source): string {
+  if (src.kind === "name") return nameResolver ? nameResolver(src.key) : src.key;
+  if (src.kind === "country") return countryName("", src.key);
+  return L(src.key);
+}
+
+/**
+ * Text nodes and the attributes users read; menus only, never the canvas.
+ *
+ * Three passes, and the order matters. A string carrying markup ("<b>PLAY</b> =
+ * straight to the match…") is several text nodes once the browser has parsed
+ * it, so match whole elements by their innerHTML first — otherwise the <b>
+ * inside gets translated on its own and the sentence around it stays put, which
+ * is exactly what a half-Russian banner looked like. Then whole text nodes.
+ * Then, for the ones glued to an emoji or a colon ("🌐 Online multiplayer"),
+ * fall back to replacing the longest known string found inside them.
+ */
+function retranslate(el: Element): void {
+  for (const node of Array.from(el.querySelectorAll("*"))) {
+    if (!node.children.length) continue;                  // handled as a text node
+    const src = rendered.get(node.innerHTML.trim());
+    if (src) node.innerHTML = resolve(src);
+  }
+
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) nodes.push(n as Text);
+
+  const partial: Text[] = [];
+  for (const n of nodes) {
+    const raw = n.nodeValue ?? "";
+    const src = rendered.get(raw.trim());
+    if (!src) { if (raw.trim().length > 4) partial.push(n); continue; }
+    n.nodeValue = (/^\s*/.exec(raw)?.[0] ?? "") + resolve(src) + (/\s*$/.exec(raw)?.[0] ?? "");
+  }
+
+  if (partial.length) {
+    // longest first, so "Match" never wins over "Match nul"
+    const known = Array.from(rendered.keys()).filter((k) => k.length >= 4)
+      .sort((a, b) => b.length - a.length);
+    for (const n of partial) {
+      const raw = n.nodeValue ?? "";
+      const hit = known.find((k) => raw.includes(k));
+      if (hit) n.nodeValue = raw.replace(hit, resolve(rendered.get(hit)!));
+    }
+  }
+  for (const node of [el, ...Array.from(el.querySelectorAll("*"))]) {
+    for (const attr of ["placeholder", "title", "alt"]) {
+      const v = node.getAttribute?.(attr);
+      const src = v && rendered.get(v.trim());
+      if (src) node.setAttribute(attr, resolve(src));
+    }
+  }
+}
+
+/** Every menu panel we own — deliberately not the whole body. */
+const PANELS = "#gpf-home,#gpf-clubs,#gpf-national,#gpf-market,#gpf-net,#gpf-defi," +
+  "#gpf-settings,#gpf-lineup,#gpf-training,#gpf-matches,#gpf-friendly,#gpf-menu,#gpf-wallet";
 
 /** translate a "CAPITAINE — FRANCE"-style header keeping the dynamic tail. */
 export function Lcaptain(nation: string): string {
@@ -454,5 +559,10 @@ export function onLangChange(cb: () => void): void {
   window.addEventListener("gpf-langchange", cb);
 }
 export function fireLangChange(): void {
+  // hand-written listeners first (they re-render whole lists), then sweep up
+  // everything they did not think of
   window.dispatchEvent(new Event("gpf-langchange"));
+  try {
+    document.querySelectorAll(PANELS).forEach((el) => retranslate(el));
+  } catch { /* a screen mid-rebuild is not worth breaking the switch over */ }
 }

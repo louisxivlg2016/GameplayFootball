@@ -13,14 +13,15 @@ import { setScoreFlags } from "./scoreflags";
 import { applyMatchSquads } from "./squads";
 import { setAnthemOverride } from "./anthem";
 import { teamLineup } from "./lineup";
-import { L, countryName, onLangChange } from "./i18n";
+import { L, countryName, onLangChange, uiLang } from "./i18n";
 import { rewardChallenge } from "./wallet";
 
 interface Team { name: string; iso: string; flag: string; color: string }
 // objective: 0 = SCORE a goal, 1 = WIN (be ahead at full time), 2 = HOLD (don't concede)
 interface Challenge {
   a: Team; b: Team; aScore: number; bScore: number; minute: number;
-  obj: 0 | 1 | 2; play: "a" | "b" | "both"; cup: string; sub: string;
+  obj: 0 | 1 | 2; play: "a" | "b" | "both";
+  year: number; host: string; hostIso: string; round: string; sub: string;
   sqa: string[]; sqb: string[]; // era-accurate XIs for team a / team b
 }
 
@@ -69,28 +70,28 @@ const objText = (i: number): string => OBJ_ICON[i]! + L(OBJ_KEY[i]!);
 // each is anchored to a real World Cup match (score/minute close to the real one)
 const CH: Challenge[] = [
   { a: T.Argentine, b: T.France, aScore: 2, bScore: 2, minute: 88, obj: 0, play: "both",
-    cup: "🏆 CdM 2022 · Qatar · Finale", sub: "88ᵉ — le but de la gagne (avant les tirs au but)",
+    year: 2022, host: "Qatar", hostIso: "QA", round: "Finale", sub: "le but de la gagne (avant les tirs au but)",
     sqa: SQ.ARG2022, sqb: SQ.FRA2022 },
   { a: T.Italie, b: T.France, aScore: 1, bScore: 1, minute: 88, obj: 0, play: "both",
-    cup: "🏆 CdM 2006 · Allemagne · Finale", sub: "88ᵉ — Zidane ou Materazzi, à toi de trancher",
+    year: 2006, host: "Allemagne", hostIso: "DE", round: "Finale", sub: "Zidane ou Materazzi, à toi de trancher",
     sqa: SQ.ITA2006, sqb: SQ.FRA2006 },
   { a: T.Allemagne, b: T.Argentine, aScore: 0, bScore: 0, minute: 88, obj: 0, play: "both",
-    cup: "🏆 CdM 2014 · Brésil · Finale", sub: "88ᵉ — trouve le but à la Götze",
+    year: 2014, host: "Brésil", hostIso: "BR", round: "Finale", sub: "trouve le but à la Götze",
     sqa: SQ.GER2014, sqb: SQ.ARG2014 },
   { a: T.Espagne, b: T["Pays-Bas"], aScore: 0, bScore: 0, minute: 88, obj: 0, play: "both",
-    cup: "🏆 CdM 2010 · Afrique du Sud · Finale", sub: "88ᵉ — le but d'Iniesta t'attend",
+    year: 2010, host: "Afrique du Sud", hostIso: "ZA", round: "Finale", sub: "le but d'Iniesta t'attend",
     sqa: SQ.ESP2010, sqb: SQ.NED2010 },
   { a: T.France, b: T["Brésil"], aScore: 2, bScore: 0, minute: 85, obj: 2, play: "a",
-    cup: "🏆 CdM 1998 · France · Finale", sub: "85ᵉ — défends le sacre à domicile",
+    year: 1998, host: "France", hostIso: "FR", round: "Finale", sub: "défends le sacre à domicile",
     sqa: SQ.FRA1998, sqb: SQ.BRA1998 },
   { a: T.Maroc, b: T.Portugal, aScore: 1, bScore: 0, minute: 80, obj: 2, play: "a",
-    cup: "🏆 CdM 2022 · Qatar · Quart", sub: "80ᵉ — tiens l'exploit historique",
+    year: 2022, host: "Qatar", hostIso: "QA", round: "Quart", sub: "tiens l'exploit historique",
     sqa: SQ.MAR2022, sqb: SQ.POR2022 },
   { a: T.Croatie, b: T.France, aScore: 1, bScore: 2, minute: 70, obj: 0, play: "a",
-    cup: "🏆 CdM 2018 · Russie · Finale", sub: "70ᵉ — reviens dans la finale",
+    year: 2018, host: "Russie", hostIso: "RU", round: "Finale", sub: "reviens dans la finale",
     sqa: SQ.CRO2018, sqb: SQ.FRA2018 },
   { a: T.Angleterre, b: T.Argentine, aScore: 1, bScore: 2, minute: 85, obj: 0, play: "a",
-    cup: "🏆 CdM 1986 · Mexique · Quart", sub: "85ᵉ — réponds à la main de Dieu",
+    year: 1986, host: "Mexique", hostIso: "MX", round: "Quart", sub: "réponds à la main de Dieu",
     sqa: SQ.ENG1986, sqb: SQ.ARG1986 },
 ];
 
@@ -173,7 +174,7 @@ function launch(c: Challenge, side: "a" | "b"): void {
       { img: flagImg(away.iso), emoji: away.flag, code: isoCode(away.iso) },
     );
     armed = {
-      hs: homeScore, as: awayScore, min: c.minute, obj: c.obj, goal: objText(c.obj), cup: c.cup,
+      hs: homeScore, as: awayScore, min: c.minute, obj: c.obj, goal: objText(c.obj), cup: cupTitle(c),
       label: `${home.flag} ${home.name} ${homeScore}‑${awayScore} ${away.name} ${away.flag} — ${c.minute}ᵉ`,
     };
     setPendingChallenge();  // skips the anthem; onMatchStarted -> __gpfFireChallenge
@@ -182,7 +183,7 @@ function launch(c: Challenge, side: "a" | "b"): void {
   };
   // pick your XI first (your chosen side is home), then play. Pass the World Cup
   // year so the lineup cards use era photos of the players.
-  const year = c.cup.match(/\d{4}/)?.[0];
+  const year = String(c.year);
   hideDefi();
   teamLineup(`${home.flag} ${home.name}`, homeSquad, home.name, play, year);
 }
@@ -201,11 +202,21 @@ function showResult(win: boolean): void {
   if (win) rewardChallenge();   // beating a challenge pays like a match
   hud?.classList.remove("show");
   if (!resultEl) return;
-  resultEl.querySelector(".big")!.textContent = win ? "DÉFI RÉUSSI ✅" : "DÉFI RATÉ ❌";
+  resultEl.querySelector(".big")!.textContent = win ? L("DÉFI RÉUSSI ✅") : L("DÉFI RATÉ ❌");
   resultEl.querySelector(".big")!.className = "big " + (win ? "win" : "lose");
   resultEl.querySelector(".msg")!.textContent = win
     ? L("Bravo, objectif rempli !") : L("Pas cette fois — réessaie un autre défi.");
   resultEl.classList.add("show");
+}
+
+/** "🏆 World Cup 2022 · Qatar · Final", assembled so every part translates. */
+function cupTitle(c: Challenge): string {
+  return `🏆 ${L("CdM")} ${c.year} · ${countryName(c.hostIso, c.host)} · ${L(c.round)}`;
+}
+
+/** "88ᵉ" in French, "88'" everywhere else — no ordinal to write 23 times. */
+function minuteMark(min: number): string {
+  return uiLang() === "fr" ? `${min}ᵉ` : `${min}'`;
 }
 
 function renderGrid(grid: HTMLElement): void {
@@ -215,9 +226,9 @@ function renderGrid(grid: HTMLElement): void {
     card.className = "df-card";
     const badge = (t: Team): string => `<img src="${flagImg(t.iso)}" alt=""><span>${isoCode(t.iso)}</span>`;
     card.innerHTML =
-      `<div class="df-cup">${c.cup}</div>` +
+      `<div class="df-cup">${cupTitle(c)}</div>` +
       `<div class="df-teams">${badge(c.a)}<span class="df-score">${c.aScore} ‑ ${c.bScore}</span>${badge(c.b)}</div>` +
-      `<div class="df-sub">${c.sub}</div>` +
+      `<div class="df-sub">${minuteMark(c.minute)} — ${L(c.sub)}</div>` +
       `<div class="df-goal">${objText(c.obj)}</div>` +
       `<div class="df-actions"></div>`;
     const actions = card.querySelector(".df-actions")!;

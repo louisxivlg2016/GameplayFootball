@@ -11,7 +11,7 @@
  * Kept apart from i18n's table on purpose: those rows are UI strings that must
  * exist in all 24 languages, these are names that exist in nine scripts.
  */
-import { uiLang } from "./i18n";
+import { rememberName, setNameResolver, uiLang } from "./i18n";
 
 type Script = "ru" | "uk" | "ar" | "hi" | "th" | "ja" | "ko" | "zh-CN" | "zh-TW";
 type Row = Partial<Record<Script, string>>;
@@ -63,7 +63,6 @@ const NAMES: Record<string, Row> = {
   "Nantes": { "ru": "Нант", "uk": "Нант", "ar": "نانت", "hi": "नांत", "th": "น็องต์", "ja": "ナント", "ko": "낭트", "zh-CN": "南特", "zh-TW": "南特" },
   "Brest": { "ru": "Брест", "uk": "Брест", "ar": "بريست", "hi": "ब्रेस्ट", "th": "เบรสต์", "ja": "ブレスト", "ko": "브레스트", "zh-CN": "布雷斯特", "zh-TW": "布雷斯特" },
   "Londres": { "ru": "Лондон", "uk": "Лондон", "ar": "لندن", "hi": "लंदन", "th": "ลอนดอน", "ja": "ロンドン", "ko": "런던", "zh-CN": "伦敦", "zh-TW": "倫敦" },
-  "Liverpool": { "ru": "Ливерпуль", "uk": "Ліверпуль", "ar": "ليفربول", "hi": "लिवरपूल", "th": "ลิเวอร์พูล", "ja": "リヴァプール", "ko": "리버풀", "zh-CN": "利物浦", "zh-TW": "利物浦" },
   "Manchester": { "ru": "Манчестер", "uk": "Манчестер", "ar": "مانشستر", "hi": "मैनचेस्टर", "th": "แมนเชสเตอร์", "ja": "マンチェスター", "ko": "맨체스터", "zh-CN": "曼彻斯特", "zh-TW": "曼徹斯特" },
   "Madrid": { "ru": "Мадрид", "uk": "Мадрид", "ar": "مدريد", "hi": "मैड्रिड", "th": "มาดริด", "ja": "マドリード", "ko": "마드리드", "zh-CN": "马德里", "zh-TW": "馬德里" },
   "Barcelone": { "ru": "Барселона", "uk": "Барселона", "ar": "برشلونة", "hi": "बार्सिलोना", "th": "บาร์เซโลนา", "ja": "バルセロナ", "ko": "바르셀로나", "zh-CN": "巴塞罗那", "zh-TW": "巴塞隆納" },
@@ -88,5 +87,9 @@ export function localName(latin: string): string {
   const row = NAMES[stem];
   if (!row) return latin;
   const hit = row[lang as Script] ?? (lang === "zh" ? row["zh-CN"] : undefined);
-  return hit ? hit + tail : latin;
+  const out = hit ? hit + tail : latin;
+  rememberName(out, latin);   // so a language switch can find it again on screen
+  return out;
 }
+
+setNameResolver(localName);

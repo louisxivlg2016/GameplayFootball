@@ -339,7 +339,9 @@ export function initClubs(): void {
     if (back) back.textContent = L("← Menu");
     tabEls.forEach((b, i) => {
       const label = b.querySelector<HTMLElement>("b");
-      if (label && LEAGUES[i]) label.textContent = L(LEAGUES[i]!.country);
+      // countryName, not L: the tabs are named the same way they were built,
+      // or a language switch leaves half of them in French
+      if (label && LEAGUES[i]) label.textContent = countryName("", LEAGUES[i]!.country);
     });
     renderGrid(grid, active); // refreshes the "Affronter ce club" VS-button titles
   });
