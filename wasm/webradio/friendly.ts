@@ -276,7 +276,7 @@ function render(): void {
         <div class="fr-mid"><div class="fr-vslabel">VS</div></div>
         ${sideHTML(away, "away")}
       </div>
-      <div class="fr-stadium">🏟️ ${stadium}</div>
+      <div class="fr-stadium">🏟️ ${L(stadium)}</div>
     </div>
     <div class="fr-player fr-right">
       <div class="fr-figure">${captainFigure(away, ak, 9)}</div>

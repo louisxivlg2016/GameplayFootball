@@ -350,7 +350,7 @@ function renderGameplay(): void {
   body.appendChild(persistedRow(L("Difficulté du CPU (Humain vs CPU)"), MATCH_DIFF_LS, DEF_DIFFICULTY,
     (v) => `${Math.round(v * 100)}%`, (v) => setF("match_difficulty", v)));
   body.appendChild(persistedRow(L("Durée du match"), MATCH_DUR_LS, DEF_DURATION,
-    (v) => `≈ ${durationToMin(v)} min`, (v) => setF("match_duration", v)));
+    (v) => `≈ ${durationToMin(v)} ${L("min")}`, (v) => setF("match_duration", v)));
   body.appendChild(persistedRow(L("Vitesse des joueurs"), SPEED_LS, DEF_SPEED,
     (v) => `${Math.round(speedScale(v) * 100)}%`, (v) => M()?._gpf_set_speed_scale?.(speedScale(v))));
   body.appendChild(toggleRow(L("Force réaliste des équipes"), REALISTIC_LS, true,

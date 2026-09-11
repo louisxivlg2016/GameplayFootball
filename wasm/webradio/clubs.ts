@@ -254,7 +254,7 @@ function renderGrid(grid: HTMLElement, league: League): void {
     card.innerHTML =
       `<span class="club-crest"><span>${club.code}</span></span>` +
       `<b>${localName(club.name)}</b><small>${localName(club.city)}</small>` +
-      `<span class="club-actions"><button class="club-play" title="Jouer avec ce club">JOUER</button>` +
+      `<span class="club-actions"><button class="club-play" title="${L("Jouer avec ce club")}">${L("JOUER")}</button>` +
       `<button class="club-vs" title="${L("Affronter ce club")}">VS</button></span>`;
     // JOUER = play now: kick off straight away against an auto-picked club.
     // (Use VS on two clubs to choose the opponent yourself.)
@@ -308,7 +308,7 @@ export function initClubs(): void {
     tabEls.push(b);
   }
   const play = document.createElement("button");
-  play.className = "club-play-now"; play.textContent = "JOUER ⚽";
+  play.className = "club-play-now"; play.textContent = L("JOUER ⚽");
   play.addEventListener("click", () => {
     // your picked club (or a random one) vs an auto-picked opponent — with real
     // squads/kits, not the bare default teams.

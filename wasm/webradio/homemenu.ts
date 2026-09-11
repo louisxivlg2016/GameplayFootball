@@ -324,8 +324,8 @@ function imgBtn(src: string, label: string, onClick?: () => void): HTMLElement {
 function card(img: string, label: string, onClick: () => void): HTMLButtonElement {
   const b = document.createElement("button");
   b.className = "menu-mode-button";
-  b.title = label;
-  const im = document.createElement("img"); im.src = img; im.alt = label;
+  b.title = L(label);          // the tooltip is read, so it gets translated too
+  const im = document.createElement("img"); im.src = img; im.alt = L(label);
   b.append(im); // the card art (PNG) already carries its own baked-in text
   b.addEventListener("click", onClick);
   return b;

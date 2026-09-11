@@ -217,7 +217,7 @@ function renderCards(): void {
     c.style.left = `${p.x ?? 50}%`; c.style.top = `${p.y ?? 50}%`;
     const head = document.createElement("i");
     head.className = "player-head"; head.textContent = initials(p.name);
-    c.innerHTML = `<strong>${p.rating ?? ""}</strong><span>${p.pos}</span>`;
+    c.innerHTML = `<strong>${p.rating ?? ""}</strong><span>${L(p.pos)}</span>`;
     c.appendChild(head);
     const nm = document.createElement("b"); nm.textContent = p.name; c.appendChild(nm);
     c.addEventListener("click", () => onPick(p));
@@ -231,7 +231,7 @@ function renderCards(): void {
     const head = document.createElement("i");
     head.className = "player-head"; head.textContent = initials(p.name);
     c.appendChild(head);
-    c.insertAdjacentHTML("beforeend", `<b>${p.name}</b><em>${p.pos}</em>`);
+    c.insertAdjacentHTML("beforeend", `<b>${p.name}</b><em>${L(p.pos)}</em>`);
     c.addEventListener("click", () => onPick(p));
     benchEl.appendChild(c);
     void loadPhoto(p, head);

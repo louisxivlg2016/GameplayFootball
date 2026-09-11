@@ -307,7 +307,7 @@ export function initMatches(): void {
   galleryRoot.innerHTML = `
     <div class="mm-shell">
       <div class="mm-head">
-        <button class="mm-back">← Menu</button>
+        <button class="mm-back">${L("← Menu")}</button>
         <b>🎬 ${L("Mes matchs")}</b>
         <span style="width:70px"></span>
       </div>
