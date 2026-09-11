@@ -1226,6 +1226,31 @@ void Match::UpdateIngameCamera() {
 void Match::Get() {
 }
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
+#ifdef __EMSCRIPTEN__
+// Where the simulation second goes.
+//
+// The pacer proved the sim is the whole cost — 900ms of CPU per real second,
+// against 30ms for skinning all 22 players — but not which part of it. These
+// six are the blocks Process() actually runs, timed in place and reported as
+// milliseconds per real second, so the answer comes from the machine that is
+// slow rather than from a guess.
+double gpf_simBlk[6] = { 0, 0, 0, 0, 0, 0 };   // collide, ref, ball, mental, teams, officials
+namespace {
+struct BlkTimer {
+  int i; double t0;
+  explicit BlkTimer(int idx) : i(idx), t0(emscripten_get_now()) {}
+  ~BlkTimer() { gpf_simBlk[i] += emscripten_get_now() - t0; }
+};
+}
+#define GPF_BLK(i) BlkTimer gpf_blk_(i)
+#else
+#define GPF_BLK(i) ((void)0)
+#endif
+
 void Match::Process() {
 
   unsigned long time_ms = EnvironmentManager::GetInstance().GetTime_ms() - gameSequenceInfo.startTime_ms;
@@ -1251,40 +1276,47 @@ void Match::Process() {
   if (!pause) {
 
     if (IsInPlay()) {
+      GPF_BLK(0);
       CheckBallCollisions(); // todo: should not read geoms during process
     }
 
 
     // HIJ IS EEN HONDELUUUL
 
-    referee->Process();
+    { GPF_BLK(1); referee->Process(); }
 
 
     // ball
 
-    previousBallPos = ball->Predict(0);
-    ball->Process();
+    { GPF_BLK(2);
+      previousBallPos = ball->Predict(0);
+      ball->Process();
+    }
 
 
     // create mental images for the AI to use
 
-    MentalImage *mentalImage = new MentalImage(this);
-    mentalImage->TakeSnapshot();
-    mentalImages.insert(mentalImages.begin(), mentalImage);
-    if (mentalImages.size() > 30) {
-      MentalImage *mentalImageToDelete = mentalImages.back();
-      mentalImages.pop_back();
-      delete mentalImageToDelete;
+    { GPF_BLK(3);
+      MentalImage *mentalImage = new MentalImage(this);
+      mentalImage->TakeSnapshot();
+      mentalImages.insert(mentalImages.begin(), mentalImage);
+      if (mentalImages.size() > 30) {
+        MentalImage *mentalImageToDelete = mentalImages.back();
+        mentalImages.pop_back();
+        delete mentalImageToDelete;
+      }
     }
 
 
     // obvious
 
-    teams[0]->UpdateSwitch();
-    teams[1]->UpdateSwitch();
-    teams[0]->Process();
-    teams[1]->Process();
-    officials->Process();
+    { GPF_BLK(4);
+      teams[0]->UpdateSwitch();
+      teams[1]->UpdateSwitch();
+      teams[0]->Process();
+      teams[1]->Process();
+    }
+    { GPF_BLK(5); officials->Process(); }
 
     teams[0]->UpdatePossessionStats();
     teams[1]->UpdatePossessionStats();
