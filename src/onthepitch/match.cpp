@@ -1238,7 +1238,8 @@ void Match::Get() {
 // six are the blocks Process() actually runs, timed in place and reported as
 // milliseconds per real second, so the answer comes from the machine that is
 // slow rather than from a guess.
-double gpf_simBlk[6] = { 0, 0, 0, 0, 0, 0 };   // collide, ref, ball, mental, teams, officials
+double gpf_simBlk[10] = { 0 };   // collide, ref, ball, mental, teams, officials,
+                                 // possession, humanoid collisions, tail, Get()
 namespace {
 struct BlkTimer {
   int i; double t0;
@@ -1252,6 +1253,8 @@ struct BlkTimer {
 #endif
 
 void Match::Process() {
+  GPF_BLK(8);   // the whole pass: what the named blocks do not add up to is the rest
+
 
   unsigned long time_ms = EnvironmentManager::GetInstance().GetTime_ms() - gameSequenceInfo.startTime_ms;
   timeSincePreviousProcess_ms = time_ms - GetPreviousProcessTime_ms();
@@ -1318,9 +1321,11 @@ void Match::Process() {
     }
     { GPF_BLK(5); officials->Process(); }
 
-    teams[0]->UpdatePossessionStats();
-    teams[1]->UpdatePossessionStats();
-    CalculateBestPossessionTeamID();
+    { GPF_BLK(6);
+      teams[0]->UpdatePossessionStats();
+      teams[1]->UpdatePossessionStats();
+      CalculateBestPossessionTeamID();
+    }
 
     if (GetBallRetainer() == 0) {
       signed int bestTeamID = GetBestPossessionTeamID();
@@ -1343,7 +1348,7 @@ void Match::Process() {
     //if (GetDebugMode() == e_DebugMode_Tactical)
     //GetLargeDebugCircle()->SetPosition(designatedPossessionPlayer->GetPosition());
 
-    CheckHumanoidCollisions(); // todo: should not read geoms during process
+    { GPF_BLK(7); CheckHumanoidCollisions(); } // todo: should not read geoms during process
 
 
     // crowd excitement
