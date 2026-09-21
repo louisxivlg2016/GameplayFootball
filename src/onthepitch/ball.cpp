@@ -98,8 +98,10 @@ void Ball::Touch(const Vector3 &target) {
   CalculatePrediction();
   match->UpdateLatestMentalImageBallPredictions();
 
-  match->GetTeam(0)->UpdatePossessionStats();
-  match->GetTeam(1)->UpdatePossessionStats();
+  // the ball just changed course: every prediction the stats rest on is stale,
+  // so this one refreshes all 22 players rather than the staggered quarter
+  match->GetTeam(0)->UpdatePossessionStats(true);
+  match->GetTeam(1)->UpdatePossessionStats(true);
 }
 
 void Ball::SetPosition(const Vector3 &target) {

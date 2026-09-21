@@ -597,10 +597,31 @@ void Team::Hide2D() {
   }
 }
 
-void Team::UpdatePossessionStats() {
+void Team::UpdatePossessionStats(bool force) {
+
+  // The expensive half of a player's possession stats walks three seconds of
+  // ball prediction in 10ms steps — 300 iterations, each one an
+  // AI_GetTimeNeededForDistance_ms — and it ran for all 22 players on every
+  // tick: roughly 660,000 of those a second, measured at 311ms of CPU per real
+  // second on a laptop that was managing 0.47x speed.
+  //
+  // The engine already staggers its other costly AI passes (dynamic roles and
+  // man-marking recompute every 400ms, on alternating ticks). Do the same here:
+  // each player refreshes every fourth tick, and on a different tick from his
+  // neighbours so the work spreads out instead of spiking. That is 40ms of
+  // granularity on a figure used to decide who chases the ball — well under the
+  // reaction time the AI itself models.
+  //
+  // Two exceptions refresh every tick, because staleness there would show:
+  // the player his team has designated to go for the ball, and any call made
+  // with force — which is what happens the moment the ball is touched and every
+  // prediction it is based on becomes wrong (see Ball::Touch).
+  const unsigned long tick = match->GetActualTime_ms() / 10;
+  const Player *designated = GetDesignatedTeamPossessionPlayer();
   for (unsigned int i = 0; i < players.size(); i++) {
     if (players.at(i)->IsActive()) {
-      players.at(i)->UpdatePossessionStats();
+      const bool due = force || players.at(i) == designated || (tick + i) % 4 == 0;
+      players.at(i)->UpdatePossessionStats(due);
     }
   }
 

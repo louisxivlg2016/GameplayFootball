@@ -79,7 +79,7 @@ class Team {
     void Put2D();
     void Hide2D();
 
-    void UpdatePossessionStats();
+    void UpdatePossessionStats(bool force = false);
     void UpdateSwitch();
 
     Player *GetGoalie();
