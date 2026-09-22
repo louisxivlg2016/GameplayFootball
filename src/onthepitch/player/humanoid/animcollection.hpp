@@ -205,6 +205,16 @@ class AnimCollection {
     boost::shared_ptr<Scene3D> scene3D;
 
     std::vector<Animation*> animations;
+
+    // The function type of each animation, worked out once.
+    //
+    // CrudeSelection's first filter compares the animation's type STRING against
+    // the query's, for every animation in the collection, on every selection —
+    // and selecting an animation is the hot path of a player's tick. The mapping
+    // from a type string to e_FunctionType is one-to-one and fixed once the
+    // collection is loaded, so resolve it per animation and compare integers.
+    // -1 means "matches no function type".
+    mutable std::vector<signed char> animFunctionType;
     std::vector<Quadrant> quadrants;
 
     std::string defString[e_DefString_Size];

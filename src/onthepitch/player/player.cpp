@@ -297,6 +297,22 @@ float Player::GetClosestOpponentDistance() const {
   return opp->GetPosition().GetDistance(GetPosition());
 }
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+// the two halves of a player's tick, timed into the shared breakdown (match.cpp)
+extern double gpf_simBlk[12];
+namespace {
+struct PlrTimer {
+  int i; double t0;
+  explicit PlrTimer(int idx) : i(idx), t0(emscripten_get_now()) {}
+  ~PlrTimer() { gpf_simBlk[i] += emscripten_get_now() - t0; }
+};
+}
+#define GPF_PLR(i) PlrTimer gpf_plr_(i)
+#else
+#define GPF_PLR(i) ((void)0)
+#endif
+
 void Player::Process() {
 
   //if (GetDebug()) SetGreenDebugPilon(GetPosition() + GetMovement());
@@ -305,7 +321,9 @@ void Player::Process() {
 
     desiredTimeToBall_ms = std::max(desiredTimeToBall_ms - 10, 0);
 
-    if (externalController) externalController->Process(); else CastController()->Process();
+    { GPF_PLR(10);
+      if (externalController) externalController->Process(); else CastController()->Process();
+    }
 
     if (match->IsInPlay()) {
       if (match->GetActualTime_ms() % 1000 == 0) {
@@ -320,7 +338,7 @@ void Player::Process() {
 
     Vector3 posBefore = CastHumanoid()->GetPosition();
 
-    CastHumanoid()->Process();
+    { GPF_PLR(11); CastHumanoid()->Process(); }
 
     Vector3 posAfter = CastHumanoid()->GetPosition();
 

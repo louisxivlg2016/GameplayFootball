@@ -500,6 +500,17 @@ void AnimCollection::CrudeSelection(DataSet &dataSet, const CrudeSelectionQuery 
 
   int animSize = animations.size();
 
+  // resolve each animation's function type once (see animFunctionType)
+  if ((int)animFunctionType.size() != animSize) {
+    animFunctionType.assign(animSize, -1);
+    for (int i = 0; i < animSize; i++) {
+      const std::string &t = animations.at(i)->GetAnimType();
+      for (int f = e_FunctionType_None; f <= e_FunctionType_Special; f++) {
+        if (_CheckFunctionType(t, (e_FunctionType)f)) { animFunctionType[i] = (signed char)f; break; }
+      }
+    }
+  }
+
   for (int i = 0; i < animSize; i++) {
 
     const std::string &animType = animations.at(i)->GetAnimType();
@@ -511,7 +522,7 @@ void AnimCollection::CrudeSelection(DataSet &dataSet, const CrudeSelectionQuery 
 
     if (selectAnim) {
       if (query.byFunctionType == true) {
-        if (_CheckFunctionType(animType, query.functionType) == false) selectAnim = false;
+        if (animFunctionType[i] != (signed char)query.functionType) selectAnim = false;
       }
     }
 

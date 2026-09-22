@@ -1238,8 +1238,9 @@ void Match::Get() {
 // six are the blocks Process() actually runs, timed in place and reported as
 // milliseconds per real second, so the answer comes from the machine that is
 // slow rather than from a guess.
-double gpf_simBlk[10] = { 0 };   // collide, ref, ball, mental, teams, officials,
-                                 // possession, humanoid collisions, tail, Get()
+double gpf_simBlk[12] = { 0 };   // collide, ref, ball, mental, teams, officials,
+                                 // possession, humanoid collisions, tail, Get(),
+                                 // player controller, player animation
 namespace {
 struct BlkTimer {
   int i; double t0;
