@@ -566,6 +566,22 @@ void HumanoidBase::UploadFullbodyModel() {
 }
 */
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+// the animation half is the last big cost; split it (see match.cpp gpf_simBlk)
+extern double gpf_simBlk[15];
+namespace {
+struct AnimTimer {
+  int i; double t0;
+  explicit AnimTimer(int idx) : i(idx), t0(emscripten_get_now()) {}
+  ~AnimTimer() { gpf_simBlk[i] += emscripten_get_now() - t0; }
+};
+}
+#define GPF_ANIM(i) AnimTimer gpf_anim_(i)
+#else
+#define GPF_ANIM(i) ((void)0)
+#endif
+
 void HumanoidBase::Process() {
 
   _cache_AgilityFactor = GetConfiguration()->GetReal("gameplay_agilityfactor", _default_AgilityFactor);
@@ -582,7 +598,7 @@ void HumanoidBase::Process() {
     currentMentalImage = match->GetMentalImage(0);
   }
 
-  CalculateSpatialState();
+  { GPF_ANIM(13); CalculateSpatialState(); }
   spatialState.positionOffsetMovement = Vector3(0);
 
   currentAnim->frameNum++;
@@ -632,7 +648,7 @@ void HumanoidBase::Process() {
 
       const PlayerCommand &command = commandQueue.at(i);
 
-      found = SelectAnim(command, interruptAnim);
+      { GPF_ANIM(12); found = SelectAnim(command, interruptAnim); }
       if (found) break;
     }
 

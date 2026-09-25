@@ -27,8 +27,8 @@
 // the render preparation (PutPhase, which skins every player). Both go out in
 // gpf_pace_state, so a diagnostic ping from a slow laptop says outright whether
 // the sim, the skinning, or the browser around them is eating the frame.
-extern double gpf_simBlk[12];                          // filled in match.cpp
-static float gpf_blkPerSec[12] = { 0 };
+extern double gpf_simBlk[15];                          // filled in match.cpp
+static float gpf_blkPerSec[15] = { 0 };
 static double gpf_msSim = 0.0, gpf_msPut = 0.0;      // accumulating, this window
 static float  gpf_simPerSec = 0.0f, gpf_putPerSec = 0.0f;  // last full window
 struct GpfStopwatch {
@@ -1246,7 +1246,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_net_snapshot() {
   boost::shared_ptr<GameTask> gt = GetGameTask();
   Match *m = gt ? gt->GetMatch() : 0;
   if (!m) return out.c_str();
-  char buf[260];
+  char buf[320];
   Vector3 b = m->GetBall() ? m->GetBall()->GetPositionBuffer() : Vector3(0, 0, 0);
   snprintf(buf, sizeof(buf), "%.2f,%.2f,%.2f", b.coords[0], b.coords[1], b.coords[2]);
   out = buf;
@@ -1364,10 +1364,10 @@ static void gpf_autoPace(Match *m) {
   if (secs > 0.05) {
     gpf_simPerSec = (float)(gpf_msSim / secs);
     gpf_putPerSec = (float)(gpf_msPut / secs);
-    for (int i = 0; i < 12; i++) gpf_blkPerSec[i] = (float)(gpf_simBlk[i] / secs);
+    for (int i = 0; i < 15; i++) gpf_blkPerSec[i] = (float)(gpf_simBlk[i] / secs);
   }
   gpf_msSim = 0.0; gpf_msPut = 0.0;
-  for (int i = 0; i < 12; i++) gpf_simBlk[i] = 0.0;
+  for (int i = 0; i < 15; i++) gpf_simBlk[i] = 0.0;
   const int lvl = (gpf_quality_level < 0) ? 0 : (gpf_quality_level > 4 ? 4 : gpf_quality_level);
   const int want = gpf_paceBase[lvl];
   if (gpf_paceFrametime == 0) gpf_paceFrametime = want;
@@ -1410,12 +1410,13 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* gpf_pace_state() {
   static std::string out;
   char buf[160];
   snprintf(buf, sizeof(buf),
-           "%.2f,%i,%i,%i,%.0f,%.0f|%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f",
+           "%.2f,%i,%i,%i,%.0f,%.0f|%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f",
            gpf_paceSpeed, gpf_paceFrametime, gpf_quality_level, gpf_simStep,
            gpf_simPerSec, gpf_putPerSec,
            gpf_blkPerSec[0], gpf_blkPerSec[1], gpf_blkPerSec[2], gpf_blkPerSec[3],
            gpf_blkPerSec[4], gpf_blkPerSec[5], gpf_blkPerSec[6], gpf_blkPerSec[7],
-           gpf_blkPerSec[8], gpf_blkPerSec[9], gpf_blkPerSec[10], gpf_blkPerSec[11]);
+           gpf_blkPerSec[8], gpf_blkPerSec[9], gpf_blkPerSec[10], gpf_blkPerSec[11], gpf_blkPerSec[12],
+           gpf_blkPerSec[13], gpf_blkPerSec[14]);
   out.assign(buf);
   return out.c_str();
 }
