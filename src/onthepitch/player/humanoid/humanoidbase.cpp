@@ -598,7 +598,7 @@ void HumanoidBase::Process() {
     currentMentalImage = match->GetMentalImage(0);
   }
 
-  { GPF_ANIM(13); CalculateSpatialState(); }
+  CalculateSpatialState();
   spatialState.positionOffsetMovement = Vector3(0);
 
   currentAnim->frameNum++;
@@ -648,7 +648,7 @@ void HumanoidBase::Process() {
 
       const PlayerCommand &command = commandQueue.at(i);
 
-      { GPF_ANIM(12); found = SelectAnim(command, interruptAnim); }
+      found = SelectAnim(command, interruptAnim);
       if (found) break;
     }
 

@@ -89,6 +89,23 @@ bool _PassFiddlingEnabled() {
   return true;
 }
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+// Humanoid::Process is its own 700-line implementation, not a call into the
+// base class — so this is where a player's animation time is actually spent.
+extern double gpf_simBlk[15];
+namespace {
+struct AnimTimer {
+  int i; double t0;
+  explicit AnimTimer(int idx) : i(idx), t0(emscripten_get_now()) {}
+  ~AnimTimer() { gpf_simBlk[i] += emscripten_get_now() - t0; }
+};
+}
+#define GPF_ANIM(i) AnimTimer gpf_anim_(i)
+#else
+#define GPF_ANIM(i) ((void)0)
+#endif
+
 void Humanoid::Process() {
 
   _cache_AgilityFactor = GetConfiguration()->GetReal("gameplay_agilityfactor", _default_AgilityFactor);
@@ -117,7 +134,7 @@ void Humanoid::Process() {
     currentMentalImage = match->GetMentalImage(instaDoorheb ? 0 : CastPlayer()->GetController()->GetReactionTime_ms());
   }
 
-  CalculateSpatialState();
+  { GPF_ANIM(13); CalculateSpatialState(); }
   spatialState.positionOffsetMovement = Vector3(0);
 
   currentAnim->frameNum++;
@@ -254,7 +271,7 @@ void Humanoid::Process() {
       }
       //if (CastPlayer()->GetTeam()->GetAllPlayers().at(0) == player && CastPlayer()->GetTeam()->GetID() == 1) printf("queue at %i has type %i\n", i, command.desiredFunctionType);
 
-      found = SelectAnim(command, interruptAnim, preferPassAndShot);
+      { GPF_ANIM(12); found = SelectAnim(command, interruptAnim, preferPassAndShot); }
       if (found) break;
     }
 
@@ -282,7 +299,7 @@ void Humanoid::Process() {
       startPos = spatialState.position;
       startAngle = spatialState.angle;
 
-      CalculatePredictedSituation(nextStartPos, nextStartAngle);
+      { GPF_ANIM(14); CalculatePredictedSituation(nextStartPos, nextStartAngle); }
 
       animApplyBuffer.anim = currentAnim->anim;
       animApplyBuffer.smooth = animSmoothing;
