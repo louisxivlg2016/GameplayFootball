@@ -159,7 +159,7 @@ body.gpf-friendly-open #gpf-home, body.gpf-friendly-open #gpf-menu { display:non
 #gpf-friendly .fr-vs { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:16px; }
 #gpf-friendly .fr-side { display:flex; flex-direction:column; align-items:center; gap:8px; }
 #gpf-friendly .fr-flagwrap { position:relative; }
-#gpf-friendly .fr-flag { width:96px; height:64px; object-fit:cover; border-radius:8px; box-shadow:0 6px 16px rgba(0,0,0,.5);
+#gpf-friendly .fr-flag { width:96px; height:64px; object-fit:contain; border-radius:8px; box-shadow:0 6px 16px rgba(0,0,0,.5);
   border:1px solid rgba(255,255,255,.25); background:#333; }
 #gpf-friendly .fr-ovr { position:absolute; top:-14px; right:-14px; min-width:40px; padding:4px 6px; text-align:center;
   background:#fff; color:#111; border-radius:8px; font-weight:900; line-height:1; box-shadow:0 4px 10px rgba(0,0,0,.4); }
@@ -221,7 +221,7 @@ body.gpf-friendly-open #gpf-home, body.gpf-friendly-open #gpf-menu { display:non
 #gpf-fr-pick .pk-card { pointer-events:auto; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:6px;
   padding:12px 8px; background:rgba(5,18,12,.72); border:1px solid rgba(255,255,255,.12); border-top:3px solid var(--c);
   border-radius:10px; color:#fff; font:800 12px inherit; }
-#gpf-fr-pick .pk-card img { width:52px; height:35px; object-fit:cover; border-radius:5px; border:1px solid rgba(255,255,255,.25); }
+#gpf-fr-pick .pk-card img { width:52px; height:35px; object-fit:contain; border-radius:5px; border:1px solid rgba(255,255,255,.25); }
 `;
 
 let root: HTMLElement | null = null;

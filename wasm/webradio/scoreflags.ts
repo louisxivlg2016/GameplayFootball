@@ -44,7 +44,7 @@ function fill(slot: HTMLElement, f: ScoreFlag | null): void {
   const emojiSpan = `<span style="font-size:80%;line-height:1">${f.emoji ?? ""}</span>`;
   if (f.img) {
     slot.innerHTML =
-      `<img src="${f.img}" style="width:100%;height:100%;object-fit:cover;border-radius:2px"` +
+      `<img src="${f.img}" style="width:100%;height:100%;object-fit:contain;border-radius:2px"` +
       ` onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${f.emoji ?? ""}',style:'font-size:80%'}))">`;
   } else {
     slot.innerHTML = emojiSpan;

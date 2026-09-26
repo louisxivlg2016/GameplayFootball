@@ -285,6 +285,17 @@ class HumanoidBase {
     bool CompareIncomingVelocitySimilarity(int animIndex1, int animIndex2) const;
     void SetMovementSimilarityPredicate(const Vector3 &relDesiredDirection, e_Velocity desiredVelocity) const;
     float GetMovementSimilarity(int animIndex, const Vector3 &relDesiredDirection, e_Velocity desiredVelocity, float corneringBias) const;
+    // Rating of a single animation, used both by the Compare* predicates and
+    // by the key-based sorts that replaced them (see StableSortByKey).
+    float _KeyMovementSimilarity(int animIndex) const;
+    float _KeyNumericVariable(int animIndex) const;
+    float _KeyFootSimilarity(int animIndex) const;
+    float _KeyBaseanimSimilarity(int animIndex) const;
+    float _KeyTripDirectionSimilarity(int animIndex) const;
+    float _KeyIncomingBodyDirectionSimilarity(int animIndex) const;
+    float _KeyIncomingVelocitySimilarity(int animIndex) const;
+    float _KeyBodyDirectionSimilarity(int animIndex) const;
+
     bool CompareMovementSimilarity(int animIndex1, int animIndex2) const;
     bool CompareDirectionSimilarity(int animIndex1, int animIndex2) const;
     bool CompareOutgoingVelocitySimilarity(int animIndex1, int animIndex2) const;

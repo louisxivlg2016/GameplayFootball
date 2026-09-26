@@ -20,6 +20,32 @@
 
 #include "scene/objectfactory.hpp"
 
+// Sort a candidate set by a key computed once per animation.
+//
+// These sorts used to recompute their rating inside the comparator, so every
+// one of the ~N*logN comparisons evaluated it twice — for a dozen sorts, per
+// player, per tick. Choosing an animation was measured at 381ms of CPU per real
+// second, half of the entire simulation. Computing the key once per animation
+// and sorting on that is N evaluations instead, and a stable sort on the same
+// key leaves the order identical.
+namespace {
+template <typename KeyFn>
+void StableSortByKey(DataSet &dataSet, KeyFn key) {
+  if (dataSet.size() < 2) return;
+  std::vector<std::pair<float, int> > keyed;
+  keyed.reserve(dataSet.size());
+  for (DataSet::const_iterator it = dataSet.begin(); it != dataSet.end(); ++it)
+    keyed.push_back(std::make_pair((float)key(*it), *it));
+  std::stable_sort(keyed.begin(), keyed.end(),
+                   [](const std::pair<float, int> &a, const std::pair<float, int> &b) {
+                     return a.first < b.first;
+                   });
+  size_t n = 0;
+  for (DataSet::iterator it = dataSet.begin(); it != dataSet.end(); ++it, ++n) *it = keyed[n].second;
+}
+}  // namespace
+
+
 const float bodyRotationSmoothingFactor = 1.0f;
 const float bodyRotationSmoothingMaxAngle = 0.25f * pi;
 const float initialReQueueDelayFrames = 32;
@@ -906,21 +932,21 @@ int HumanoidBase::GetIdleMovementAnimID() {
   #ifdef dataSetSortable
   dataSet.sort(boost::bind(&Humanoid::CompareNumericVariable, this, _1, _2));
   #else
-  std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&Humanoid::CompareNumericVariable, this, _1, _2));
+  StableSortByKey(dataSet, [this](int gpf_i) { return _KeyNumericVariable(gpf_i); });
   #endif
 
   SetIncomingBodyDirectionSimilarityPredicate(Vector3(0, -1, 0));
   #ifdef dataSetSortable
   dataSet.sort(boost::bind(&Humanoid::CompareIncomingBodyDirectionSimilarity, this, _1, _2));
   #else
-  std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&Humanoid::CompareIncomingBodyDirectionSimilarity, this, _1, _2));
+  StableSortByKey(dataSet, [this](int gpf_i) { return _KeyIncomingBodyDirectionSimilarity(gpf_i); });
   #endif
 
   SetIncomingVelocitySimilarityPredicate(e_Velocity_Idle);
   #ifdef dataSetSortable
   dataSet.sort(boost::bind(&Humanoid::CompareIncomingVelocitySimilarity, this, _1, _2));
   #else
-  std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&Humanoid::CompareIncomingVelocitySimilarity, this, _1, _2));
+  StableSortByKey(dataSet, [this](int gpf_i) { return _KeyIncomingVelocitySimilarity(gpf_i); });
   #endif
 
   SetMovementSimilarityPredicate(Vector3(0, -1, 0), e_Velocity_Idle);
@@ -928,13 +954,13 @@ int HumanoidBase::GetIdleMovementAnimID() {
   #ifdef dataSetSortable
   dataSet.sort(boost::bind(&HumanoidBase::CompareBodyDirectionSimilarity, this, _1, _2));
   #else
-  std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&HumanoidBase::CompareBodyDirectionSimilarity, this, _1, _2));
+  StableSortByKey(dataSet, [this](int gpf_i) { return _KeyBodyDirectionSimilarity(gpf_i); });
   #endif
 
   #ifdef dataSetSortable
   dataSet.sort(boost::bind(&HumanoidBase::CompareMovementSimilarity, this, _1, _2));
   #else
-  std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&HumanoidBase::CompareMovementSimilarity, this, _1, _2));
+  StableSortByKey(dataSet, [this](int gpf_i) { return _KeyMovementSimilarity(gpf_i); });
   #endif
 
   //printf("%s\n", anims->GetAnim(*dataSet.begin())->GetName().c_str());
@@ -1201,7 +1227,7 @@ void HumanoidBase::_KeepBestDirectionAnims(DataSet &dataSet, const PlayerCommand
     #ifdef dataSetSortable
     dataSet.sort(boost::bind(&HumanoidBase::CompareMovementSimilarity, this, _1, _2));
     #else
-    std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&HumanoidBase::CompareMovementSimilarity, this, _1, _2));
+    StableSortByKey(dataSet, [this](int gpf_i) { return _KeyMovementSimilarity(gpf_i); });
     #endif
 
     // we want the best anim to be a baseanim, and compare other anims to it
@@ -1210,7 +1236,7 @@ void HumanoidBase::_KeepBestDirectionAnims(DataSet &dataSet, const PlayerCommand
         #ifdef dataSetSortable
         dataSet.sort(boost::bind(&Humanoid::CompareBaseanimSimilarity, this, _1, _2));
         #else
-        std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&Humanoid::CompareBaseanimSimilarity, this, _1, _2));
+        StableSortByKey(dataSet, [this](int gpf_i) { return _KeyBaseanimSimilarity(gpf_i); });
         #endif
       }
     }
@@ -1271,7 +1297,7 @@ void HumanoidBase::_KeepBestBodyDirectionAnims(DataSet &dataSet, const PlayerCom
   #ifdef dataSetSortable
   dataSet.sort(boost::bind(&HumanoidBase::CompareBodyDirectionSimilarity, this, _1, _2));
   #else
-  std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&HumanoidBase::CompareBodyDirectionSimilarity, this, _1, _2));
+  StableSortByKey(dataSet, [this](int gpf_i) { return _KeyBodyDirectionSimilarity(gpf_i); });
   #endif
 
   // we want the best anim to be a baseanim, and compare other anims to it
@@ -1280,7 +1306,7 @@ void HumanoidBase::_KeepBestBodyDirectionAnims(DataSet &dataSet, const PlayerCom
       #ifdef dataSetSortable
       dataSet.sort(boost::bind(&Humanoid::CompareBaseanimSimilarity, this, _1, _2));
       #else
-      std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&Humanoid::CompareBaseanimSimilarity, this, _1, _2));
+      StableSortByKey(dataSet, [this](int gpf_i) { return _KeyBaseanimSimilarity(gpf_i); });
       #endif
     }
   }
@@ -1531,7 +1557,7 @@ bool HumanoidBase::SelectAnim(const PlayerCommand &command, e_InterruptAnim loca
       #ifdef dataSetSortable
       dataSet.sort(boost::bind(&HumanoidBase::CompareMovementSimilarity, this, _1, _2));
       #else
-      std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&HumanoidBase::CompareMovementSimilarity, this, _1, _2));
+      StableSortByKey(dataSet, [this](int gpf_i) { return _KeyMovementSimilarity(gpf_i); });
       #endif
     }
 
@@ -1542,28 +1568,28 @@ bool HumanoidBase::SelectAnim(const PlayerCommand &command, e_InterruptAnim loca
   #ifdef dataSetSortable
   dataSet.sort(boost::bind(&Humanoid::CompareNumericVariable, this, _1, _2));
   #else
-  std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&Humanoid::CompareNumericVariable, this, _1, _2));
+  StableSortByKey(dataSet, [this](int gpf_i) { return _KeyNumericVariable(gpf_i); });
   #endif
 
   SetFootSimilarityPredicate(spatialState.foot);
   #ifdef dataSetSortable
   dataSet.sort(boost::bind(&HumanoidBase::CompareFootSimilarity, this, _1, _2));
   #else
-  std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&HumanoidBase::CompareFootSimilarity, this, _1, _2));
+  StableSortByKey(dataSet, [this](int gpf_i) { return _KeyFootSimilarity(gpf_i); });
   #endif
 
   SetIncomingBodyDirectionSimilarityPredicate(spatialState.relBodyDirectionVec);
   #ifdef dataSetSortable
   dataSet.sort(boost::bind(&HumanoidBase::CompareIncomingBodyDirectionSimilarity, this, _1, _2));
   #else
-  std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&HumanoidBase::CompareIncomingBodyDirectionSimilarity, this, _1, _2));
+  StableSortByKey(dataSet, [this](int gpf_i) { return _KeyIncomingBodyDirectionSimilarity(gpf_i); });
   #endif
 
   SetIncomingVelocitySimilarityPredicate(spatialState.enumVelocity);
   #ifdef dataSetSortable
   dataSet.sort(boost::bind(&HumanoidBase::CompareIncomingVelocitySimilarity, this, _1, _2));
   #else
-  std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&HumanoidBase::CompareIncomingVelocitySimilarity, this, _1, _2));
+  StableSortByKey(dataSet, [this](int gpf_i) { return _KeyIncomingVelocitySimilarity(gpf_i); });
   #endif
 
   if (command.useDesiredTripDirection) {
@@ -1572,7 +1598,7 @@ bool HumanoidBase::SelectAnim(const PlayerCommand &command, e_InterruptAnim loca
     #ifdef dataSetSortable
     dataSet.sort(boost::bind(&HumanoidBase::CompareTripDirectionSimilarity, this, _1, _2));
     #else
-    std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&HumanoidBase::CompareTripDirectionSimilarity, this, _1, _2));
+    StableSortByKey(dataSet, [this](int gpf_i) { return _KeyTripDirectionSimilarity(gpf_i); });
     #endif
 
     //if (player->GetDebug() && command.desiredFunctionType == e_FunctionType_Trip) SetRedDebugPilon(player->GetPosition() + command.desiredTripDirection * 5);
@@ -1582,7 +1608,7 @@ bool HumanoidBase::SelectAnim(const PlayerCommand &command, e_InterruptAnim loca
     #ifdef dataSetSortable
     dataSet.sort(boost::bind(&HumanoidBase::CompareBaseanimSimilarity, this, _1, _2));
     #else
-    std::stable_sort(dataSet.begin(), dataSet.end(), boost::bind(&HumanoidBase::CompareBaseanimSimilarity, this, _1, _2));
+    StableSortByKey(dataSet, [this](int gpf_i) { return _KeyBaseanimSimilarity(gpf_i); });
     #endif
   }
 
@@ -1867,43 +1893,33 @@ void HumanoidBase::SetFootSimilarityPredicate(e_Foot desiredFoot) const {
   predicate_DesiredFoot = desiredFoot;
 }
 
-bool HumanoidBase::CompareFootSimilarity(int animIndex1, int animIndex2) const {
+float HumanoidBase::_KeyFootSimilarity(int animIndex) const {
   int one = 1;
-  int two = 1;
-  if (anims->GetAnim(animIndex1)->GetCurrentFoot() == predicate_DesiredFoot) one = 0;
-  if (anims->GetAnim(animIndex2)->GetCurrentFoot() == predicate_DesiredFoot) two = 0;
-  if (FloatToEnumVelocity(anims->GetAnim(animIndex1)->GetIncomingVelocity()) == e_Velocity_Idle) one = 0;
-  if (FloatToEnumVelocity(anims->GetAnim(animIndex2)->GetIncomingVelocity()) == e_Velocity_Idle) two = 0;
-  return one < two;
+  if (anims->GetAnim(animIndex)->GetCurrentFoot() == predicate_DesiredFoot) one = 0;
+  if (FloatToEnumVelocity(anims->GetAnim(animIndex)->GetIncomingVelocity()) == e_Velocity_Idle) one = 0;
+  return (float)one;
+}
+
+bool HumanoidBase::CompareFootSimilarity(int animIndex1, int animIndex2) const {
+  return _KeyFootSimilarity(animIndex1) < _KeyFootSimilarity(animIndex2);
 }
 
 void HumanoidBase::SetIncomingVelocitySimilarityPredicate(e_Velocity velocity) const {
   predicate_IncomingVelocity = velocity;
 }
 
-bool HumanoidBase::CompareIncomingVelocitySimilarity(int animIndex1, int animIndex2) const {
-  /* old version
-  float rating1 = fabs(clamp(RangeVelocity(anims->GetAnim(animIndex1)->GetIncomingVelocity()) - EnumToFloatVelocity(predicate_IncomingVelocity), -sprintVelocity, sprintVelocity));
-  float rating2 = fabs(clamp(RangeVelocity(anims->GetAnim(animIndex2)->GetIncomingVelocity()) - EnumToFloatVelocity(predicate_IncomingVelocity), -sprintVelocity, sprintVelocity));
-  */
-
+float HumanoidBase::_KeyIncomingVelocitySimilarity(int animIndex) const {
   int currentVelocityID = GetVelocityID(predicate_IncomingVelocity);
+  int incomingVelocityID = GetVelocityID(FloatToEnumVelocity(anims->GetAnim(animIndex)->GetIncomingVelocity()));
+  float rating = fabs(clamp(incomingVelocityID - currentVelocityID, -3, 3));
+  int outgoingVelocityID = GetVelocityID(FloatToEnumVelocity(anims->GetAnim(animIndex)->GetOutgoingVelocity()));
+  if (incomingVelocityID > std::max(currentVelocityID, outgoingVelocityID)) rating += 0.5f;
+  if (incomingVelocityID < std::min(currentVelocityID, outgoingVelocityID)) rating += 0.5f;
+  return rating;
+}
 
-  // rate difference anim incoming / actual incoming
-  int anim1_incomingVelocityID = GetVelocityID(FloatToEnumVelocity(anims->GetAnim(animIndex1)->GetIncomingVelocity()));
-  int anim2_incomingVelocityID = GetVelocityID(FloatToEnumVelocity(anims->GetAnim(animIndex2)->GetIncomingVelocity()));
-  float rating1 = fabs(clamp(anim1_incomingVelocityID - currentVelocityID, -3, 3));
-  float rating2 = fabs(clamp(anim2_incomingVelocityID - currentVelocityID, -3, 3));
-
-  // also add a penalty for anim incoming velocities which aren't between actual incoming and anim outgoing
-  int anim1_outgoingVelocityID = GetVelocityID(FloatToEnumVelocity(anims->GetAnim(animIndex1)->GetOutgoingVelocity()));
-  int anim2_outgoingVelocityID = GetVelocityID(FloatToEnumVelocity(anims->GetAnim(animIndex2)->GetOutgoingVelocity()));
-  if (anim1_incomingVelocityID > std::max(currentVelocityID, anim1_outgoingVelocityID)) rating1 += 0.5f;
-  if (anim1_incomingVelocityID < std::min(currentVelocityID, anim1_outgoingVelocityID)) rating1 += 0.5f;
-  if (anim2_incomingVelocityID > std::max(currentVelocityID, anim2_outgoingVelocityID)) rating2 += 0.5f;
-  if (anim2_incomingVelocityID < std::min(currentVelocityID, anim2_outgoingVelocityID)) rating2 += 0.5f;
-
-  return rating1 < rating2;
+bool HumanoidBase::CompareIncomingVelocitySimilarity(int animIndex1, int animIndex2) const {
+  return _KeyIncomingVelocitySimilarity(animIndex1) < _KeyIncomingVelocitySimilarity(animIndex2);
 }
 
 void HumanoidBase::SetMovementSimilarityPredicate(const Vector3 &relDesiredDirection, e_Velocity desiredVelocity) const {
@@ -1959,10 +1975,12 @@ float HumanoidBase::GetMovementSimilarity(int animIndex, const Vector3 &relDesir
   return value;
 }
 
+float HumanoidBase::_KeyMovementSimilarity(int animIndex) const {
+  return GetMovementSimilarity(animIndex, predicate_RelDesiredDirection, predicate_DesiredVelocity, predicate_CorneringBias);
+}
+
 bool HumanoidBase::CompareMovementSimilarity(int animIndex1, int animIndex2) const {
-  float rating1 = GetMovementSimilarity(animIndex1, predicate_RelDesiredDirection, predicate_DesiredVelocity, predicate_CorneringBias);
-  float rating2 = GetMovementSimilarity(animIndex2, predicate_RelDesiredDirection, predicate_DesiredVelocity, predicate_CorneringBias);
-  return rating1 < rating2;
+  return _KeyMovementSimilarity(animIndex1) < _KeyMovementSimilarity(animIndex2);
 }
 
 bool HumanoidBase::CompareDirectionSimilarity(int animIndex1, int animIndex2) const {
@@ -1981,89 +1999,46 @@ void HumanoidBase::SetIncomingBodyDirectionSimilarityPredicate(const Vector3 &re
   predicate_RelIncomingBodyDirection = relIncomingBodyDirection;
 }
 
-bool HumanoidBase::CompareIncomingBodyDirectionSimilarity(int animIndex1, int animIndex2) const {
-  float rating1 = fabs(ForceIntoAllowedBodyDirectionVec(anims->GetAnim(animIndex1)->GetIncomingBodyDirection()).GetAngle2D(ForceIntoAllowedBodyDirectionVec(predicate_RelIncomingBodyDirection))) / pi;
-  float rating2 = fabs(ForceIntoAllowedBodyDirectionVec(anims->GetAnim(animIndex2)->GetIncomingBodyDirection()).GetAngle2D(ForceIntoAllowedBodyDirectionVec(predicate_RelIncomingBodyDirection))) / pi;
-  if (FloatToEnumVelocity(anims->GetAnim(animIndex1)->GetIncomingVelocity()) == e_Velocity_Idle) rating1 = 0;//-1;
-  if (FloatToEnumVelocity(anims->GetAnim(animIndex2)->GetIncomingVelocity()) == e_Velocity_Idle) rating2 = 0;//-1;
+float HumanoidBase::_KeyIncomingBodyDirectionSimilarity(int animIndex) const {
+  float rating = fabs(ForceIntoAllowedBodyDirectionVec(anims->GetAnim(animIndex)->GetIncomingBodyDirection()).GetAngle2D(ForceIntoAllowedBodyDirectionVec(predicate_RelIncomingBodyDirection))) / pi;
+  if (FloatToEnumVelocity(anims->GetAnim(animIndex)->GetIncomingVelocity()) == e_Velocity_Idle) rating = 0;
+  return rating;
+}
 
-  return rating1 < rating2;
+bool HumanoidBase::CompareIncomingBodyDirectionSimilarity(int animIndex1, int animIndex2) const {
+  return _KeyIncomingBodyDirectionSimilarity(animIndex1) < _KeyIncomingBodyDirectionSimilarity(animIndex2);
 }
 
 void HumanoidBase::SetBodyDirectionSimilarityPredicate(const Vector3 &lookAt) const {
   predicate_LookAt = lookAt;
 }
 
-bool HumanoidBase::CompareBodyDirectionSimilarity(int animIndex1, int animIndex2) const {
-
-  Animation *a1 = anims->GetAnim(animIndex1);
-  Animation *a2 = anims->GetAnim(animIndex2);
-
+float HumanoidBase::_KeyBodyDirectionSimilarity(int animIndex) const {
+  Animation *a = anims->GetAnim(animIndex);
   float translationFactor = 1.0f;
-  Vector3 relDesiredBodyDirection1 = ((predicate_LookAt - spatialState.position).GetRotated2D(-spatialState.angle) - a1->GetTranslation() * translationFactor).GetNormalized(Vector3(0, -1, 0));
-  Vector3 relDesiredBodyDirection2 = ((predicate_LookAt - spatialState.position).GetRotated2D(-spatialState.angle) - a2->GetTranslation() * translationFactor).GetNormalized(Vector3(0, -1, 0));
+  Vector3 relDesiredBodyDirection = ((predicate_LookAt - spatialState.position).GetRotated2D(-spatialState.angle) - a->GetTranslation() * translationFactor).GetNormalized(Vector3(0, -1, 0));
+  radian maxAngleSmuggle = 0.1f * pi;
+  radian outgoingAngle = a->GetOutgoingDirection().GetRotated2D( clamp(predicate_RelDesiredDirection.GetAngle2D(a->GetOutgoingDirection()), -maxAngleSmuggle, maxAngleSmuggle) ).GetAngle2D(Vector3(0, -1, 0));
+  Vector3 predictedOutgoingBodyDirection = a->GetOutgoingBodyDirection().GetRotated2D(outgoingAngle);
+  radian rating = fabs(predictedOutgoingBodyDirection.GetAngle2D(relDesiredBodyDirection));
+  rating += fabs(a->GetOutgoingBodyAngle()) * 0.05f;
+  return rating;
+}
 
-  /* this is quirky somehow; when accelerating, sometimes the humanoid will actually go 135 when it shouldn't. could debug it, but then again, maybe KISS is a better idea;
-     this whole setup seems a bit overly complicated. probably should look for solution elsewhere
-
-  // prefer 'lower angled' anim (so from 0 to 45, use 0, from 45 to 135, use 45)
-  // doesn't work when ending idle
-    if (anims->GetAnim(animIndex1)->GetAnimType().compare("movement") == 0) {
-    if (anims->GetAnim(animIndex1)->GetOutgoingVelocity() > idleDribbleSwitch &&
-        anims->GetAnim(animIndex2)->GetOutgoingVelocity() > idleDribbleSwitch) {
-
-      float origAngleBias = 0.5f;
-
-      radian a1 = relDesiredBodyDirection1.GetAngle2D(Vector3(0, -1, 0));
-      radian d1 = 0;
-      if (fabs(a1) > 0.75f * pi) d1 = 0.75f * pi * signSide(a1);
-      else if (fabs(a1) > 0.25f * pi) d1 = 0.25f * pi * signSide(a1);
-      relDesiredBodyDirection1 = Vector3(0, -1, 0).GetRotated2D(d1 * (1.0f - origAngleBias) + a1 * origAngleBias);
-
-      radian a2 = relDesiredBodyDirection2.GetAngle2D(Vector3(0, -1, 0));
-      radian d2 = 0;
-      if (fabs(a2) > 0.75f * pi) d2 = 0.75f * pi * signSide(a2);
-      else if (fabs(a2) > 0.25f * pi) d2 = 0.25f * pi * signSide(a2);
-      relDesiredBodyDirection2 = Vector3(0, -1, 0).GetRotated2D(d2 * (1.0f - origAngleBias) + a2 * origAngleBias);
-    }
-  }
-  */
-
-  // this version corrects for rotation smuggle; we will probably end up walking in a direction a bit rotated towards the user desired direction, instead of pure anim direction.
-  // we need some heuristic to use that fact, because else, we may end up looking in the wrong direction somewhat
-  // radian outgoingAngle1 = FixAngle(((a1->GetOutgoingDirection() + predicate_RelDesiredDirection * 0.2f).GetNormalized()).GetAngle2D());
-  // radian outgoingAngle2 = FixAngle(((a2->GetOutgoingDirection() + predicate_RelDesiredDirection * 0.2f).GetNormalized()).GetAngle2D());
-  radian maxAngleSmuggle = 0.1f * pi; // mind you, for anims ending idle, this shouldn't be >= 0.125f * pi, because then we end up allowing multiple outgoing angles.
-                                      // after all, outgoing direction will be skewed by this value as max, which will make outgoing body direction follow in the same dir
-                                      // but since idle anims don't have outgoing body directions, it will just change their outgoing directions and they will be pointing in exactly the same direction
-  radian outgoingAngle1 = a1->GetOutgoingDirection().GetRotated2D( clamp(predicate_RelDesiredDirection.GetAngle2D(a1->GetOutgoingDirection()), -maxAngleSmuggle, maxAngleSmuggle) ).GetAngle2D(Vector3(0, -1, 0));
-  radian outgoingAngle2 = a2->GetOutgoingDirection().GetRotated2D( clamp(predicate_RelDesiredDirection.GetAngle2D(a2->GetOutgoingDirection()), -maxAngleSmuggle, maxAngleSmuggle) ).GetAngle2D(Vector3(0, -1, 0));
-  Vector3 predictedOutgoingBodyDirection1 = a1->GetOutgoingBodyDirection().GetRotated2D(outgoingAngle1);
-  Vector3 predictedOutgoingBodyDirection2 = a2->GetOutgoingBodyDirection().GetRotated2D(outgoingAngle2);
-  radian rating1 = fabs(predictedOutgoingBodyDirection1.GetAngle2D(relDesiredBodyDirection1));
-  radian rating2 = fabs(predictedOutgoingBodyDirection2.GetAngle2D(relDesiredBodyDirection2));
-
-  // penalty for body angles (as opposed to straight forward), to get a slight preference for forward angles
-  rating1 += fabs(a1->GetOutgoingBodyAngle()) * 0.05f;
-  rating2 += fabs(a2->GetOutgoingBodyAngle()) * 0.05f;
-
-  // quantize
-  //rating1 = round(rating1 * 4.0);
-  //rating2 = round(rating2 * 4.0);
-  // rating1 = round((rating1 / pi) * 4.0);
-  // rating2 = round((rating2 / pi) * 4.0);
-
-  return rating1 < rating2;
+bool HumanoidBase::CompareBodyDirectionSimilarity(int animIndex1, int animIndex2) const {
+  return _KeyBodyDirectionSimilarity(animIndex1) < _KeyBodyDirectionSimilarity(animIndex2);
 }
 
 void HumanoidBase::SetTripDirectionSimilarityPredicate(const Vector3 &relDesiredTripDirection) const {
   predicate_RelDesiredTripDirection = relDesiredTripDirection;
 }
 
+float HumanoidBase::_KeyTripDirectionSimilarity(int animIndex) const {
+  return -GetVectorFromString(anims->GetAnim(animIndex)->GetVariable("bumpdirection")).GetDotProduct(predicate_RelDesiredTripDirection);
+}
+
 bool HumanoidBase::CompareTripDirectionSimilarity(int animIndex1, int animIndex2) const {
-  float rating1 = -GetVectorFromString(anims->GetAnim(animIndex1)->GetVariable("bumpdirection")).GetDotProduct(predicate_RelDesiredTripDirection);
-  float rating2 = -GetVectorFromString(anims->GetAnim(animIndex2)->GetVariable("bumpdirection")).GetDotProduct(predicate_RelDesiredTripDirection);
-  return rating1 < rating2;
+  return _KeyTripDirectionSimilarity(animIndex1) < _KeyTripDirectionSimilarity(animIndex2);
 }
 
 void HumanoidBase::SetBallDirectionSimilarityPredicate(const Vector3 &relDesiredBallDirection) const {
@@ -2076,12 +2051,12 @@ bool HumanoidBase::CompareBallDirectionSimilarity(int animIndex1, int animIndex2
   return rating1 < rating2;
 }
 
-bool HumanoidBase::CompareBaseanimSimilarity(int animIndex1, int animIndex2) const {
-  bool isBase1 = (anims->GetAnim(animIndex1)->GetVariable("baseanim").compare("true") == 0);
-  bool isBase2 = (anims->GetAnim(animIndex2)->GetVariable("baseanim").compare("true") == 0);
+float HumanoidBase::_KeyBaseanimSimilarity(int animIndex) const {
+  return (anims->GetAnim(animIndex)->GetVariable("baseanim").compare("true") == 0) ? 0.0f : 1.0f;
+}
 
-  if (isBase1 == true && isBase2 == false) return true;
-  return false;
+bool HumanoidBase::CompareBaseanimSimilarity(int animIndex1, int animIndex2) const {
+  return _KeyBaseanimSimilarity(animIndex1) < _KeyBaseanimSimilarity(animIndex2);
 }
 
 bool HumanoidBase::CompareCatchOrDeflect(int animIndex1, int animIndex2) const {
@@ -2097,9 +2072,12 @@ void HumanoidBase::SetNumericVariableSimilarityPredicate(const std::string &varN
   predicate_NumericVariableValue = desiredValue;
 }
 
+float HumanoidBase::_KeyNumericVariable(int animIndex) const {
+  return fabs(atof(anims->GetAnim(animIndex)->GetVariable(predicate_NumericVariableName.c_str()).c_str()) - predicate_NumericVariableValue);
+}
+
 bool HumanoidBase::CompareNumericVariable(int animIndex1, int animIndex2) const {
-  return fabs(atof(anims->GetAnim(animIndex1)->GetVariable(predicate_NumericVariableName.c_str()).c_str()) - predicate_NumericVariableValue) <
-         fabs(atof(anims->GetAnim(animIndex2)->GetVariable(predicate_NumericVariableName.c_str()).c_str()) - predicate_NumericVariableValue);
+  return _KeyNumericVariable(animIndex1) < _KeyNumericVariable(animIndex2);
 }
 
 Vector3 HumanoidBase::CalculatePhysicsVector(Animation *anim, bool useDesiredMovement, const Vector3 &desiredMovement, bool useDesiredBodyDirection, const Vector3 &desiredBodyDirectionRel, std::vector<Vector3> &positions_ret, radian &rotationOffset_ret) const {
